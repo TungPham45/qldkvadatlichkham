@@ -12,6 +12,7 @@ export const roleNavigation: Record<AppRole, Array<{ to: string; label: string }
   ],
   MANAGER: [
     { to: '/manager/dashboard', label: 'Tổng quan' },
-    { to: '/manager/doctor-schedules', label: 'Duyệt lịch làm việc' },
+    { to: '/manager/accounts', label: 'Quản lý tài khoản' },
+    { to: '/manager/doctor-schedules', label: 'Quản lý lịch làm việc' },
   ],
 };

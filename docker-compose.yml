@@ -12,7 +12,7 @@ services:
       - "5433:5432"
     volumes:
       - qlpk_pg:/var/lib/postgresql/data
-      - ./qlphongkham.sql:/docker-entrypoint-initdb.d/01-qlphongkham.sql
+      - ./database/qlphongkham.sql:/docker-entrypoint-initdb.d/01-qlphongkham.sql
       - ./database/migrations/001_schedule_workflow.sql:/docker-entrypoint-initdb.d/02-schedule-workflow.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d qlphongkham"]

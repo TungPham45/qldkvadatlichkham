@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
-import { patientApi } from '../features/patient/api';
+import { useEffect, useRef, useState } from 'react';
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
+import { patientApi, patientProfileChangedEvent } from '../features/patient/api';
 import { useAuth } from '../stores/auth-store';
 import { hospitalHotline, hospitalName, hospitalSubtitle, initials } from '../utils/format';
 
@@ -8,10 +8,45 @@ export function PatientPortalLayout() {
   const { user, logout } = useAuth();
   const [name, setName] = useState(user?.username || '');
   const [menu, setMenu] = useState(false);
+  const [profileMenu, setProfileMenu] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
+  const avatarRef = useRef<HTMLButtonElement>(null);
+  const { pathname } = useLocation();
 
   useEffect(() => {
-    patientApi.me().then((profile) => setName(profile.hoTen)).catch(() => undefined);
-  }, []);
+    let active = true;
+    function refreshName() {
+      patientApi.me().then((profile) => { if (active) setName(profile.hoTen); })
+        .catch(() => { if (active) setName(user?.username || ''); });
+    }
+    refreshName();
+    window.addEventListener(patientProfileChangedEvent, refreshName);
+    return () => {
+      active = false;
+      window.removeEventListener(patientProfileChangedEvent, refreshName);
+    };
+  }, [user?.username, pathname]);
+
+  useEffect(() => { setProfileMenu(false); }, [pathname]);
+
+  useEffect(() => {
+    if (!profileMenu) return;
+    function closeOutside(event: PointerEvent) {
+      if (event.target instanceof Node && !profileMenuRef.current?.contains(event.target)) setProfileMenu(false);
+    }
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setProfileMenu(false);
+        avatarRef.current?.focus();
+      }
+    }
+    document.addEventListener('pointerdown', closeOutside);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOutside);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [profileMenu]);
 
   return (
     <div className="min-h-screen bg-portal">
@@ -31,13 +66,18 @@ export function PatientPortalLayout() {
             <NavLink end to="/patient/appointments" onClick={() => setMenu(false)} className={({ isActive }) => `rounded-full px-3 py-2 text-sm font-semibold ${isActive ? 'bg-primary-50 text-primary-700' : 'text-[#3d4d63] hover:bg-primary-50 hover:text-primary-700'}`}>Lịch khám</NavLink>
           </nav>
           {hospitalHotline ? <a className="text-sm font-bold whitespace-nowrap text-primary-700" href={`tel:${hospitalHotline.replace(/\s/g, '')}`}>Hotline {hospitalHotline}</a> : null}
-          <div className="ml-auto flex items-center gap-2.5">
-            <span className="grid size-[42px] shrink-0 place-items-center rounded-full bg-primary-50 font-bold text-primary-700">{initials(name)}</span>
+          <div className="relative ml-auto flex items-center gap-2.5" ref={profileMenuRef}>
+            <button ref={avatarRef} className="grid size-[42px] shrink-0 cursor-pointer place-items-center rounded-full bg-primary-50 font-bold text-primary-700 focus-visible:outline-2 focus-visible:outline-primary-600" type="button" aria-label="Mở menu tài khoản" aria-expanded={profileMenu} aria-controls="patient-account-menu" onClick={() => { setMenu(false); setProfileMenu((open) => !open); }}>{initials(name)}</button>
             <span className="hidden desk:block">
               <strong className="block">{name}</strong>
               <em className="block text-xs font-normal text-muted not-italic">Bệnh nhân</em>
             </span>
-            <button className="cursor-pointer rounded-full border border-line bg-white px-3 py-2 font-semibold text-navy-900" type="button" onClick={() => { void logout(); }}>Đăng xuất</button>
+            {profileMenu ? (
+              <div id="patient-account-menu" className="absolute top-full right-0 z-30 mt-3 min-w-[210px] rounded-xl border border-line bg-white p-2 shadow-card">
+                <Link className="block rounded-lg px-3 py-2.5 text-sm font-semibold text-navy-900 hover:bg-primary-50" to="/patient/profile" onClick={() => setProfileMenu(false)}>Thông tin cá nhân</Link>
+                <button className="block w-full cursor-pointer rounded-lg px-3 py-2.5 text-left text-sm font-semibold text-danger hover:bg-primary-50" type="button" onClick={() => { setProfileMenu(false); void logout(); }}>Đăng xuất</button>
+              </div>
+            ) : null}
           </div>
         </div>
       </header>

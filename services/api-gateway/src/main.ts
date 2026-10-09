@@ -3,8 +3,8 @@ import 'reflect-metadata';
 import { Controller, Get, Module } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { createProxyMiddleware, RequestHandler } from 'http-proxy-middleware';
-import jwt from 'jsonwebtoken';
 import type { IncomingMessage, ServerResponse } from 'http';
+import { authGuard, sendJson } from './auth.guard';
 
 @Controller()
 class HealthController {
@@ -16,59 +16,6 @@ class HealthController {
 
 @Module({ controllers: [HealthController] })
 class AppModule {}
-
-const PUBLIC_POST = new Set(['/api/auth/login', '/api/auth/register', '/api/auth/refresh']);
-
-function sendJson(res: ServerResponse, status: number, code: string, message: string) {
-  res.statusCode = status;
-  res.setHeader('content-type', 'application/json; charset=utf-8');
-  res.end(JSON.stringify({ statusCode: status, code, message }));
-}
-
-function authGuard(req: IncomingMessage, res: ServerResponse, next: (err?: unknown) => void) {
-  if (req.method === 'OPTIONS') {
-    next();
-    return;
-  }
-  const url = (req.url || '').split('?')[0];
-  if (url === '/health' || url.startsWith('/health?')) {
-    next();
-    return;
-  }
-  if (url.startsWith('/api/internal') || url.startsWith('/internal')) {
-    sendJson(res, 404, 'NOT_FOUND', 'Không tìm thấy.');
-    return;
-  }
-  if (!url.startsWith('/api')) {
-    next();
-    return;
-  }
-  if (req.method === 'POST' && PUBLIC_POST.has(url)) {
-    next();
-    return;
-  }
-  const header = req.headers.authorization || '';
-  const token = header.startsWith('Bearer ') ? header.slice(7) : '';
-  if (!token) {
-    sendJson(res, 401, 'UNAUTHORIZED', 'Bạn chưa đăng nhập.');
-    return;
-  }
-  try {
-    const payload = jwt.verify(token, process.env.JWT_ACCESS_SECRET || '') as {
-      sub: string;
-      vaiTro: string;
-      role: string;
-      type: string;
-    };
-    if (payload.type !== 'access') throw new Error('type');
-    req.headers['x-user-id'] = payload.sub;
-    req.headers['x-user-role'] = payload.vaiTro;
-    req.headers['x-app-role'] = payload.role;
-    next();
-  } catch {
-    sendJson(res, 401, 'UNAUTHORIZED', 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn.');
-  }
-}
 
 function serviceFor(url: string) {
   const path = url.replace(/^\/api/, '');

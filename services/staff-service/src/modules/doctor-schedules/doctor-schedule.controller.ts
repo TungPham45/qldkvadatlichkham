@@ -4,6 +4,7 @@ import {
   BulkApproveDto,
   CreateSchedulesDto,
   ManagerScheduleQueryDto,
+  ManageScheduleDto,
   RejectScheduleDto,
   UpdateScheduleDto,
   WeekQueryDto,
@@ -53,6 +54,24 @@ export class DoctorScheduleController {
   @Roles(AppRole.MANAGER)
   list(@Query() query: ManagerScheduleQueryDto) {
     return this.schedules.managerList(query);
+  }
+
+  @Post('manager/doctor-schedules')
+  @Roles(AppRole.MANAGER)
+  managerCreate(@Body() dto: ManageScheduleDto) {
+    return this.schedules.managerCreate(dto);
+  }
+
+  @Patch('manager/doctor-schedules/:id')
+  @Roles(AppRole.MANAGER)
+  managerUpdate(@Param('id', ParseIntPipe) id: number, @Body() dto: ManageScheduleDto) {
+    return this.schedules.managerUpdate(id, dto);
+  }
+
+  @Delete('manager/doctor-schedules/:id')
+  @Roles(AppRole.MANAGER)
+  managerRemove(@Param('id', ParseIntPipe) id: number) {
+    return this.schedules.managerRemove(id);
   }
 
   @Get('manager/doctor-schedules/:doctorId')

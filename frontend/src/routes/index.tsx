@@ -6,9 +6,11 @@ import { DoctorDashboardPage } from '../pages/DoctorDashboardPage';
 import { DoctorSchedulePage } from '../pages/DoctorSchedulePage';
 import { LoginPage } from '../pages/LoginPage';
 import { ManagerDashboardPage } from '../pages/ManagerDashboardPage';
+import { ManagerAccountsPage } from '../pages/ManagerAccountsPage';
 import { ManagerSchedulesPage } from '../pages/ManagerSchedulesPage';
 import { MyAppointmentsPage } from '../pages/MyAppointmentsPage';
 import { PatientDashboardPage } from '../pages/PatientDashboardPage';
+import { PatientProfilePage } from '../pages/PatientProfilePage';
 import { RegisterPage } from '../pages/RegisterPage';
 import { useAuth } from '../stores/auth-store';
 import { roleHome } from '../utils/format';
@@ -33,6 +35,7 @@ export function AppRoutes() {
             <Route path="/patient/dashboard" element={<PatientDashboardPage />} />
             <Route path="/patient/appointments/book" element={<BookAppointmentPage />} />
             <Route path="/patient/appointments" element={<MyAppointmentsPage />} />
+            <Route path="/patient/profile" element={<PatientProfilePage />} />
           </Route>
         </Route>
         <Route element={<AppLayout />}>
@@ -42,6 +45,7 @@ export function AppRoutes() {
           </Route>
           <Route element={<RoleProtectedRoute role="MANAGER" />}>
             <Route path="/manager/dashboard" element={<ManagerDashboardPage />} />
+            <Route path="/manager/accounts" element={<ManagerAccountsPage />} />
             <Route path="/manager/doctor-schedules" element={<ManagerSchedulesPage />} />
           </Route>
         </Route>

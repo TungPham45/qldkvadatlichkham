@@ -5,3 +5,10 @@ dist/
 coverage/
 .env.local
 .DS_Store
+.env
+.env.*
+!.env.example
+.vscode/
+node_modules/
+dist/
+qldkvadatlichkham-git/

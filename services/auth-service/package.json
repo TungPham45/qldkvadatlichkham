@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "build": "nest build",
+    "test": "npm run build && node --import tsx --test test/accounts.test.ts",
     "dev": "nest start --watch",
     "start": "node dist/main.js"
   },

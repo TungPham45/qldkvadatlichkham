@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import {
   AppException,
   AppointmentStatus,
+  APPROVED_SCHEDULE_STATUSES,
   ErrorCode,
   generateSlots,
   internalRequest,
@@ -67,12 +68,6 @@ export class AppointmentService {
       throw new AppException(409, ErrorCode.APPOINTMENT_SLOT_UNAVAILABLE, 'Khung giờ này đã qua.');
     }
 
-    const schedules = await this.approvedSchedules(dto.bacSiId, date);
-    const matched = this.matchSlot(schedules, start);
-    if (!matched) {
-      throw new AppException(409, ErrorCode.SCHEDULE_NOT_APPROVED, 'Bác sĩ chưa có lịch làm việc đã duyệt cho khung giờ này.');
-    }
-
     const lockKey = `appointment:lock:${dto.bacSiId}:${date}:${start}`;
     const token = await this.lock.acquire(lockKey, 8000);
     if (!token) {
@@ -80,7 +75,33 @@ export class AppointmentService {
     }
 
     try {
-      const saved = await this.dataSource.transaction(async (manager) => {
+      const { saved, endTime } = await this.dataSource.transaction(async (manager) => {
+        // Use the same doctor lock as schedule management, then validate the current approved slots.
+        const doctors = await manager.query(
+          'SELECT id_bac_si FROM bac_si WHERE id_bac_si = $1 AND trang_thai = $2 FOR UPDATE',
+          [dto.bacSiId, 'Active'],
+        );
+        if (!doctors.length) {
+          throw new AppException(404, ErrorCode.DOCTOR_NOT_FOUND, 'Không tìm thấy bác sĩ.');
+        }
+        const profiles = await manager.query(
+          'SELECT id_benh_nhan FROM benh_nhan WHERE id_benh_nhan = $1 AND id_tai_khoan = $2 FOR KEY SHARE',
+          [patient.id, accountId],
+        );
+        if (!profiles.length) {
+          throw new AppException(404, ErrorCode.PATIENT_NOT_FOUND, 'Vui lòng thêm thông tin cá nhân trước khi đặt khám.');
+        }
+        const schedules = await manager.query(
+          `SELECT id_lich_lam_viec AS id, id_bac_si AS "doctorId", ngay_lam_viec::text AS date,
+                  gio_bat_dau AS "startTime", gio_ket_thuc AS "endTime",
+                  thoi_luong_moi_ca AS "slotMinutes", trang_thai AS status
+           FROM lich_lam_viec WHERE id_bac_si = $1 AND ngay_lam_viec = $2 AND trang_thai = ANY($3::varchar[])`,
+          [dto.bacSiId, date, [...APPROVED_SCHEDULE_STATUSES]],
+        ) as ApprovedSchedule[];
+        const matched = this.matchSlot(schedules, start);
+        if (!matched || isPastSlot(date, start)) {
+          throw new AppException(409, ErrorCode.SCHEDULE_NOT_APPROVED, 'Bác sĩ chưa có lịch làm việc đã duyệt cho khung giờ này.');
+        }
         const existing = await manager.query(
           `SELECT id_lich_hen FROM lich_hen
            WHERE id_bac_si = $1 AND ngay_hen = $2 AND gio_hen = $3 AND trang_thai <> 'Huy'
@@ -91,7 +112,7 @@ export class AppointmentService {
           throw new AppException(409, ErrorCode.APPOINTMENT_SLOT_ALREADY_BOOKED, 'Khung giờ này vừa được người khác đặt.');
         }
         const repository = manager.getRepository(LichHen);
-        return repository.save(
+        const saved = await repository.save(
           repository.create({
             idBenhNhan: patient.id,
             idBacSi: dto.bacSiId,
@@ -102,10 +123,11 @@ export class AppointmentService {
             nguonDatLich: 'Online',
           }),
         );
+        return { saved, endTime: matched.slot.end };
       });
       await this.redis.client.del(this.cacheKey(dto.bacSiId, date));
       const doctors = await this.lookupDoctors([dto.bacSiId]);
-      return this.toView(saved, doctors.get(dto.bacSiId), matched.slot.end);
+      return this.toView(saved, doctors.get(dto.bacSiId), endTime);
     } catch (error) {
       if (error instanceof AppException) throw error;
       if (isDbConflict(error)) {

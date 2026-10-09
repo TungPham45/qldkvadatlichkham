@@ -26,7 +26,7 @@ export function ManagerDashboardPage() {
 
   return (
     <PageContainer>
-      <PageHeader crumbs={['Quản lý', 'Tổng quan']} title={data?.manager?.hoTen || 'Bảng điều phối'} description="Số liệu lấy từ lịch làm việc và lịch hẹn trong tuần hiện tại." actions={<Link to="/manager/doctor-schedules"><Button>Duyệt lịch làm việc bác sĩ</Button></Link>} />
+      <PageHeader crumbs={['Admin', 'Tổng quan']} title={data?.manager?.hoTen || 'Bảng điều phối'} description="Số liệu lấy từ lịch làm việc và lịch hẹn trong tuần hiện tại." actions={<div className="flex flex-wrap gap-2"><Link to="/manager/accounts"><Button variant="ghost">Quản lý tài khoản</Button></Link><Link to="/manager/doctor-schedules"><Button>Quản lý lịch làm việc bác sĩ</Button></Link></div>} />
       {loading ? <LoadingState /> : null}
       {error ? <ErrorState message={error} onRetry={load} /> : null}
       {data ? (

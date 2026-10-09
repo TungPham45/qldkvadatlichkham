@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { errorMessage } from '../api/client';
+import { errorMessage, hasApiErrorCode } from '../api/client';
 import { appointmentApi } from '../features/appointment/api';
 import { Button } from '../components/Button';
 import { DataTable } from '../components/DataTable';
@@ -29,7 +29,10 @@ export function MyAppointmentsPage() {
         setTotal(response.total);
         setError('');
       })
-      .catch((err) => setError(errorMessage(err)))
+      .catch((err) => {
+        if (hasApiErrorCode(err, 'PATIENT_NOT_FOUND')) { setItems([]); setTotal(0); setError(''); }
+        else setError(errorMessage(err));
+      })
       .finally(() => setLoading(false));
   }
 

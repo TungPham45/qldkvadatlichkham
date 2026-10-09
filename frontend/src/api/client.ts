@@ -22,6 +22,11 @@ async function refreshAccess() {
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
+    if (error.response?.status === 403 && error.response?.data?.code === 'ACCOUNT_DISABLED') {
+      tokenStore.clear();
+      if (!window.location.pathname.startsWith('/login')) window.location.href = '/login';
+      return Promise.reject(error);
+    }
     const original = error.config;
     const url = String(original?.url || '');
     if (error.response?.status === 401 && original && !original._retry && !url.includes('/auth/login') && !url.includes('/auth/refresh') && !url.includes('/auth/register')) {
@@ -48,4 +53,8 @@ export function errorMessage(error: unknown, fallback = 'Không thực hiện đ
     return error.response?.data?.message || fallback;
   }
   return fallback;
+}
+
+export function hasApiErrorCode(error: unknown, code: string) {
+  return axios.isAxiosError(error) && error.response?.data?.code === code;
 }

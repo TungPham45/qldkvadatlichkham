@@ -4,6 +4,8 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthController } from './auth.controller';
 import { AuthRepository } from './auth.repository';
 import { AuthService } from './auth.service';
+import { AccountsController } from './accounts.controller';
+import { AccountsService } from './accounts.service';
 import { TaiKhoan } from './tai-khoan.entity';
 
 @Module({
@@ -13,7 +15,7 @@ import { TaiKhoan } from './tai-khoan.entity';
       useFactory: () => ({ secret: process.env.JWT_ACCESS_SECRET }),
     }),
   ],
-  controllers: [AuthController],
-  providers: [AuthService, AuthRepository],
+  controllers: [AuthController, AccountsController],
+  providers: [AuthService, AuthRepository, AccountsService],
 })
 export class AuthModule {}

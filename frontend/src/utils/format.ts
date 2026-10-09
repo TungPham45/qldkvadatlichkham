@@ -6,7 +6,7 @@ export const hospitalHotline = import.meta.env.VITE_HOSPITAL_HOTLINE || '';
 
 export function roleLabel(role: AppRole) {
   if (role === 'DOCTOR') return 'Bác sĩ';
-  if (role === 'MANAGER') return 'Quản lý';
+  if (role === 'MANAGER') return 'Admin';
   return 'Bệnh nhân';
 }
 

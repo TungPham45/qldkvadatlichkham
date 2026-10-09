@@ -34,7 +34,7 @@ docker compose ps
 npm install
 npm run dev
 ```
-
+npm run dev
 `npm run dev` build gói dùng chung rồi chạy gateway, bốn service nghiệp vụ và frontend.
 
 Mở http://localhost:5173.

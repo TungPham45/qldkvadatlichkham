@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { ScheduleStatus } from '@qlpk/common';
+import { ScheduleStatus, shiftByCode } from '@qlpk/common';
 import { Repository } from 'typeorm';
 import { BacSi, LichLamViec, QuanLy } from '../../database/entities';
 
@@ -77,6 +77,8 @@ export class DoctorScheduleRepository {
     doctorId?: number;
     statuses?: string[];
     q?: string;
+    date?: string;
+    shift?: 'SANG' | 'CHIEU';
   }): Promise<ScheduleRow[]> {
     const query = this.schedules
       .createQueryBuilder('l')
@@ -105,7 +107,12 @@ export class DoctorScheduleRepository {
     if (filter.chuyenKhoaId) query.andWhere('ck.id_chuyen_khoa = :chuyenKhoaId', { chuyenKhoaId: filter.chuyenKhoaId });
     if (filter.doctorId) query.andWhere('l.id_bac_si = :doctorId', { doctorId: filter.doctorId });
     if (filter.statuses?.length) query.andWhere('l.trang_thai IN (:...statuses)', { statuses: filter.statuses });
-    if (filter.q) query.andWhere('bs.ho_ten ILIKE :q', { q: `%${filter.q}%` });
+    if (filter.date) query.andWhere('l.ngay_lam_viec = :date', { date: filter.date });
+    if (filter.shift) {
+      const shift = shiftByCode(filter.shift)!;
+      query.andWhere('l.gio_bat_dau < :shiftEnd AND l.gio_ket_thuc > :shiftStart', { shiftStart: shift.start, shiftEnd: shift.end });
+    }
+    if (filter.q) query.andWhere('(bs.ho_ten ILIKE :q OR bs.so_chung_chi_hanh_nghe ILIKE :q OR ck.ten_chuyen_khoa ILIKE :q OR l.ghi_chu ILIKE :q OR CAST(l.ngay_lam_viec AS text) ILIKE :q)', { q: `%${filter.q}%` });
     return query.getRawMany<ScheduleRow>();
   }
 }

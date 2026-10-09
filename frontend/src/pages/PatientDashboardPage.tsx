@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { errorMessage } from '../api/client';
+import { errorMessage, hasApiErrorCode } from '../api/client';
 import { EmptyState } from '../components/EmptyState';
 import { ErrorState } from '../components/ErrorState';
 import { LoadingState } from '../components/LoadingState';
@@ -19,8 +19,8 @@ export function PatientDashboardPage() {
   function load() {
     setLoading(true);
     Promise.all([
-      patientApi.me(),
-      appointmentApi.mine({ upcoming: true, pageSize: 5 }),
+      patientApi.me().catch((err) => { if (hasApiErrorCode(err, 'PATIENT_NOT_FOUND')) return null; throw err; }),
+      appointmentApi.mine({ upcoming: true, pageSize: 5 }).catch((err) => { if (hasApiErrorCode(err, 'PATIENT_NOT_FOUND')) return { items: [] as AppointmentItem[] }; throw err; }),
     ]).then(([profile, appointments]) => {
       setPatient(profile);
       setItems(appointments.items);
@@ -46,10 +46,10 @@ export function PatientDashboardPage() {
               <span className="grid size-[42px] shrink-0 place-items-center rounded-xl bg-[#e7f7ef] font-extrabold text-success">◷</span>
               <span><strong className="mb-0.5 block">Lịch khám</strong><span className="text-[13px] leading-snug text-muted">Xem các lịch hẹn đã đặt và trạng thái.</span></span>
             </Link>
-            <a className="flex items-start gap-3 rounded-[14px] border border-line bg-white p-3.5 text-inherit shadow-card hover:border-[#c9daf3]" href="#ho-so">
+            <Link className="flex items-start gap-3 rounded-[14px] border border-line bg-white p-3.5 text-inherit shadow-card hover:border-[#c9daf3]" to="/patient/profile">
               <span className="grid size-[42px] shrink-0 place-items-center rounded-xl bg-[#e7f6f8] font-extrabold text-[#0e7490]">•</span>
               <span><strong className="mb-0.5 block">Thông tin của tôi</strong><span className="text-[13px] leading-snug text-muted">Họ tên, liên hệ và bảo hiểm đang lưu trên hồ sơ.</span></span>
-            </a>
+            </Link>
           </div>
         </div>
         <aside className="flex min-h-[280px] flex-col justify-end rounded-[18px] border border-[#dce8f8] bg-gradient-to-b from-[#eef5ff] to-[#f8fbff] p-4" aria-hidden="true">
@@ -69,6 +69,7 @@ export function PatientDashboardPage() {
 
       {loading ? <LoadingState /> : null}
       {error ? <div className="mt-4"><ErrorState message={error} onRetry={load} /></div> : null}
+      {!loading && !error && !patient ? <div className="mt-4 rounded-xl border border-line bg-white p-[18px] shadow-card"><p>Bạn chưa có thông tin cá nhân. Hãy thêm hồ sơ trước khi đặt khám.</p><Link className="mt-2 inline-block font-semibold text-primary-600" to="/patient/profile">Thêm thông tin cá nhân</Link></div> : null}
 
       {!loading && !error && patient ? (
         <>

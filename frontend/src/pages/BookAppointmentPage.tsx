@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { errorMessage } from '../api/client';
+import { errorMessage, hasApiErrorCode } from '../api/client';
 import { AppointmentSlot } from '../components/AppointmentSlot';
 import { Button } from '../components/Button';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -32,6 +32,7 @@ export function BookAppointmentPage() {
   const [reason, setReason] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [missingProfile, setMissingProfile] = useState(false);
   const [formError, setFormError] = useState('');
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -43,7 +44,7 @@ export function BookAppointmentPage() {
         setSpecialties(specs);
         setDoctors(list);
       })
-      .catch((err) => setError(errorMessage(err)))
+      .catch((err) => { if (hasApiErrorCode(err, 'PATIENT_NOT_FOUND')) setMissingProfile(true); else setError(errorMessage(err)); })
       .finally(() => setLoading(false));
   }, []);
 
@@ -107,6 +108,7 @@ export function BookAppointmentPage() {
   }
 
   if (loading) return <LoadingState />;
+  if (missingProfile) return <section className="rounded-xl border border-line bg-white p-[18px] shadow-card"><h1 className="text-xl font-semibold">Thêm thông tin cá nhân để đặt khám</h1><p className="mt-2 text-muted">Vui lòng tạo lại hồ sơ của bạn trước khi chọn lịch khám.</p><Link className="mt-4 inline-block" to="/patient/profile"><Button>Thêm thông tin cá nhân</Button></Link></section>;
   if (error) return <ErrorState message={error} />;
 
   return (

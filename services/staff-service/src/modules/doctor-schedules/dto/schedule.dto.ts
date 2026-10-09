@@ -8,6 +8,9 @@ import {
   IsOptional,
   IsString,
   MaxLength,
+  Max,
+  Matches,
+  Min,
   MinLength,
   ValidateNested,
 } from 'class-validator';
@@ -30,6 +33,38 @@ export class CreateSchedulesDto {
 
 export class UpdateScheduleDto extends ScheduleItemDto {}
 
+export class ManageScheduleDto {
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  doctorId: number;
+
+  @IsDateString({ strict: true })
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  ngayLamViec: string;
+
+  @Matches(/^([01]\d|2[0-3]):[0-5]\d(:00)?$/)
+  gioBatDau: string;
+
+  @Matches(/^([01]\d|2[0-3]):[0-5]\d(:00)?$/)
+  gioKetThuc: string;
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(1440)
+  thoiLuongMoiCa: number;
+
+  @IsOptional()
+  @IsIn(['PENDING', 'APPROVED', 'REJECTED'])
+  statusCode?: 'PENDING' | 'APPROVED' | 'REJECTED';
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  ghiChu?: string | null;
+}
+
 export class RejectScheduleDto {
   @IsString()
   @MinLength(3)
@@ -50,6 +85,20 @@ export class BulkApproveDto {
   @Type(() => Number)
   @IsInt()
   chuyenKhoaId?: number;
+
+  @IsOptional()
+  @IsDateString({ strict: true })
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  date?: string;
+
+  @IsOptional()
+  @IsIn(['SANG', 'CHIEU'])
+  shift?: 'SANG' | 'CHIEU';
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  q?: string;
 }
 
 export class WeekQueryDto {
@@ -62,6 +111,15 @@ export class ManagerScheduleQueryDto {
   @IsOptional()
   @IsDateString()
   week?: string;
+
+  @IsOptional()
+  @IsDateString({ strict: true })
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  date?: string;
+
+  @IsOptional()
+  @IsIn(['SANG', 'CHIEU'])
+  shift?: 'SANG' | 'CHIEU';
 
   @IsOptional()
   @Type(() => Number)
@@ -79,5 +137,6 @@ export class ManagerScheduleQueryDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(200)
   q?: string;
 }

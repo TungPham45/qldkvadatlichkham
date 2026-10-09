@@ -1,0 +1,538 @@
+{
+  "info": {
+    "name": "Đặt lịch khám - bệnh nhân",
+    "description": "Chạy qua API gateway http://localhost:3000. Tài khoản seed: bn1, bs1, admin / mật khẩu 123456. Thư mục chạy theo thứ tự. workDate mặc định là hôm nay + 45 ngày; xóa biến workDate nếu ca sáng ngày đó đã kín slot.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000" },
+    { "key": "patientToken", "value": "" },
+    { "key": "doctorToken", "value": "" },
+    { "key": "managerToken", "value": "" },
+    { "key": "patient2Token", "value": "" },
+    { "key": "workDate", "value": "" },
+    { "key": "doctorId", "value": "1" },
+    { "key": "scheduleId", "value": "" },
+    { "key": "slotStart", "value": "07:30" },
+    { "key": "appointmentId", "value": "" },
+    { "key": "p2user", "value": "" },
+    { "key": "p2phone", "value": "" },
+    { "key": "p2email", "value": "" },
+    { "key": "longReason", "value": "" }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "if (!pm.collectionVariables.get('workDate')) {",
+          "  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(Date.now() + 45 * 86400000));",
+          "  const pick = (type) => parts.find((part) => part.type === type).value;",
+          "  pm.collectionVariables.set('workDate', pick('year') + '-' + pick('month') + '-' + pick('day'));",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "00. Đăng nhập",
+      "item": [
+        {
+          "name": "Bệnh nhân bn1",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200', () => pm.response.to.have.status(200));",
+            "const body = pm.response.json();",
+            "pm.test('role PATIENT', () => pm.expect(body.user.role).to.eql('PATIENT'));",
+            "pm.collectionVariables.set('patientToken', body.accessToken);"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"username\": \"bn1\",\n  \"password\": \"123456\"\n}" },
+            "url": "{{baseUrl}}/api/auth/login"
+          }
+        },
+        {
+          "name": "Bác sĩ bs1",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200', () => pm.response.to.have.status(200));",
+            "const body = pm.response.json();",
+            "pm.test('role DOCTOR', () => pm.expect(body.user.role).to.eql('DOCTOR'));",
+            "pm.collectionVariables.set('doctorToken', body.accessToken);"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"username\": \"bs1\",\n  \"password\": \"123456\"\n}" },
+            "url": "{{baseUrl}}/api/auth/login"
+          }
+        },
+        {
+          "name": "Quản lý admin",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200', () => pm.response.to.have.status(200));",
+            "const body = pm.response.json();",
+            "pm.test('role MANAGER', () => pm.expect(body.user.role).to.eql('MANAGER'));",
+            "pm.collectionVariables.set('managerToken', body.accessToken);"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"123456\"\n}" },
+            "url": "{{baseUrl}}/api/auth/login"
+          }
+        }
+      ]
+    },
+    {
+      "name": "01. Quyền truy cập",
+      "item": [
+        {
+          "name": "Đặt lịch không token",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('401', () => pm.response.to.have.status(401));",
+            "pm.test('UNAUTHORIZED', () => pm.expect(pm.response.json().code).to.eql('UNAUTHORIZED'));"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"bacSiId\": 1,\n  \"ngayHen\": \"{{workDate}}\",\n  \"gioHen\": \"07:30\",\n  \"lyDoKham\": \"Đau đầu\"\n}" },
+            "url": "{{baseUrl}}/api/appointments"
+          }
+        },
+        {
+          "name": "Đặt lịch token giả",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('401', () => pm.response.to.have.status(401));",
+            "pm.test('UNAUTHORIZED', () => pm.expect(pm.response.json().code).to.eql('UNAUTHORIZED'));"
+          ] } }],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "khong-phai-jwt", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"bacSiId\": 1,\n  \"ngayHen\": \"{{workDate}}\",\n  \"gioHen\": \"07:30\",\n  \"lyDoKham\": \"Đau đầu\"\n}" },
+            "url": "{{baseUrl}}/api/appointments"
+          }
+        },
+        {
+          "name": "Bác sĩ không được đặt lịch hộ",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('403', () => pm.response.to.have.status(403));",
+            "pm.test('FORBIDDEN', () => pm.expect(pm.response.json().code).to.eql('FORBIDDEN'));"
+          ] } }],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{doctorToken}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"bacSiId\": 1,\n  \"ngayHen\": \"{{workDate}}\",\n  \"gioHen\": \"07:30\",\n  \"lyDoKham\": \"Đau đầu\"\n}" },
+            "url": "{{baseUrl}}/api/appointments"
+          }
+        },
+        {
+          "name": "Quản lý không được đặt lịch",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('403', () => pm.response.to.have.status(403));",
+            "pm.test('FORBIDDEN', () => pm.expect(pm.response.json().code).to.eql('FORBIDDEN'));"
+          ] } }],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{managerToken}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"bacSiId\": 1,\n  \"ngayHen\": \"{{workDate}}\",\n  \"gioHen\": \"07:30\",\n  \"lyDoKham\": \"Đau đầu\"\n}" },
+            "url": "{{baseUrl}}/api/appointments"
+          }
+        },
+        {
+          "name": "Xem giờ trống không token",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('401', () => pm.response.to.have.status(401));",
+            "pm.test('UNAUTHORIZED', () => pm.expect(pm.response.json().code).to.eql('UNAUTHORIZED'));"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": "{{baseUrl}}/api/appointments/availability?doctorId=1&date={{workDate}}"
+          }
+        },
+        {
+          "name": "Bác sĩ không xem được giờ trống cổng bệnh nhân",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('403', () => pm.response.to.have.status(403));",
+            "pm.test('FORBIDDEN', () => pm.expect(pm.response.json().code).to.eql('FORBIDDEN'));"
+          ] } }],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{doctorToken}}", "type": "string" }] },
+            "method": "GET",
+            "url": "{{baseUrl}}/api/appointments/availability?doctorId=1&date={{workDate}}"
+          }
+        },
+        {
+          "name": "Lịch của tôi không token",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('401', () => pm.response.to.have.status(401));"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": "{{baseUrl}}/api/appointments/me"
+          }
+        },
+        {
+          "name": "Gateway chặn API nội bộ",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('404', () => pm.response.to.have.status(404));",
+            "pm.test('NOT_FOUND', () => pm.expect(pm.response.json().code).to.eql('NOT_FOUND'));"
+          ] } }],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{patientToken}}", "type": "string" }] },
+            "method": "DELETE",
+            "url": "{{baseUrl}}/api/internal/appointments/cache?doctorId=1&date={{workDate}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "02. Dữ liệu không hợp lệ",
+      "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{patientToken}}", "type": "string" }] },
+      "item": [
+        {
+          "name": "Body rỗng",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('400', () => pm.response.to.have.status(400));",
+            "pm.test('VALIDATION_ERROR', () => pm.expect(pm.response.json().code).to.eql('VALIDATION_ERROR'));"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{}" },
+            "url": "{{baseUrl}}/api/appointments"
+          }
+        },
+        {
+          "name": "Thiếu lý do khám",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('400 VALIDATION_ERROR', () => { pm.response.to.have.status(400); pm.expect(pm.response.json().code).to.eql('VALIDATION_ERROR'); });"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"bacSiId\": 1,\n  \"ngayHen\": \"{{workDate}}\",\n  \"gioHen\": \"07:30\"\n}" },
+            "url": "{{baseUrl}}/api/appointments"
+          }
+        },
+        {
+          "name": "Lý do ngắn hơn 3 ký tự",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('400 VALIDATION_ERROR', () => { pm.response.to.have.status(400); pm.expect(pm.response.json().code).to.eql('VALIDATION_ERROR'); });"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"bacSiId\": 1,\n  \"ngayHen\": \"{{workDate}}\",\n  \"gioHen\": \"07:30\",\n  \"lyDoKham\": \"ab\"\n}" },
+            "url": "{{baseUrl}}/api/appointments"
+          }
+        },
+        {
+          "name": "Lý do dài hơn 2000 ký tự",
+          "event": [
+            { "listen": "prerequest", "script": { "type": "text/javascript", "exec": [ "pm.collectionVariables.set('longReason', 'a'.repeat(2001));" ] } },
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('400 VALIDATION_ERROR', () => { pm.response.to.have.status(400); pm.expect(pm.response.json().code).to.eql('VALIDATION_ERROR'); });"
+            ] } }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"bacSiId\": 1,\n  \"ngayHen\": \"{{workDate}}\",\n  \"gioHen\": \"07:30\",\n  \"lyDoKham\": \"{{longReason}}\"\n}" },
+            "url": "{{baseUrl}}/api/appointments"
+          }
+        },
+        {
+          "name": "Giờ không đủ 2 chữ số",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('400 VALIDATION_ERROR', () => { pm.response.to.have.status(400); pm.expect(pm.response.json().code).to.eql('VALIDATION_ERROR'); });"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"bacSiId\": 1,\n  \"ngayHen\": \"{{workDate}}\",\n  \"gioHen\": \"7:30\",\n  \"lyDoKham\": \"Đau đầu\"\n}" },
+            "url": "{{baseUrl}}/api/appointments"
+          }
+        },
+        {
+          "name": "Ngày hẹn không phải ngày",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('400 VALIDATION_ERROR', () => { pm.response.to.have.status(400); pm.expect(pm.response.json().code).to.eql('VALIDATION_ERROR'); });"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"bacSiId\": 1,\n  \"ngayHen\": \"09-10-2026\",\n  \"gioHen\": \"07:30\",\n  \"lyDoKham\": \"Đau đầu\"\n}" },
+            "url": "{{baseUrl}}/api/appointments"
+          }
+        },
+        {
+          "name": "bacSiId không phải số",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('400 VALIDATION_ERROR', () => { pm.response.to.have.status(400); pm.expect(pm.response.json().code).to.eql('VALIDATION_ERROR'); });"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"bacSiId\": \"mot\",\n  \"ngayHen\": \"{{workDate}}\",\n  \"gioHen\": \"07:30\",\n  \"lyDoKham\": \"Đau đầu\"\n}" },
+            "url": "{{baseUrl}}/api/appointments"
+          }
+        },
+        {
+          "name": "Từ chối field lạ",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('400 VALIDATION_ERROR', () => { pm.response.to.have.status(400); pm.expect(pm.response.json().code).to.eql('VALIDATION_ERROR'); });"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"bacSiId\": 1,\n  \"ngayHen\": \"{{workDate}}\",\n  \"gioHen\": \"07:30\",\n  \"lyDoKham\": \"Đau đầu\",\n  \"phiKham\": 150000\n}" },
+            "url": "{{baseUrl}}/api/appointments"
+          }
+        },
+        {
+          "name": "Giờ đã qua",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('409', () => pm.response.to.have.status(409));",
+            "pm.test('APPOINTMENT_SLOT_UNAVAILABLE', () => pm.expect(pm.response.json().code).to.eql('APPOINTMENT_SLOT_UNAVAILABLE'));"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"bacSiId\": 1,\n  \"ngayHen\": \"2020-01-06\",\n  \"gioHen\": \"07:30\",\n  \"lyDoKham\": \"Đau đầu\"\n}" },
+            "url": "{{baseUrl}}/api/appointments"
+          }
+        },
+        {
+          "name": "Không có ca đã duyệt cho khung giờ",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('409', () => pm.response.to.have.status(409));",
+            "pm.test('SCHEDULE_NOT_APPROVED', () => pm.expect(pm.response.json().code).to.eql('SCHEDULE_NOT_APPROVED'));"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"bacSiId\": 999999,\n  \"ngayHen\": \"{{workDate}}\",\n  \"gioHen\": \"07:30\",\n  \"lyDoKham\": \"Đau đầu\"\n}" },
+            "url": "{{baseUrl}}/api/appointments"
+          }
+        },
+        {
+          "name": "Giờ không nằm trên mốc slot",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('409 SCHEDULE_NOT_APPROVED', () => { pm.response.to.have.status(409); pm.expect(pm.response.json().code).to.eql('SCHEDULE_NOT_APPROVED'); });"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"bacSiId\": {{doctorId}},\n  \"ngayHen\": \"{{workDate}}\",\n  \"gioHen\": \"07:31\",\n  \"lyDoKham\": \"Đau đầu\"\n}" },
+            "url": "{{baseUrl}}/api/appointments"
+          }
+        },
+        {
+          "name": "Xem giờ trống thiếu doctorId",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('400 VALIDATION_ERROR', () => { pm.response.to.have.status(400); pm.expect(pm.response.json().code).to.eql('VALIDATION_ERROR'); });"
+          ] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/appointments/availability?date={{workDate}}" }
+        },
+        {
+          "name": "Xem giờ trống ngày sai",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('400 VALIDATION_ERROR', () => { pm.response.to.have.status(400); pm.expect(pm.response.json().code).to.eql('VALIDATION_ERROR'); });"
+          ] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/appointments/availability?doctorId=1&date=ngay-mai" }
+        },
+        {
+          "name": "Lịch của tôi pageSize quá lớn",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('400 VALIDATION_ERROR', () => { pm.response.to.have.status(400); pm.expect(pm.response.json().code).to.eql('VALIDATION_ERROR'); });"
+          ] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/appointments/me?page=1&pageSize=51" }
+        }
+      ]
+    },
+    {
+      "name": "03. Chuẩn bị ca đã duyệt",
+      "item": [
+        {
+          "name": "Bác sĩ đăng ký ca sáng",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('201 lần đầu hoặc 409 khi chạy lại', () => pm.expect([201, 409]).to.include(pm.response.code));"
+          ] } }],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{doctorToken}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"items\": [{ \"ngayLamViec\": \"{{workDate}}\", \"ca\": \"SANG\" }]\n}" },
+            "url": "{{baseUrl}}/api/doctor-schedules"
+          }
+        },
+        {
+          "name": "Lấy id ca sáng",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200', () => pm.response.to.have.status(200));",
+            "const item = pm.response.json().items.find((row) => String(row.date).slice(0, 10) === pm.collectionVariables.get('workDate') && row.shift === 'SANG');",
+            "pm.test('có ca sáng', () => pm.expect(item).to.be.an('object'));",
+            "pm.collectionVariables.set('scheduleId', String(item.id));",
+            "pm.collectionVariables.set('doctorId', String(item.doctorId));"
+          ] } }],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{doctorToken}}", "type": "string" }] },
+            "method": "GET",
+            "url": "{{baseUrl}}/api/doctor-schedules/me?week={{workDate}}"
+          }
+        },
+        {
+          "name": "Quản lý duyệt ca",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200', () => pm.response.to.have.status(200));",
+            "pm.test('APPROVED', () => pm.expect(pm.response.json().statusCode).to.eql('APPROVED'));"
+          ] } }],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{managerToken}}", "type": "string" }] },
+            "method": "PATCH",
+            "url": "{{baseUrl}}/api/manager/doctor-schedules/{{scheduleId}}/approve"
+          }
+        }
+      ]
+    },
+    {
+      "name": "04. Đặt lịch thành công",
+      "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{patientToken}}", "type": "string" }] },
+      "item": [
+        {
+          "name": "Xem giờ trống sau khi duyệt",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200', () => pm.response.to.have.status(200));",
+            "const body = pm.response.json();",
+            "const slot = body.slots.find((item) => item.available);",
+            "pm.test('có ít nhất một slot trống', () => pm.expect(slot).to.be.an('object'));",
+            "pm.test('slot có start, end, available', () => {",
+            "  pm.expect(slot).to.have.property('start');",
+            "  pm.expect(slot).to.have.property('end');",
+            "  pm.expect(slot.available).to.eql(true);",
+            "});",
+            "pm.collectionVariables.set('slotStart', slot.start.slice(0, 5));",
+            "pm.collectionVariables.set('doctorId', String(body.doctorId));"
+          ] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/appointments/availability?doctorId={{doctorId}}&date={{workDate}}" }
+        },
+        {
+          "name": "Đặt slot trống",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('201', () => pm.response.to.have.status(201));",
+            "const body = pm.response.json();",
+            "pm.test('Chờ xác nhận', () => pm.expect(body.trangThai).to.eql('Cho xac nhan'));",
+            "pm.test('Nguồn Online', () => pm.expect(body.nguonDatLich).to.eql('Online'));",
+            "pm.test('Đúng bác sĩ và ngày', () => {",
+            "  pm.expect(body.bacSiId).to.eql(Number(pm.collectionVariables.get('doctorId')));",
+            "  pm.expect(String(body.ngayHen).slice(0, 10)).to.eql(pm.collectionVariables.get('workDate'));",
+            "});",
+            "pm.test('Giờ được chuẩn hóa HH:mm:ss', () => pm.expect(body.gioBatDau).to.eql(pm.collectionVariables.get('slotStart') + ':00'));",
+            "pm.test('Có giờ kết thúc', () => pm.expect(body.gioKetThuc).to.be.a('string'));",
+            "pm.collectionVariables.set('appointmentId', String(body.id));"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"bacSiId\": {{doctorId}},\n  \"ngayHen\": \"{{workDate}}\",\n  \"gioHen\": \"{{slotStart}}\",\n  \"lyDoKham\": \"Đau đầu nhẹ từ sáng\"\n}" },
+            "url": "{{baseUrl}}/api/appointments"
+          }
+        },
+        {
+          "name": "Slot vừa đặt không còn trống",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200', () => pm.response.to.have.status(200));",
+            "const start = pm.collectionVariables.get('slotStart') + ':00';",
+            "const slot = pm.response.json().slots.find((item) => item.start === start);",
+            "pm.test('available = false', () => pm.expect(slot && slot.available).to.eql(false));"
+          ] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/appointments/availability?doctorId={{doctorId}}&date={{workDate}}" }
+        },
+        {
+          "name": "Đặt lại đúng slot",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('409', () => pm.response.to.have.status(409));",
+            "pm.test('APPOINTMENT_SLOT_ALREADY_BOOKED', () => pm.expect(pm.response.json().code).to.eql('APPOINTMENT_SLOT_ALREADY_BOOKED'));"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"bacSiId\": {{doctorId}},\n  \"ngayHen\": \"{{workDate}}\",\n  \"gioHen\": \"{{slotStart}}:00\",\n  \"lyDoKham\": \"Đặt lại cùng giờ\"\n}" },
+            "url": "{{baseUrl}}/api/appointments"
+          }
+        },
+        {
+          "name": "Lịch của tôi có lịch vừa đặt",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200', () => pm.response.to.have.status(200));",
+            "const body = pm.response.json();",
+            "pm.test('có total và items', () => { pm.expect(body.total).to.be.a('number'); pm.expect(body.items).to.be.an('array'); });",
+            "pm.test('chứa appointmentId', () => pm.expect(body.items.some((item) => String(item.id) === pm.collectionVariables.get('appointmentId'))).to.eql(true));"
+          ] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/appointments/me?page=1&pageSize=8" }
+        },
+        {
+          "name": "Lịch sắp tới chứa lịch vừa đặt",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200', () => pm.response.to.have.status(200));",
+            "pm.test('upcoming chứa lịch mới', () => pm.expect(pm.response.json().items.some((item) => String(item.id) === pm.collectionVariables.get('appointmentId'))).to.eql(true));"
+          ] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/appointments/me?upcoming=true&pageSize=20" }
+        }
+      ]
+    },
+    {
+      "name": "05. Bệnh nhân khác cùng slot",
+      "item": [
+        {
+          "name": "Đăng ký bệnh nhân thứ hai",
+          "event": [
+            { "listen": "prerequest", "script": { "type": "text/javascript", "exec": [
+              "const suffix = Date.now().toString().slice(-9);",
+              "pm.collectionVariables.set('p2user', 'bn' + suffix);",
+              "pm.collectionVariables.set('p2phone', '0' + suffix);",
+              "pm.collectionVariables.set('p2email', 'bn' + suffix + '@example.com');"
+            ] } },
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('201', () => pm.response.to.have.status(201));",
+              "pm.collectionVariables.set('patient2Token', pm.response.json().accessToken);"
+            ] } }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"hoTen\": \"Bệnh nhân kiểm thử\",\n  \"ngaySinh\": \"1995-01-01\",\n  \"gioiTinh\": \"Nam\",\n  \"soDienThoai\": \"{{p2phone}}\",\n  \"email\": \"{{p2email}}\",\n  \"diaChi\": \"Hà Nội\",\n  \"username\": \"{{p2user}}\",\n  \"password\": \"123456\",\n  \"confirmPassword\": \"123456\"\n}" },
+            "url": "{{baseUrl}}/api/auth/register"
+          }
+        },
+        {
+          "name": "Bệnh nhân thứ hai đặt cùng slot",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('409', () => pm.response.to.have.status(409));",
+            "pm.test('APPOINTMENT_SLOT_ALREADY_BOOKED', () => pm.expect(pm.response.json().code).to.eql('APPOINTMENT_SLOT_ALREADY_BOOKED'));"
+          ] } }],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{patient2Token}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"bacSiId\": {{doctorId}},\n  \"ngayHen\": \"{{workDate}}\",\n  \"gioHen\": \"{{slotStart}}\",\n  \"lyDoKham\": \"Bệnh nhân khác cùng giờ\"\n}" },
+            "url": "{{baseUrl}}/api/appointments"
+          }
+        }
+      ]
+    }
+  ]
+}

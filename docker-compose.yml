@@ -1,0 +1,35 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: qlpk-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: qlphongkham
+      TZ: Asia/Ho_Chi_Minh
+      PGTZ: Asia/Ho_Chi_Minh
+    ports:
+      - "5433:5432"
+    volumes:
+      - qlpk_pg:/var/lib/postgresql/data
+      - ./qlphongkham.sql:/docker-entrypoint-initdb.d/01-qlphongkham.sql
+      - ./database/migrations/001_schedule_workflow.sql:/docker-entrypoint-initdb.d/02-schedule-workflow.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d qlphongkham"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    container_name: qlpk-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  qlpk_pg:

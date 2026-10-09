@@ -1,0 +1,20 @@
+{
+  "name": "qlphongkham",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "services/*",
+    "frontend"
+  ],
+  "scripts": {
+    "build:common": "npm run build -w @qlpk/common",
+    "build": "npm run build:common && npm run build -w @qlpk/auth-service && npm run build -w @qlpk/patient-service && npm run build -w @qlpk/staff-service && npm run build -w @qlpk/appointment-service && npm run build -w @qlpk/api-gateway && npm run build -w @qlpk/frontend",
+    "dev": "npm run build:common && concurrently -n auth,patient,staff,appt,gateway,web -c blue,green,yellow,magenta,cyan,white \"npm run dev -w @qlpk/auth-service\" \"npm run dev -w @qlpk/patient-service\" \"npm run dev -w @qlpk/staff-service\" \"npm run dev -w @qlpk/appointment-service\" \"npm run dev -w @qlpk/api-gateway\" \"npm run dev -w @qlpk/frontend\"",
+    "test": "npm run build:common && node --import tsx --test packages/common/test/*.test.ts services/appointment-service/test/*.test.ts",
+    "smoke": "node scripts/smoke.mjs"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "tsx": "^4.19.2"
+  }
+}

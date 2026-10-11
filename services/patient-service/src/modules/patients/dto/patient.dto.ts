@@ -68,8 +68,8 @@ export class CreatePatientDto {
   @IsDateString()
   ngaySinh: string;
 
-  @IsIn(['Nam', 'Nu', 'Khac'])
-  gioiTinh: string;
+  @IsIn(['Nam', 'Nu'])
+  gioiTinh: 'Nam' | 'Nu';
 
   @Matches(/^0\d{9,10}$/)
   soDienThoai: string;
@@ -81,4 +81,10 @@ export class CreatePatientDto {
   @IsString()
   @MaxLength(255)
   diaChi: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  soBaoHiemYTe?: string | null;
+
 }

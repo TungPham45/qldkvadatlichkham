@@ -6,6 +6,7 @@ import { AuthRepository } from './auth.repository';
 import { AuthService } from './auth.service';
 import { AccountsController } from './accounts.controller';
 import { AccountsService } from './accounts.service';
+import { DoctorPhotoService } from './doctor-photo.service';
 import { TaiKhoan } from './tai-khoan.entity';
 
 @Module({
@@ -16,6 +17,6 @@ import { TaiKhoan } from './tai-khoan.entity';
     }),
   ],
   controllers: [AuthController, AccountsController],
-  providers: [AuthService, AuthRepository, AccountsService],
+  providers: [AuthService, AuthRepository, AccountsService, DoctorPhotoService],
 })
 export class AuthModule {}

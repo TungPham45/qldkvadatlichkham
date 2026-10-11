@@ -52,7 +52,7 @@ export function PatientPortalLayout() {
     <div className="min-h-screen bg-portal">
       <header className="sticky top-0 z-[8] border-b border-line bg-white shadow-[0_1px_0_rgba(16,42,78,.03)]">
         <div className="relative mx-auto flex min-h-[72px] max-w-[1180px] items-center gap-[22px] px-5 py-2.5">
-          <NavLink to="/patient/dashboard" className="flex min-w-0 items-center gap-2.5 desk:min-w-[220px]" onClick={() => setMenu(false)}>
+          <NavLink to="/" className="flex min-w-0 items-center gap-2.5 desk:min-w-[220px]" onClick={() => setMenu(false)}>
             <span className="grid size-10 place-items-center rounded-[10px] bg-primary-600 font-bold text-white">+</span>
             <span>
               <strong className="block text-sm text-navy-900">{hospitalName}</strong>
@@ -61,7 +61,7 @@ export function PatientPortalLayout() {
           </NavLink>
           <button className="ml-auto grid size-[38px] cursor-pointer place-items-center rounded-[10px] border border-transparent bg-surface text-navy-900 desk:hidden" type="button" aria-label="Mở menu" onClick={() => setMenu((open) => !open)}>☰</button>
           <nav className={`${menu ? 'flex' : 'hidden'} absolute top-[72px] right-3 left-3 z-20 flex-col rounded-[14px] border border-line bg-white p-2 shadow-card desk:static desk:flex desk:flex-1 desk:flex-row desk:gap-1.5 desk:border-0 desk:bg-transparent desk:p-0 desk:shadow-none`}>
-            <NavLink end to="/patient/dashboard" onClick={() => setMenu(false)} className={({ isActive }) => `rounded-full px-3 py-2 text-sm font-semibold ${isActive ? 'bg-primary-50 text-primary-700' : 'text-[#3d4d63] hover:bg-primary-50 hover:text-primary-700'}`}>Trang chủ</NavLink>
+            <NavLink end to="/" onClick={() => setMenu(false)} className={({ isActive }) => `rounded-full px-3 py-2 text-sm font-semibold ${isActive ? 'bg-primary-50 text-primary-700' : 'text-[#3d4d63] hover:bg-primary-50 hover:text-primary-700'}`}>Trang chủ</NavLink>
             <NavLink to="/patient/appointments/book" onClick={() => setMenu(false)} className={({ isActive }) => `rounded-full px-3 py-2 text-sm font-semibold ${isActive ? 'bg-primary-50 text-primary-700' : 'text-[#3d4d63] hover:bg-primary-50 hover:text-primary-700'}`}>Đặt khám</NavLink>
             <NavLink end to="/patient/appointments" onClick={() => setMenu(false)} className={({ isActive }) => `rounded-full px-3 py-2 text-sm font-semibold ${isActive ? 'bg-primary-50 text-primary-700' : 'text-[#3d4d63] hover:bg-primary-50 hover:text-primary-700'}`}>Lịch khám</NavLink>
           </nav>

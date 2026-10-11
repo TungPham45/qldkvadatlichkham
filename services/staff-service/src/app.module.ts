@@ -8,7 +8,7 @@ import { DoctorController } from './modules/doctors/doctor.controller';
 import { DoctorScheduleController, InternalScheduleController } from './modules/doctor-schedules/doctor-schedule.controller';
 import { DoctorScheduleRepository } from './modules/doctor-schedules/doctor-schedule.repository';
 import { DoctorScheduleService } from './modules/doctor-schedules/doctor-schedule.service';
-import { SpecialtyController } from './modules/specialties/specialty.controller';
+import { ManagerSpecialtyController, SpecialtyController } from './modules/specialties/specialty.controller';
 
 @Module({
   imports: [
@@ -26,7 +26,7 @@ import { SpecialtyController } from './modules/specialties/specialty.controller'
     TypeOrmModule.forFeature(STAFF_ENTITIES),
     JwtModule.registerAsync({ useFactory: () => ({ secret: process.env.JWT_ACCESS_SECRET }) }),
   ],
-  controllers: [DoctorScheduleController, InternalScheduleController, SpecialtyController, DoctorController],
+  controllers: [DoctorScheduleController, InternalScheduleController, SpecialtyController, ManagerSpecialtyController, DoctorController],
   providers: [DoctorScheduleService, DoctorScheduleRepository],
 })
 export class AppModule {}

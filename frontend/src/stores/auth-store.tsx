@@ -40,8 +40,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     },
     async register(payload) {
       const { data } = await api.post<AuthResponse>('/auth/register', payload);
-      tokenStore.set(data.accessToken, data.refreshToken);
-      setUser(data.user);
       return data.user;
     },
     async logout() {

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { AppHeader } from '../components/AppHeader';
 import { AppSidebar } from '../components/AppSidebar';
+import '../styles/admin.css';
 
 export function AppLayout() {
   const [open, setOpen] = useState(false);

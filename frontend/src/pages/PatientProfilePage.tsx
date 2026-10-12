@@ -155,7 +155,7 @@ export function PatientProfilePage() {
           ) : (
             <EmptyState title="Chưa có thông tin cá nhân" description="Thêm thông tin của bạn để phòng khám liên hệ và tiếp nhận khi đặt khám." action={<Button onClick={beginEdit}>Thêm thông tin cá nhân</Button>} />
           )}
-          <div className="mt-5 border-t border-line pt-4 text-sm"><Link className="font-semibold text-primary-700" to="/patient/dashboard">Về trang chủ</Link></div>
+          <div className="mt-5 border-t border-line pt-4 text-sm"><Link className="font-semibold text-primary-700" to="/">Về trang chủ</Link></div>
         </>
       )}
       {confirmDelete ? <ConfirmDialog title="Xóa thông tin cá nhân" message="Bạn muốn xóa thông tin cá nhân? Tài khoản đăng nhập vẫn được giữ để thêm lại thông tin. Hồ sơ đã có lịch hẹn hoặc dữ liệu khám bệnh sẽ không thể xóa." confirmLabel={busy ? 'Đang xóa...' : 'Xóa thông tin'} danger busy={busy} onConfirm={() => { void remove(); }} onClose={() => { if (!busy) setConfirmDelete(false); }} /> : null}

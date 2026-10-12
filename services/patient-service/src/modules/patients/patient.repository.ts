@@ -33,6 +33,7 @@ export class PatientRepository {
         soDienThoai: dto.soDienThoai,
         email: dto.email.toLowerCase(),
         diaChi: dto.diaChi,
+        soBaoHiemYTe: dto.soBaoHiemYTe || null,
         trangThai: 'Active',
       }),
     );

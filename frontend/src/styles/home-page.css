@@ -1,0 +1,549 @@
+.public-home {
+  min-height: 100vh;
+  background: #f5f9f8;
+  color: #172134;
+}
+
+.public-home__header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  border-bottom: 1px solid #e2e9ec;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 3px 14px rgba(31, 58, 82, 0.06);
+  backdrop-filter: blur(12px);
+}
+
+.public-home__header-inner {
+  display: flex;
+  min-height: 80px;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 10px 30px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 28px;
+}
+
+.public-home__brand,
+.public-home__header-actions,
+.public-home__account-button,
+.public-home__guest-actions,
+.public-home__hotline,
+.public-home__service {
+  display: flex;
+  align-items: center;
+}
+
+.public-home__brand {
+  min-width: 0;
+  gap: 14px;
+}
+
+.public-home__brand-mark {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
+  place-items: center;
+  border: 1px solid #bfd4f2;
+  border-radius: 13px;
+  background: #eef6ff;
+  color: #1f5db6;
+}
+
+.public-home__brand-mark svg {
+  width: 29px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.public-home__brand-copy {
+  min-width: 0;
+}
+
+.public-home__brand-title,
+.public-home__brand-subtitle,
+.public-home__account-copy strong,
+.public-home__account-copy small,
+.public-home__service strong,
+.public-home__service small {
+  display: block;
+}
+
+.public-home__brand-title {
+  color: #2059a9;
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.25;
+  text-transform: uppercase;
+}
+
+.public-home__brand-subtitle {
+  margin-top: 2px;
+  color: #667386;
+  font-size: 12px;
+}
+
+.public-home__header-actions {
+  margin-left: auto;
+  gap: 22px;
+}
+
+.public-home__hotline {
+  min-height: 48px;
+  gap: 9px;
+  padding: 8px 16px;
+  border: 1px solid #f4dada;
+  border-radius: 10px;
+  background: #fff7f7;
+  color: #2c3139;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.public-home__hotline strong {
+  color: #c91f25;
+  font-size: 17px;
+}
+
+.public-home__hotline-icon {
+  display: grid;
+  width: 31px;
+  height: 31px;
+  place-items: center;
+  border-radius: 50%;
+  background: #ffe4e4;
+  color: #b91f25;
+  font-size: 18px;
+  transform: rotate(-35deg);
+}
+
+.public-home__guest-actions {
+  gap: 10px;
+}
+
+.public-home__button {
+  display: inline-flex;
+  min-height: 48px;
+  padding: 0 18px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #1f5db6;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  transition: background-color 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.public-home__button:hover {
+  transform: translateY(-1px);
+}
+
+.public-home__button--secondary {
+  background: #fff;
+  color: #1f5db6;
+}
+
+.public-home__button--secondary:hover {
+  background: #edf5ff;
+}
+
+.public-home__button--primary {
+  background: #205fbd;
+  color: #fff;
+}
+
+.public-home__button--primary:hover {
+  background: #174f9f;
+}
+
+.public-home__account {
+  position: relative;
+}
+
+.public-home__account-button {
+  min-width: 190px;
+  cursor: pointer;
+  gap: 10px;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: #202733;
+  text-align: left;
+}
+
+.public-home__account-button:hover {
+  background: #f2f7fd;
+}
+
+.public-home__avatar {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  place-items: center;
+  border: 1px solid #dce5ed;
+  border-radius: 50%;
+  background: #eef2f5;
+  color: #506070;
+  font-weight: 800;
+}
+
+.public-home__account-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.public-home__account-copy strong {
+  overflow: hidden;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.public-home__account-copy small {
+  margin-top: 2px;
+  color: #758092;
+  font-size: 12px;
+}
+
+.public-home__chevron {
+  color: #637085;
+  font-size: 18px;
+}
+
+.public-home__account-menu {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  width: 210px;
+  padding: 7px;
+  border: 1px solid #dfe7ef;
+  border-radius: 13px;
+  background: #fff;
+  box-shadow: 0 16px 38px rgba(27, 52, 77, 0.15);
+}
+
+.public-home__account-menu a,
+.public-home__account-menu button {
+  display: block;
+  width: 100%;
+  padding: 10px 11px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #233047;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 650;
+  text-align: left;
+}
+
+.public-home__account-menu a:hover,
+.public-home__account-menu button:hover {
+  background: #edf5ff;
+}
+
+.public-home__account-menu button {
+  color: #c4363b;
+}
+
+.public-home__main {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 54px 30px 58px;
+}
+
+.public-home__intro {
+  display: grid;
+  min-height: 580px;
+  grid-template-columns: minmax(0, 1.18fr) minmax(390px, 0.82fr);
+  align-items: center;
+  gap: 48px;
+}
+
+.public-home__content {
+  min-width: 0;
+}
+
+.public-home__eyebrow {
+  display: inline-flex;
+  min-height: 28px;
+  padding: 4px 13px;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #bdd4f2;
+  border-radius: 999px;
+  background: #edf6ff;
+  color: #1d5cac;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.public-home__eyebrow i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #2365c3;
+}
+
+.public-home h1 {
+  max-width: 690px;
+  margin: 13px 0 0;
+  color: #205aac;
+  font-size: clamp(34px, 4vw, 50px);
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  line-height: 1.12;
+}
+
+.public-home__lead {
+  max-width: 680px;
+  margin: 16px 0 0;
+  color: #596679;
+  font-size: 17px;
+  line-height: 1.7;
+}
+
+.public-home__services {
+  display: grid;
+  margin-top: 30px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 15px;
+}
+
+.public-home__service {
+  min-height: 108px;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid #e2e9ec;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 8px 22px rgba(42, 66, 91, 0.08);
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.public-home__service:hover {
+  box-shadow: 0 12px 28px rgba(42, 66, 91, 0.12);
+  transform: translateY(-2px);
+}
+
+.public-home__service--featured {
+  grid-column: 1 / -1;
+}
+
+.public-home__service > span:nth-child(2) {
+  min-width: 0;
+  flex: 1;
+}
+
+.public-home__service strong {
+  color: #20262e;
+  font-size: 15px;
+}
+
+.public-home__service small {
+  margin-top: 5px;
+  color: #6b7482;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.public-home__service b {
+  color: #2362ba;
+  font-size: 22px;
+}
+
+.public-home__service-icon {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
+  place-items: center;
+  border: 1px solid;
+  border-radius: 13px;
+}
+
+.public-home__service-icon svg {
+  width: 24px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.public-home__service-icon--blue {
+  border-color: #cfe1fa;
+  background: #eef6ff;
+  color: #1762c4;
+}
+
+.public-home__service-icon--green {
+  border-color: #cbeedc;
+  background: #effbf5;
+  color: #16835b;
+}
+
+.public-home__service-icon--orange {
+  border-color: #f6dfaa;
+  background: #fff9e9;
+  color: #d27b10;
+}
+
+.public-home__visual {
+  position: relative;
+  overflow: hidden;
+  min-height: 430px;
+  margin: 0;
+  border: 4px solid #fff;
+  border-radius: 24px;
+  background: #dbe7ed;
+  box-shadow: 0 24px 46px rgba(36, 65, 83, 0.22);
+}
+
+.public-home__visual img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 48% center;
+}
+
+.public-home a:focus-visible,
+.public-home button:focus-visible {
+  outline: none;
+  background-color: #e9f3ff;
+}
+
+@media (max-width: 1040px) {
+  .public-home__brand-subtitle,
+  .public-home__hotline span:not(.public-home__hotline-icon) {
+    display: none;
+  }
+
+  .public-home__intro {
+    grid-template-columns: minmax(0, 1.05fr) minmax(340px, 0.95fr);
+    gap: 30px;
+  }
+
+  .public-home__services {
+    grid-template-columns: 1fr;
+  }
+
+  .public-home__service--featured {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 800px) {
+  .public-home__header-inner {
+    min-height: 70px;
+    padding: 10px 18px;
+  }
+
+  .public-home__brand-title {
+    max-width: 230px;
+    font-size: 15px;
+  }
+
+  .public-home__brand-mark {
+    width: 42px;
+    height: 42px;
+    flex-basis: 42px;
+  }
+
+  .public-home__hotline {
+    display: none;
+  }
+
+  .public-home__main {
+    padding: 36px 20px 44px;
+  }
+
+  .public-home__intro {
+    min-height: 0;
+    grid-template-columns: 1fr;
+    gap: 34px;
+  }
+
+  .public-home__visual {
+    min-height: 420px;
+  }
+}
+
+@media (max-width: 560px) {
+  .public-home__header-inner {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: flex-start;
+    gap: 9px;
+  }
+
+  .public-home__brand {
+    flex: 1 1 230px;
+  }
+
+  .public-home__header-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .public-home__guest-actions {
+    width: 100%;
+  }
+
+  .public-home__button {
+    flex: 1;
+  }
+
+  .public-home__account,
+  .public-home__account-button {
+    width: 100%;
+  }
+
+  .public-home__account-menu {
+    width: 100%;
+  }
+
+  .public-home__main {
+    padding: 30px 16px 36px;
+  }
+
+  .public-home h1 {
+    font-size: 34px;
+  }
+
+  .public-home__lead {
+    font-size: 15px;
+  }
+
+  .public-home__services {
+    margin-top: 24px;
+  }
+
+  .public-home__service {
+    min-height: 104px;
+    padding: 15px;
+  }
+
+  .public-home__visual {
+    min-height: 350px;
+    border-radius: 18px;
+  }
+
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .public-home__button,
+  .public-home__service {
+    transition: none;
+  }
+}

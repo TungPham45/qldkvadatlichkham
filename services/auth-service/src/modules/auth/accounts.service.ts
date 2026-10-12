@@ -1,7 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { AppException, ErrorCode, vaiTroToRole } from '@qlpk/common';
+import { AppException, ErrorCode, isDbConflict, vaiTroToRole } from '@qlpk/common';
+import * as bcrypt from 'bcryptjs';
 import { DataSource, EntityManager } from 'typeorm';
 import { AccountsQueryDto, AccountStatus } from './dto/accounts.dto';
+import { CreateDoctorByManagerDto, CreatePatientByManagerDto, ProfilesQueryDto, UpdateDoctorByManagerDto, UpdatePatientByManagerDto } from './dto/manager-profiles.dto';
 import { TaiKhoan } from './tai-khoan.entity';
 
 const linkedDataMessage = 'Tài khoản đang có lịch làm việc, lịch khám hoặc hồ sơ y tế nên không thể xóa. Hãy khóa hoặc ngừng hoạt động tài khoản để giữ lại dữ liệu liên quan.';
@@ -44,6 +46,149 @@ export class AccountsService {
     return { items: items.map((item) => ({ ...item, role: vaiTroToRole(item.vaiTro) })), total, page, pageSize };
   }
 
+  async listPatients(actorId: string, query: ProfilesQueryDto) {
+    await this.requireManager(actorId);
+    const { where, values } = this.profileFilters(query, 'patient', ['patient.ho_ten', 'patient.email', 'patient.so_dien_thoai', 'account.ten_dang_nhap']);
+    const countRows = await this.dataSource.query(
+      `SELECT COUNT(*)::int AS total FROM benh_nhan patient JOIN tai_khoan account ON account.id_tai_khoan = patient.id_tai_khoan ${where}`,
+      values,
+    );
+    const offsetIndex = values.length + 1;
+    const limitIndex = values.length + 2;
+    const items = await this.dataSource.query(
+      `SELECT patient.id_benh_nhan AS id, patient.id_tai_khoan AS "accountId", account.ten_dang_nhap AS username,
+        patient.ho_ten AS "hoTen", patient.ngay_sinh AS "ngaySinh", patient.gioi_tinh AS "gioiTinh",
+        patient.so_dien_thoai AS "soDienThoai", patient.email, patient.dia_chi AS "diaChi",
+        patient.so_bao_hiem_y_te AS "soBaoHiemYTe", account.trang_thai AS "trangThai"
+       FROM benh_nhan patient JOIN tai_khoan account ON account.id_tai_khoan = patient.id_tai_khoan
+       ${where} ORDER BY patient.id_benh_nhan ASC OFFSET $${offsetIndex} LIMIT $${limitIndex}`,
+      [...values, (query.page - 1) * query.pageSize, query.pageSize],
+    );
+    return { items: items.map((item: { id: string }) => ({ ...item, id: Number(item.id) })), total: Number(countRows[0]?.total || 0), page: query.page, pageSize: query.pageSize };
+  }
+
+  async listDoctors(actorId: string, query: ProfilesQueryDto) {
+    await this.requireManager(actorId);
+    const { where, values } = this.profileFilters(query, 'doctor', ['doctor.ho_ten', 'doctor.email', 'doctor.so_dien_thoai', 'doctor.so_chung_chi_hanh_nghe', 'account.ten_dang_nhap']);
+    const joins = `FROM bac_si doctor
+      JOIN tai_khoan account ON account.id_tai_khoan = doctor.id_tai_khoan
+      LEFT JOIN bac_si_chuyen_khoa link ON link.id_bac_si = doctor.id_bac_si AND link.la_chuyen_khoa_chinh = true
+      LEFT JOIN chuyen_khoa specialty ON specialty.id_chuyen_khoa = link.id_chuyen_khoa`;
+    const countRows = await this.dataSource.query(`SELECT COUNT(*)::int AS total ${joins} ${where}`, values);
+    const offsetIndex = values.length + 1;
+    const limitIndex = values.length + 2;
+    const items = await this.dataSource.query(
+      `SELECT doctor.id_bac_si AS id, doctor.id_tai_khoan AS "accountId", account.ten_dang_nhap AS username,
+        doctor.ho_ten AS "hoTen", doctor.ngay_sinh AS "ngaySinh", doctor.gioi_tinh AS "gioiTinh",
+        doctor.so_dien_thoai AS "soDienThoai", doctor.email, doctor.bang_cap AS "bangCap",
+        doctor.so_chung_chi_hanh_nghe AS "soChungChiHanhNghe", account.trang_thai AS "trangThai",
+        specialty.id_chuyen_khoa AS "chuyenKhoaId", specialty.ten_chuyen_khoa AS "chuyenKhoa"
+       ${joins} ${where} ORDER BY doctor.id_bac_si ASC OFFSET $${offsetIndex} LIMIT $${limitIndex}`,
+      [...values, (query.page - 1) * query.pageSize, query.pageSize],
+    );
+    return { items: items.map((item: { id: string; chuyenKhoaId: string | null }) => ({ ...item, id: Number(item.id), chuyenKhoaId: item.chuyenKhoaId ? Number(item.chuyenKhoaId) : null })), total: Number(countRows[0]?.total || 0), page: query.page, pageSize: query.pageSize };
+  }
+
+  async requireDoctor(actorId: string, id: number) {
+    await this.requireManager(actorId);
+    const rows = await this.dataSource.query('SELECT 1 FROM bac_si WHERE id_bac_si=$1', [id]);
+    if (!rows.length) throw new AppException(404, ErrorCode.DOCTOR_NOT_FOUND, 'Không tìm thấy bác sĩ.');
+  }
+
+  async createPatient(actorId: string, dto: CreatePatientByManagerDto) {
+    await this.requireManager(actorId);
+    try {
+      return await this.dataSource.transaction(async (manager) => {
+        await this.assertUniqueProfile(manager, 'benh_nhan', dto.email, dto.soDienThoai);
+        const passwordHash = await bcrypt.hash(dto.password, 10);
+        const accounts = await manager.query(
+          `INSERT INTO tai_khoan (ten_dang_nhap, mat_khau_ma_hoa, vai_tro, trang_thai) VALUES ($1, $2, 'NguoiDung', $3) RETURNING id_tai_khoan`,
+          [dto.username, passwordHash, dto.trangThai],
+        );
+        const rows = await manager.query(
+          `INSERT INTO benh_nhan (id_tai_khoan, ho_ten, ngay_sinh, gioi_tinh, so_dien_thoai, email, dia_chi, so_bao_hiem_y_te, trang_thai)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id_benh_nhan AS id`,
+          [accounts[0].id_tai_khoan, dto.hoTen.trim(), dto.ngaySinh.slice(0, 10), dto.gioiTinh, dto.soDienThoai, dto.email.trim().toLowerCase(), dto.diaChi.trim(), dto.soBaoHiemYTe?.trim() || null, dto.trangThai],
+        );
+        return { id: Number(rows[0].id) };
+      });
+    } catch (error) {
+      this.translateCreateConflict(error);
+    }
+  }
+
+  async updatePatient(actorId: string, id: number, dto: UpdatePatientByManagerDto) {
+    await this.requireManager(actorId);
+    return this.dataSource.transaction(async (manager) => {
+      const rows = await manager.query('SELECT id_tai_khoan FROM benh_nhan WHERE id_benh_nhan = $1 FOR UPDATE', [id]);
+      if (!rows.length) throw new AppException(404, 'PATIENT_NOT_FOUND', 'Không tìm thấy bệnh nhân.');
+      await this.assertUniqueProfile(manager, 'benh_nhan', dto.email, dto.soDienThoai, id);
+      await manager.query(
+        `UPDATE benh_nhan SET ho_ten=$2, ngay_sinh=$3, gioi_tinh=$4, so_dien_thoai=$5, email=$6, dia_chi=$7,
+          so_bao_hiem_y_te=$8, trang_thai=$9, ngay_cap_nhat=CURRENT_TIMESTAMP WHERE id_benh_nhan=$1`,
+        [id, dto.hoTen.trim(), dto.ngaySinh.slice(0, 10), dto.gioiTinh, dto.soDienThoai, dto.email.trim().toLowerCase(), dto.diaChi.trim(), dto.soBaoHiemYTe?.trim() || null, dto.trangThai],
+      );
+      await manager.query('UPDATE tai_khoan SET trang_thai=$2, ngay_cap_nhat=CURRENT_TIMESTAMP WHERE id_tai_khoan=$1', [rows[0].id_tai_khoan, dto.trangThai]);
+      return { id };
+    });
+  }
+
+  async createDoctor(actorId: string, dto: CreateDoctorByManagerDto) {
+    await this.requireManager(actorId);
+    try {
+      return await this.dataSource.transaction(async (manager) => {
+        await this.assertUniqueDoctor(manager, dto.username, dto.soDienThoai, dto.soChungChiHanhNghe);
+        await this.assertUniqueProfile(manager, 'bac_si', dto.email, dto.soDienThoai);
+        await this.assertSpecialty(manager, dto.chuyenKhoaId);
+        const passwordHash = await bcrypt.hash(dto.password, 10);
+        const accounts = await manager.query(
+          `INSERT INTO tai_khoan (ten_dang_nhap, mat_khau_ma_hoa, vai_tro, trang_thai) VALUES ($1, $2, 'BacSi', $3) RETURNING id_tai_khoan`,
+          [dto.username.trim(), passwordHash, dto.trangThai],
+        );
+        const rows = await manager.query(
+          `INSERT INTO bac_si (id_tai_khoan, ho_ten, ngay_sinh, gioi_tinh, so_dien_thoai, email, bang_cap, so_chung_chi_hanh_nghe, trang_thai)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id_bac_si AS id`,
+          [accounts[0].id_tai_khoan, dto.hoTen.trim(), dto.ngaySinh.slice(0, 10), dto.gioiTinh, dto.soDienThoai, dto.email.trim().toLowerCase(), dto.bangCap.trim(), dto.soChungChiHanhNghe.trim(), dto.trangThai],
+        );
+        await manager.query('INSERT INTO bac_si_chuyen_khoa (id_bac_si, id_chuyen_khoa, la_chuyen_khoa_chinh) VALUES ($1,$2,true)', [rows[0].id, dto.chuyenKhoaId]);
+        return { id: Number(rows[0].id) };
+      });
+    } catch (error) {
+      this.translateCreateConflict(error);
+    }
+  }
+
+  async updateDoctor(actorId: string, id: number, dto: UpdateDoctorByManagerDto) {
+    await this.requireManager(actorId);
+    try {
+      return await this.dataSource.transaction(async (manager) => {
+        const rows = await manager.query('SELECT id_tai_khoan FROM bac_si WHERE id_bac_si = $1 FOR UPDATE', [id]);
+        if (!rows.length) throw new AppException(404, ErrorCode.DOCTOR_NOT_FOUND, 'Không tìm thấy bác sĩ.');
+        await this.assertUniqueDoctor(manager, undefined, dto.soDienThoai, dto.soChungChiHanhNghe, id);
+        await this.assertUniqueProfile(manager, 'bac_si', dto.email, dto.soDienThoai, id);
+        await this.assertSpecialty(manager, dto.chuyenKhoaId);
+        await manager.query(
+          `UPDATE bac_si SET ho_ten=$2, ngay_sinh=$3, gioi_tinh=$4, so_dien_thoai=$5, email=$6, bang_cap=$7,
+            so_chung_chi_hanh_nghe=$8, trang_thai=$9, ngay_cap_nhat=CURRENT_TIMESTAMP WHERE id_bac_si=$1`,
+          [id, dto.hoTen.trim(), dto.ngaySinh.slice(0, 10), dto.gioiTinh, dto.soDienThoai, dto.email.trim().toLowerCase(), dto.bangCap.trim(), dto.soChungChiHanhNghe.trim(), dto.trangThai],
+        );
+        await manager.query('UPDATE tai_khoan SET trang_thai=$2, ngay_cap_nhat=CURRENT_TIMESTAMP WHERE id_tai_khoan=$1', [rows[0].id_tai_khoan, dto.trangThai]);
+        await manager.query('DELETE FROM bac_si_chuyen_khoa WHERE id_bac_si=$1', [id]);
+        await manager.query('INSERT INTO bac_si_chuyen_khoa (id_bac_si,id_chuyen_khoa,la_chuyen_khoa_chinh) VALUES ($1,$2,true)', [id, dto.chuyenKhoaId]);
+        return { id };
+      });
+    } catch (error) {
+      this.translateCreateConflict(error);
+    }
+  }
+
+  async removeProfile(actorId: string, table: 'benh_nhan' | 'bac_si', idColumn: 'id_benh_nhan' | 'id_bac_si', id: number) {
+    await this.requireManager(actorId);
+    const rows = await this.dataSource.query(`SELECT id_tai_khoan FROM ${table} WHERE ${idColumn}=$1`, [id]);
+    if (!rows.length) throw new AppException(404, 'PROFILE_NOT_FOUND', 'Không tìm thấy hồ sơ cần xóa.');
+    return this.remove(actorId, rows[0].id_tai_khoan);
+  }
+
   async updateStatus(actorId: string, accountId: string, status: AccountStatus) {
     return this.dataSource.transaction(async (manager) => {
       const admins = await this.lockAdmins(manager, actorId);
@@ -82,6 +227,78 @@ export class AccountsService {
   private async requireManager(actorId: string) {
     const actor = await this.dataSource.getRepository(TaiKhoan).findOne({ where: { idTaiKhoan: actorId } });
     this.assertManager(actor);
+  }
+
+  private profileFilters(query: ProfilesQueryDto, alias: string, columns: string[]) {
+    const clauses: string[] = [];
+    const values: unknown[] = [];
+    if (query.q?.trim()) {
+      values.push(`%${query.q.trim()}%`);
+      clauses.push(`(${columns.map((column) => `${column} ILIKE $${values.length}`).join(' OR ')})`);
+    }
+    if (query.gioiTinh) {
+      values.push(query.gioiTinh);
+      clauses.push(`${alias}.gioi_tinh = $${values.length}`);
+    }
+    if (query.trangThai) {
+      values.push(query.trangThai);
+      clauses.push(`account.trang_thai = $${values.length}`);
+    }
+    return { where: clauses.length ? `WHERE ${clauses.join(' AND ')}` : '', values };
+  }
+
+  private async assertUniqueProfile(manager: EntityManager, table: 'benh_nhan' | 'bac_si', email: string, phone: string, excludeId?: number) {
+    const idColumn = table === 'benh_nhan' ? 'id_benh_nhan' : 'id_bac_si';
+    const params: unknown[] = [email.trim().toLowerCase(), phone];
+    const excluded = excludeId ? `AND ${idColumn} <> $3` : '';
+    if (excludeId) params.push(excludeId);
+    const rows = await manager.query(
+      `SELECT CASE WHEN lower(email)=$1 THEN 'email' ELSE 'phone' END AS conflict
+       FROM ${table} WHERE (lower(email)=$1 OR so_dien_thoai=$2) ${excluded} LIMIT 1`,
+      params,
+    );
+    if (rows[0]?.conflict === 'email') throw new AppException(409, ErrorCode.EMAIL_ALREADY_EXISTS, 'Email đã được sử dụng.');
+    if (rows.length) throw new AppException(409, ErrorCode.PHONE_ALREADY_EXISTS, 'Số điện thoại đã được sử dụng.');
+  }
+
+  private async assertUniqueDoctor(manager: EntityManager, username: string | undefined, phone: string, license: string, excludeId?: number) {
+    if (username) {
+      const accounts = await manager.query('SELECT 1 FROM tai_khoan WHERE lower(ten_dang_nhap)=lower($1) LIMIT 1', [username.trim()]);
+      if (accounts.length) {
+        throw new AppException(409, ErrorCode.USERNAME_ALREADY_EXISTS, 'Tên đăng nhập đã tồn tại. Vui lòng chọn tên đăng nhập khác.');
+      }
+    }
+
+    const params: unknown[] = [phone.trim(), license.trim().toLowerCase()];
+    const excluded = excludeId ? 'AND id_bac_si <> $3' : '';
+    if (excludeId) params.push(excludeId);
+    const rows = await manager.query(
+      `SELECT CASE WHEN so_dien_thoai=$1 THEN 'phone' ELSE 'license' END AS conflict
+       FROM bac_si
+       WHERE (so_dien_thoai=$1 OR lower(so_chung_chi_hanh_nghe)=$2) ${excluded}
+       ORDER BY CASE WHEN so_dien_thoai=$1 THEN 0 ELSE 1 END
+       LIMIT 1`,
+      params,
+    );
+    if (rows[0]?.conflict === 'phone') {
+      throw new AppException(409, ErrorCode.PHONE_ALREADY_EXISTS, 'Số điện thoại đã được sử dụng bởi bác sĩ khác.');
+    }
+    if (rows.length) {
+      throw new AppException(409, 'LICENSE_ALREADY_EXISTS', 'Số chứng chỉ hành nghề (CCHN) đã tồn tại.');
+    }
+  }
+
+  private async assertSpecialty(manager: EntityManager, specialtyId: number) {
+    const rows = await manager.query("SELECT 1 FROM chuyen_khoa WHERE id_chuyen_khoa=$1 AND trang_thai='Active'", [specialtyId]);
+    if (!rows.length) throw new AppException(400, 'SPECIALTY_NOT_FOUND', 'Chuyên khoa không tồn tại hoặc đã ngừng hoạt động.');
+  }
+
+  private translateCreateConflict(error: unknown): never {
+    const conflict = isDbConflict(error);
+    if (conflict?.constraint.includes('ten_dang_nhap')) throw new AppException(409, ErrorCode.USERNAME_ALREADY_EXISTS, 'Tên đăng nhập đã tồn tại.');
+    if (conflict?.constraint.includes('email')) throw new AppException(409, ErrorCode.EMAIL_ALREADY_EXISTS, 'Email đã được sử dụng.');
+    if (conflict?.constraint.includes('so_chung_chi')) throw new AppException(409, 'LICENSE_ALREADY_EXISTS', 'Số chứng chỉ hành nghề đã tồn tại.');
+    throw error;
   }
 
   private assertManager(actor: TaiKhoan | null | undefined) {

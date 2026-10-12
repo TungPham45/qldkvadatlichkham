@@ -1,5 +1,4 @@
-import { IsDateString, IsEmail, IsIn, IsString, Matches, MaxLength, MinLength } from 'class-validator';
-import { Match } from '@qlpk/common';
+import { IsDateString, IsEmail, IsIn, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
 
 export class RegisterDto {
   @IsString()
@@ -9,8 +8,8 @@ export class RegisterDto {
   @IsDateString()
   ngaySinh: string;
 
-  @IsIn(['Nam', 'Nu', 'Khac'])
-  gioiTinh: 'Nam' | 'Nu' | 'Khac';
+  @IsIn(['Nam', 'Nu'])
+  gioiTinh: 'Nam' | 'Nu';
 
   @Matches(/^0\d{9,10}$/, { message: 'Số điện thoại không hợp lệ.' })
   soDienThoai: string;
@@ -23,6 +22,11 @@ export class RegisterDto {
   @MaxLength(255)
   diaChi: string;
 
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  soBaoHiemYTe?: string;
+
   @Matches(/^[a-zA-Z0-9._]{3,100}$/, { message: 'Tên đăng nhập chỉ gồm chữ, số, dấu chấm hoặc gạch dưới, từ 3 đến 100 ký tự.' })
   username: string;
 
@@ -31,9 +35,6 @@ export class RegisterDto {
   @MaxLength(100)
   password: string;
 
-  @IsString()
-  @Match('password', { message: 'Mật khẩu xác nhận không khớp.' })
-  confirmPassword: string;
 }
 
 export class LoginDto {

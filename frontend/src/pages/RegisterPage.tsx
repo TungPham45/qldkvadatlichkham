@@ -40,7 +40,6 @@ export function RegisterPage() {
     <AuthLayout>
       <form className="flex w-full max-w-[460px] flex-col gap-3.5 rounded-2xl border border-line bg-white p-7 shadow-card" onSubmit={onSubmit}>
         <h2 className="text-xl font-semibold">Đăng ký bệnh nhân</h2>
-        <p className="text-[13px] text-muted">Chỉ tạo tài khoản bệnh nhân. Tài khoản bác sĩ và quản lý không đăng ký công khai.</p>
         <div className="grid grid-cols-1 gap-3.5 desk:grid-cols-2">
           <TextField className="desk:col-span-2" label="Họ tên" value={form.hoTen} onChange={(event) => set('hoTen', event.target.value)} required />
           <TextField label="Ngày sinh" type="date" value={form.ngaySinh} onChange={(event) => set('ngaySinh', event.target.value)} required />

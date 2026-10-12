@@ -2,17 +2,25 @@ import type { AppRole } from '../../types';
 
 export const roleNavigation: Record<AppRole, Array<{ to: string; label: string }>> = {
   PATIENT: [
-    { to: '/patient/dashboard', label: 'Tổng quan' },
+    { to: '/', label: 'Trang chủ' },
     { to: '/patient/appointments/book', label: 'Đặt lịch khám' },
     { to: '/patient/appointments', label: 'Lịch hẹn của tôi' },
+    { to: '/my-records', label: 'Lịch sử khám' },
   ],
   DOCTOR: [
     { to: '/doctor/dashboard', label: 'Tổng quan' },
     { to: '/doctor/schedule', label: 'Đăng ký lịch làm việc' },
+    { to: '/reception', label: 'Tiếp nhận bệnh nhân' },
+    { to: '/medical-history', label: 'Lịch sử khám' },
   ],
   MANAGER: [
-    { to: '/manager/dashboard', label: 'Tổng quan' },
-    { to: '/manager/accounts', label: 'Quản lý tài khoản' },
-    { to: '/manager/doctor-schedules', label: 'Quản lý lịch làm việc' },
+    { to: '/manager/patients', label: 'Quản lý Bệnh nhân' },
+    { to: '/manager/doctors', label: 'Quản lý Bác sĩ' },
+    { to: '/manager/specialties', label: 'Quản lý Chuyên khoa' },
+    { to: '/manager/accounts', label: 'Quản lý Tài khoản' },
+    { to: '/manager/doctor-schedules', label: 'Quản lý Lịch khám' },
+    { to: '/manager/diseases', label: 'Danh mục tên bệnh' },
+    { to: '/reception', label: 'Tiếp nhận bệnh nhân' },
+    { to: '/medical-history', label: 'Lịch sử khám' },
   ],
 };

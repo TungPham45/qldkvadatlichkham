@@ -1,7 +1,7 @@
 import type { AppRole } from '../types';
 
-export const hospitalName = import.meta.env.VITE_HOSPITAL_NAME || 'Phòng khám đa khoa';
-export const hospitalSubtitle = import.meta.env.VITE_HOSPITAL_SUBTITLE || 'Cổng thông tin đặt lịch';
+export const hospitalName = import.meta.env.VITE_HOSPITAL_NAME || 'Bệnh viện đa khoa quốc tế';
+export const hospitalSubtitle = import.meta.env.VITE_HOSPITAL_SUBTITLE || 'Hệ thống quản lý hồ sơ & đặt lịch khám trực tuyến';
 export const hospitalHotline = import.meta.env.VITE_HOSPITAL_HOTLINE || '';
 
 export function roleLabel(role: AppRole) {
@@ -12,8 +12,8 @@ export function roleLabel(role: AppRole) {
 
 export function roleHome(role: AppRole) {
   if (role === 'DOCTOR') return '/doctor/dashboard';
-  if (role === 'MANAGER') return '/manager/dashboard';
-  return '/patient/dashboard';
+  if (role === 'MANAGER') return '/manager/patients';
+  return '/';
 }
 
 export function formatDate(value?: string | null) {

@@ -5,44 +5,80 @@ Hệ thống phase 1 gồm cổng bệnh nhân, đăng ký ca của bác sĩ, du
 ## Máy cần có gì
 
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) đang chạy
-- Cổng trống: `5173`, `3000`–`3004`, `5433`, `6379`
+- Node.js khi sửa code hoặc chạy `npm test`
+- Cổng trống: `5173`, `3000`–`3004`, `3010`, `3013`, `5433`, `6379`
 
-Node.js chỉ cần khi chạy `npm test` trên máy host. App chạy bằng Docker Compose, không cần `npm run dev`.
+Copy cả thư mục project sang máy mới. Không cần tạo database bằng tay. Máy mới thiếu `.env` thì copy `.env.example` thành `.env`.
 
-Copy cả thư mục project sang máy mới. Không cần tạo database bằng tay.
-
-## Khởi động lần đầu
+## Sửa code
 
 Mở terminal tại thư mục gốc của project, không phải thư mục `frontend`.
 
 ```bash
-docker compose up -d --build
+npm run dev
 ```
 
-Lệnh này bật PostgreSQL, Redis, auth-service, patient-service, staff-service, appointment-service, API Gateway và giao diện. Database `qlphongkham` được tạo từ `qlphongkham.sql`, rồi chạy thêm `database/migrations/001_schedule_workflow.sql`. Hai file SQL chỉ chạy khi volume Postgres còn trống.
+Lệnh này tắt các container app (auth, patient, staff, appointment, gateway, frontend) nếu chúng đang chiếm cổng, bật PostgreSQL và Redis, rồi chạy app trên máy host với watch:
 
-Postgres của project mở ở cổng **5433** trên máy host. Trong container, service nối Postgres qua host `postgres` cổng `5432`. File `.env` trên máy host vẫn để `DB_PORT=5433` cho công cụ bên ngoài Docker.
+| Process | Cổng |
+| --- | --- |
+| auth-service | 3001 |
+| patient-service | 3002 |
+| staff-service | 3003 |
+| appointment-service | 3004 |
+| medical-record-service | 3010 |
+| notification-service | 3013 |
+| API Gateway | 3000 |
+| frontend (Vite) | 5173 |
 
-Đợi các container khỏe:
+Sửa TypeScript hoặc giao diện thì process tương ứng tự tải lại. Postgres trên máy host là `localhost:5433`, Redis là `localhost:6379`, đúng với `.env`.
+
+Database `qlphongkham` được tạo từ `qlphongkham.sql`, rồi chạy thêm `database/migrations/001_schedule_workflow.sql`. Hai file SQL chỉ chạy khi volume Postgres còn trống.
+
+Mở http://localhost:5173. Vite chuyển `/api` sang gateway ở cổng 3000.
+
+Dừng app bằng Ctrl+C. Postgres và Redis vẫn chạy. Tắt hai container đó:
 
 ```bash
-docker compose ps
+docker compose stop
 ```
 
-Mở http://localhost:5173 khi `qlpk-frontend` đã healthy.
+## Chạy bản đã build
+
+Dùng khi không sửa code. Dừng `npm run dev` trước, vì hai cách cùng chiếm cổng 3000–3004 và 5173.
+
+```bash
+npm run stack
+```
+
+Lệnh này là `docker compose --profile app up -d --build`. Profile `app` bật auth-service, patient-service, staff-service, appointment-service, API Gateway và giao diện nginx, cùng Postgres và Redis. Các service trong container nối Postgres qua host `postgres` cổng `5432` và Redis qua host `redis`. `medical-record-service` và `notification-service` không nằm trong profile này.
+
+Đợi container khỏe:
+
+```bash
+docker compose --profile app ps
+```
+
+Mở http://localhost:5173 khi `qlpk-frontend` đã healthy. Sửa code xong muốn thấy trên bản Docker thì chạy lại `npm run stack`.
+
+Tắt cả cụm:
+
+```bash
+docker compose --profile app stop
+```
 
 ## File cấu hình
 
 | File | Việc của file |
 | --- | --- |
-| `.env` | Cổng, bí mật JWT, token nội bộ. Compose đọc file này. Host Postgres và Redis trong file bị Compose ghi đè bằng tên container. |
+| `.env` | Cổng, bí mật JWT, token nội bộ. `npm run dev` đọc file này. Profile `app` ghi đè host Postgres và Redis bằng tên container. |
 | `.env.example` | Bản mẫu của `.env`. Máy mới thiếu `.env` thì copy file này thành `.env`. |
 | `frontend/.env` | Tên phòng khám trên giao diện: `VITE_HOSPITAL_NAME`, `VITE_HOSPITAL_SUBTITLE`. `VITE_HOSPITAL_HOTLINE` chỉ hiện khi có giá trị. |
 
 Đổi tên phòng khám xong thì build lại giao diện, vì Vite đọc `frontend/.env` lúc tạo bản tĩnh:
 
 ```bash
-docker compose up -d --build frontend
+docker compose --profile app up -d --build frontend
 ```
 
 ## Địa chỉ khi đang chạy
@@ -55,6 +91,8 @@ docker compose up -d --build frontend
 | patient-service | http://localhost:3002 |
 | staff-service | http://localhost:3003 |
 | appointment-service | http://localhost:3004 |
+| medical-record-service | http://localhost:3010, chỉ khi `npm run dev` |
+| notification-service | http://localhost:3013, chỉ khi `npm run dev` |
 | PostgreSQL | localhost:5433, database `qlphongkham`, user/password `postgres` / `postgres` |
 | Redis | localhost:6379 |
 
@@ -96,18 +134,6 @@ npm run build
 
 `npm test` kiểm tra sinh slot và khóa Redis. `npm run smoke` đi một vòng đăng ký ca, duyệt và đặt lịch; gateway, các service, Postgres và Redis phải đang chạy. `npm run build` tạo bản production của gateway, các service và frontend.
 
-## Tắt và chạy lại
+## Xóa dữ liệu
 
-```bash
-docker compose stop
-```
-
-Lần sau, Docker Desktop đang mở thì:
-
-```bash
-docker compose up -d
-```
-
-Sửa code service hoặc giao diện thì chạy lại `docker compose up -d --build` để image nhận bản mới.
-
-`docker compose down -v` xóa dữ liệu Postgres, kể cả tài khoản và lịch đã tạo. Lần `up` tiếp theo sẽ nạp lại SQL gốc.
+`docker compose --profile app down -v` xóa dữ liệu Postgres, kể cả tài khoản và lịch đã tạo. Lần bật Postgres tiếp theo sẽ nạp lại SQL gốc.

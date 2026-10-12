@@ -57,6 +57,7 @@ services:
 
   auth-service:
     <<: *node
+    profiles: ["app"]
     container_name: qlpk-auth
     command: ["node", "services/auth-service/dist/main.js"]
     ports:
@@ -73,6 +74,7 @@ services:
 
   patient-service:
     <<: *node
+    profiles: ["app"]
     container_name: qlpk-patient
     command: ["node", "services/patient-service/dist/main.js"]
     ports:
@@ -86,6 +88,7 @@ services:
 
   staff-service:
     <<: *node
+    profiles: ["app"]
     container_name: qlpk-staff
     command: ["node", "services/staff-service/dist/main.js"]
     ports:
@@ -99,6 +102,7 @@ services:
 
   appointment-service:
     <<: *node
+    profiles: ["app"]
     container_name: qlpk-appointment
     command: ["node", "services/appointment-service/dist/main.js"]
     ports:
@@ -114,6 +118,7 @@ services:
 
   api-gateway:
     <<: *node
+    profiles: ["app"]
     container_name: qlpk-gateway
     command: ["node", "services/api-gateway/dist/main.js"]
     ports:
@@ -132,6 +137,7 @@ services:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:'+process.env.GATEWAY_PORT+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
 
   frontend:
+    profiles: ["app"]
     image: qlpk-frontend:local
     build:
       context: .

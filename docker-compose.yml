@@ -1,3 +1,27 @@
+x-node: &node
+  image: qlpk-services:local
+  build:
+    context: .
+    dockerfile: Dockerfile
+    target: runtime
+  env_file: .env
+  restart: unless-stopped
+  environment: &service-env
+    TZ: Asia/Ho_Chi_Minh
+    DB_HOST: postgres
+    DB_PORT: "5432"
+    REDIS_HOST: redis
+    REDIS_PORT: "6379"
+    AUTH_SERVICE_URL: http://auth-service:3001
+    PATIENT_SERVICE_URL: http://patient-service:3002
+    STAFF_SERVICE_URL: http://staff-service:3003
+    APPOINTMENT_SERVICE_URL: http://appointment-service:3004
+    AUTH_PORT: "3001"
+    PATIENT_PORT: "3002"
+    STAFF_PORT: "3003"
+    APPOINTMENT_PORT: "3004"
+    GATEWAY_PORT: "3000"
+
 services:
   postgres:
     image: postgres:15
@@ -30,6 +54,102 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
+
+  auth-service:
+    <<: *node
+    container_name: qlpk-auth
+    command: ["node", "services/auth-service/dist/main.js"]
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck: &node-health
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:'+process.env.AUTH_PORT+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 25s
+
+  patient-service:
+    <<: *node
+    container_name: qlpk-patient
+    command: ["node", "services/patient-service/dist/main.js"]
+    ports:
+      - "3002:3002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      <<: *node-health
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:'+process.env.PATIENT_PORT+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+
+  staff-service:
+    <<: *node
+    container_name: qlpk-staff
+    command: ["node", "services/staff-service/dist/main.js"]
+    ports:
+      - "3003:3003"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      <<: *node-health
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:'+process.env.STAFF_PORT+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+
+  appointment-service:
+    <<: *node
+    container_name: qlpk-appointment
+    command: ["node", "services/appointment-service/dist/main.js"]
+    ports:
+      - "3004:3004"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      <<: *node-health
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:'+process.env.APPOINTMENT_PORT+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+
+  api-gateway:
+    <<: *node
+    container_name: qlpk-gateway
+    command: ["node", "services/api-gateway/dist/main.js"]
+    ports:
+      - "3000:3000"
+    depends_on:
+      auth-service:
+        condition: service_healthy
+      patient-service:
+        condition: service_healthy
+      staff-service:
+        condition: service_healthy
+      appointment-service:
+        condition: service_healthy
+    healthcheck:
+      <<: *node-health
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:'+process.env.GATEWAY_PORT+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+
+  frontend:
+    image: qlpk-frontend:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: frontend
+    container_name: qlpk-frontend
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
 
 volumes:
   qlpk_pg:

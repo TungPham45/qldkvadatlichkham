@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Controller, Get, Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -8,6 +8,14 @@ import { AppointmentRepository } from './modules/appointments/appointment.reposi
 import { AppointmentService } from './modules/appointments/appointment.service';
 import { LichHen } from './modules/appointments/lich-hen.entity';
 import { RedisModule } from './redis/redis.module';
+
+@Controller()
+class HealthController {
+  @Get('health')
+  health() {
+    return { status: 'ok', service: 'appointment-service' };
+  }
+}
 
 @Module({
   imports: [
@@ -26,7 +34,7 @@ import { RedisModule } from './redis/redis.module';
     JwtModule.registerAsync({ useFactory: () => ({ secret: process.env.JWT_ACCESS_SECRET }) }),
     RedisModule,
   ],
-  controllers: [AppointmentController, InternalAppointmentController],
+  controllers: [HealthController, AppointmentController, InternalAppointmentController],
   providers: [AppointmentService, AppointmentRepository],
 })
 export class AppModule {}

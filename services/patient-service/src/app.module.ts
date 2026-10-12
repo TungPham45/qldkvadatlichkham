@@ -1,9 +1,17 @@
-import { Module } from '@nestjs/common';
+import { Controller, Get, Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { resolve } from 'path';
 import { BenhNhan } from './modules/patients/benh-nhan.entity';
 import { PatientModule } from './modules/patients/patient.module';
+
+@Controller()
+class HealthController {
+  @Get('health')
+  health() {
+    return { status: 'ok', service: 'patient-service' };
+  }
+}
 
 @Module({
   imports: [
@@ -20,5 +28,6 @@ import { PatientModule } from './modules/patients/patient.module';
     }),
     PatientModule,
   ],
+  controllers: [HealthController],
 })
 export class AppModule {}

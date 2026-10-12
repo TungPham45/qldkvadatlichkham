@@ -5,49 +5,45 @@ Hệ thống phase 1 gồm cổng bệnh nhân, đăng ký ca của bác sĩ, du
 ## Máy cần có gì
 
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) đang chạy
-- [Node.js 20](https://nodejs.org/) trở lên, kèm npm
 - Cổng trống: `5173`, `3000`–`3004`, `5433`, `6379`
+
+Node.js chỉ cần khi chạy `npm test` trên máy host. App chạy bằng Docker Compose, không cần `npm run dev`.
 
 Copy cả thư mục project sang máy mới. Không cần tạo database bằng tay.
 
 ## Khởi động lần đầu
 
-Mở terminal tại thư mục project.
+Mở terminal tại thư mục gốc của project, không phải thư mục `frontend`.
 
 ```bash
-docker compose up -d
+docker compose up -d --build
 ```
 
-Lệnh này bật PostgreSQL và Redis. Database `qlphongkham` được tạo từ `qlphongkham.sql`, rồi chạy thêm `database/migrations/001_schedule_workflow.sql`. Hai file SQL chỉ chạy khi volume Postgres còn trống.
+Lệnh này bật PostgreSQL, Redis, auth-service, patient-service, staff-service, appointment-service, API Gateway và giao diện. Database `qlphongkham` được tạo từ `qlphongkham.sql`, rồi chạy thêm `database/migrations/001_schedule_workflow.sql`. Hai file SQL chỉ chạy khi volume Postgres còn trống.
 
-Postgres của project mở ở cổng **5433** trên máy host. File `.env` đã trỏ `DB_PORT=5433`.
+Postgres của project mở ở cổng **5433** trên máy host. Trong container, service nối Postgres qua host `postgres` cổng `5432`. File `.env` trên máy host vẫn để `DB_PORT=5433` cho công cụ bên ngoài Docker.
 
-Đợi hai container khỏe:
+Đợi các container khỏe:
 
 ```bash
 docker compose ps
 ```
 
-`qlpk-postgres` và `qlpk-redis` cần ở trạng thái healthy. Sau đó:
-
-```bash
-npm install
-npm run dev
-```
-npm run dev
-`npm run dev` build gói dùng chung rồi chạy gateway, bốn service nghiệp vụ và frontend.
-
-Mở http://localhost:5173.
+Mở http://localhost:5173 khi `qlpk-frontend` đã healthy.
 
 ## File cấu hình
 
 | File | Việc của file |
 | --- | --- |
-| `.env` | Cổng, chuỗi kết nối Postgres, Redis, bí mật JWT. Service đọc file này ở thư mục gốc. |
+| `.env` | Cổng, bí mật JWT, token nội bộ. Compose đọc file này. Host Postgres và Redis trong file bị Compose ghi đè bằng tên container. |
 | `.env.example` | Bản mẫu của `.env`. Máy mới thiếu `.env` thì copy file này thành `.env`. |
 | `frontend/.env` | Tên phòng khám trên giao diện: `VITE_HOSPITAL_NAME`, `VITE_HOSPITAL_SUBTITLE`. `VITE_HOSPITAL_HOTLINE` chỉ hiện khi có giá trị. |
 
-Đổi tên phòng khám xong thì tắt `npm run dev` và chạy lại, vì Vite đọc `frontend/.env` lúc khởi động.
+Đổi tên phòng khám xong thì build lại giao diện, vì Vite đọc `frontend/.env` lúc tạo bản tĩnh:
+
+```bash
+docker compose up -d --build frontend
+```
 
 ## Địa chỉ khi đang chạy
 
@@ -102,17 +98,16 @@ npm run build
 
 ## Tắt và chạy lại
 
-Tắt app bằng Ctrl+C trong terminal đang chạy `npm run dev`. Postgres và Redis vẫn chạy nền cho đến khi:
-
 ```bash
 docker compose stop
 ```
 
-Lần sau chỉ cần Docker Desktop đang mở, rồi:
+Lần sau, Docker Desktop đang mở thì:
 
 ```bash
 docker compose up -d
-npm run dev
 ```
+
+Sửa code service hoặc giao diện thì chạy lại `docker compose up -d --build` để image nhận bản mới.
 
 `docker compose down -v` xóa dữ liệu Postgres, kể cả tài khoản và lịch đã tạo. Lần `up` tiếp theo sẽ nạp lại SQL gốc.

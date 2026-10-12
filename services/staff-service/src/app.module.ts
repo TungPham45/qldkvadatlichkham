@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Controller, Get, Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -9,6 +9,14 @@ import { DoctorScheduleController, InternalScheduleController } from './modules/
 import { DoctorScheduleRepository } from './modules/doctor-schedules/doctor-schedule.repository';
 import { DoctorScheduleService } from './modules/doctor-schedules/doctor-schedule.service';
 import { SpecialtyController } from './modules/specialties/specialty.controller';
+
+@Controller()
+class HealthController {
+  @Get('health')
+  health() {
+    return { status: 'ok', service: 'staff-service' };
+  }
+}
 
 @Module({
   imports: [
@@ -26,7 +34,7 @@ import { SpecialtyController } from './modules/specialties/specialty.controller'
     TypeOrmModule.forFeature(STAFF_ENTITIES),
     JwtModule.registerAsync({ useFactory: () => ({ secret: process.env.JWT_ACCESS_SECRET }) }),
   ],
-  controllers: [DoctorScheduleController, InternalScheduleController, SpecialtyController, DoctorController],
+  controllers: [HealthController, DoctorScheduleController, InternalScheduleController, SpecialtyController, DoctorController],
   providers: [DoctorScheduleService, DoctorScheduleRepository],
 })
 export class AppModule {}

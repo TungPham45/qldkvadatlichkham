@@ -30,6 +30,10 @@ function serviceFor(url: string) {
     return process.env.STAFF_SERVICE_URL || 'http://localhost:3003';
   }
   if (path.startsWith('/appointments')) return process.env.APPOINTMENT_SERVICE_URL || 'http://localhost:3004';
+  if (path.startsWith('/medical-records') || path.startsWith('/diseases') || path.startsWith('/reception')) {
+    return process.env.MEDICAL_RECORD_SERVICE_URL || 'http://localhost:3010';
+  }
+  if (path.startsWith('/notifications')) return process.env.NOTIFICATION_SERVICE_URL || 'http://localhost:3013';
   return process.env.AUTH_SERVICE_URL || 'http://localhost:3001';
 }
 

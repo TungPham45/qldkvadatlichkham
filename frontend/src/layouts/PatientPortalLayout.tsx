@@ -3,6 +3,7 @@ import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { patientApi, patientProfileChangedEvent } from '../features/patient/api';
 import { useAuth } from '../stores/auth-store';
 import { hospitalHotline, hospitalName, hospitalSubtitle, initials } from '../utils/format';
+import { NotificationBell } from '../components/NotificationBell';
 
 export function PatientPortalLayout() {
   const { user, logout } = useAuth();
@@ -64,9 +65,10 @@ export function PatientPortalLayout() {
             <NavLink end to="/" onClick={() => setMenu(false)} className={({ isActive }) => `rounded-full px-3 py-2 text-sm font-semibold ${isActive ? 'bg-primary-50 text-primary-700' : 'text-[#3d4d63] hover:bg-primary-50 hover:text-primary-700'}`}>Trang chủ</NavLink>
             <NavLink to="/patient/appointments/book" onClick={() => setMenu(false)} className={({ isActive }) => `rounded-full px-3 py-2 text-sm font-semibold ${isActive ? 'bg-primary-50 text-primary-700' : 'text-[#3d4d63] hover:bg-primary-50 hover:text-primary-700'}`}>Đặt khám</NavLink>
             <NavLink end to="/patient/appointments" onClick={() => setMenu(false)} className={({ isActive }) => `rounded-full px-3 py-2 text-sm font-semibold ${isActive ? 'bg-primary-50 text-primary-700' : 'text-[#3d4d63] hover:bg-primary-50 hover:text-primary-700'}`}>Lịch khám</NavLink>
+            <NavLink to="/my-records" onClick={() => setMenu(false)} className={({ isActive }) => `rounded-full px-3 py-2 text-sm font-semibold ${isActive ? 'bg-primary-50 text-primary-700' : 'text-[#3d4d63] hover:bg-primary-50 hover:text-primary-700'}`}>Lịch sử khám</NavLink>
           </nav>
           {hospitalHotline ? <a className="text-sm font-bold whitespace-nowrap text-primary-700" href={`tel:${hospitalHotline.replace(/\s/g, '')}`}>Hotline {hospitalHotline}</a> : null}
-          <div className="relative ml-auto flex items-center gap-2.5" ref={profileMenuRef}>
+          <NotificationBell /><div className="relative flex items-center gap-2.5" ref={profileMenuRef}>
             <button ref={avatarRef} className="grid size-[42px] shrink-0 cursor-pointer place-items-center rounded-full bg-primary-50 font-bold text-primary-700 focus-visible:outline-2 focus-visible:outline-primary-600" type="button" aria-label="Mở menu tài khoản" aria-expanded={profileMenu} aria-controls="patient-account-menu" onClick={() => { setMenu(false); setProfileMenu((open) => !open); }}>{initials(name)}</button>
             <span className="hidden desk:block">
               <strong className="block">{name}</strong>

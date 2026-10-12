@@ -123,6 +123,12 @@ export class AppointmentService {
             nguonDatLich: 'Online',
           }),
         );
+        await manager.query(
+          `INSERT INTO thong_bao
+             (id_tai_khoan, id_lich_hen, loai, kenh, tieu_de, noi_dung, trang_thai, thoi_gian_gui)
+           VALUES ($1, $2, 'Dat lich', 'Ung dung', 'Đặt lịch khám thành công', $3, 'Chua doc', CURRENT_TIMESTAMP)`,
+          [accountId, saved.idLichHen, `Lịch khám ngày ${date} lúc ${start} đã được ghi nhận.`],
+        );
         return { saved, endTime: matched.slot.end };
       });
       await this.redis.client.del(this.cacheKey(dto.bacSiId, date));

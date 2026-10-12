@@ -12,6 +12,50 @@
   transition: transform 180ms ease;
 }
 
+.manager-toolbar > input { height:42px; padding:0 10px; border:1px solid #d9e2ea; border-radius:9px; background:#fff; }
+.clinical-id-filter { width:130px; }
+.clinical-detail { padding:22px; color:#485365; font-size:13px; line-height:1.55; }
+.clinical-detail h3 { margin:18px 0 10px; color:#17385e; }
+.clinical-detail h3:first-child { margin-top:0; }
+.clinical-detail dl { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px 18px; }
+.clinical-detail dl div { padding:9px; border-radius:8px; background:#f6f9fc; }
+.clinical-detail dt { color:#708096; font-size:11px; }
+.clinical-detail dd { margin:3px 0 0; color:#202b3a; font-weight:600; }
+.clinical-detail dl .is-wide { grid-column:1 / -1; }
+.disease-table th:nth-child(1) { width:12%; }
+.disease-table th:nth-child(2) { width:22%; }
+.disease-table th:nth-child(3) { width:18%; }
+.disease-table th:nth-child(4) { width:31%; }
+.disease-table th:nth-child(5) { width:17%; }
+.clinical-drugs { display:grid; gap:7px; }
+.clinical-drugs div { display:flex; justify-content:space-between; gap:15px; padding:9px; border:1px solid #e2e9f0; border-radius:8px; }
+.clinical-checkbox { display:flex; align-items:center; gap:8px; font-size:13px; }
+.notification-bell { position:relative; }
+.notification-bell__button { position:relative; display:grid; width:40px; height:40px; place-items:center; border:1px solid #e1e8ef; border-radius:10px; background:#fff; cursor:pointer; font-size:18px; }
+.notification-bell__button b { position:absolute; top:-6px; right:-7px; min-width:19px; height:19px; padding:0 4px; border:2px solid #fff; border-radius:10px; background:#d3373e; color:#fff; font-size:9px; line-height:15px; }
+.notification-panel { position:absolute; top:calc(100% + 10px); right:0; z-index:80; width:min(380px,calc(100vw - 24px)); overflow:hidden; border:1px solid #dfe6ee; border-radius:13px; background:#fff; box-shadow:0 18px 44px rgba(20,45,70,.2); }
+.notification-panel header,.notification-panel footer { display:flex; padding:12px 14px; align-items:center; justify-content:space-between; border-bottom:1px solid #e8edf2; }
+.notification-panel header button,.notification-panel footer button { border:0; background:none; color:#2464c1; cursor:pointer; font-size:11px; font-weight:700; }
+.notification-panel > button { display:block; width:100%; padding:11px 14px; border:0; border-bottom:1px solid #edf1f4; background:#fff; cursor:pointer; text-align:left; }
+.notification-panel > button.is-unread { background:#edf5ff; }
+.notification-panel > button strong,.notification-panel > button span,.notification-panel > button small { display:block; }
+.notification-panel > button span { margin:3px 0; color:#536176; font-size:12px; }
+.notification-panel > button small { color:#8995a4; }
+.notification-panel__empty,.notification-panel__error { padding:20px; color:#6e7b8c; text-align:center; }
+.notification-panel__error { color:#b83238; }
+.notification-panel footer { justify-content:center; border:0; }
+.notification-list { display:grid; }
+.notification-list > p { padding:28px; text-align:center; color:#788595; }
+.notification-list > button { display:grid; width:100%; padding:16px 22px; grid-template-columns:10px 1fr auto; gap:12px; align-items:start; border:0; border-bottom:1px solid #e8edf2; background:#fff; cursor:pointer; text-align:left; }
+.notification-list > button.is-unread { background:#f0f6ff; }
+.notification-list__dot { width:8px; height:8px; margin-top:5px; border-radius:50%; background:#c3ccd7; }
+.notification-list .is-unread .notification-list__dot { background:#2464c1; }
+.notification-list strong,.notification-list em,.notification-list small { display:block; }
+.notification-list em { margin:4px 0; color:#4f5c6e; font-size:13px; font-style:normal; }
+.notification-list small { color:#8994a1; }
+.notification-list > button > b { color:#6e7b8c; font-size:10px; }
+@media(max-width:760px){.clinical-detail dl{grid-template-columns:1fr}.clinical-drugs div{flex-direction:column}.notification-list>button{grid-template-columns:8px 1fr}.notification-list>button>b{display:none}}
+
 .admin-sidebar.is-open { transform: translateX(0); }
 
 .admin-sidebar__brand {

@@ -6,6 +6,9 @@ import { hospitalName, hospitalSubtitle } from '../utils/format';
 const linkClass = 'flex items-center gap-2.5 rounded-[10px] px-3 py-2.5 text-left text-sm font-medium text-[#d5e2f2] hover:bg-white/10 hover:text-white';
 
 function ManagerIcon({ path }: { path: string }) {
+  if (path.includes('diseases')) return <span aria-hidden="true">✚</span>;
+  if (path.includes('reception')) return <span aria-hidden="true">⌁</span>;
+  if (path.includes('history')) return <span aria-hidden="true">▤</span>;
   if (path.includes('accounts')) return <span aria-hidden="true">◎</span>;
   if (path.includes('schedules')) return <span aria-hidden="true">▣</span>;
   if (path.includes('patients')) return <span aria-hidden="true">♟</span>;

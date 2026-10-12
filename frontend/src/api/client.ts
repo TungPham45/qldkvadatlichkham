@@ -50,6 +50,11 @@ api.interceptors.response.use(
 
 export function errorMessage(error: unknown, fallback = 'Không thực hiện được yêu cầu.') {
   if (axios.isAxiosError(error)) {
+    if (!error.response) return 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra các dịch vụ và thử lại.';
+    if (error.response.status === 401) return 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.';
+    if (error.response.status === 403) return 'Bạn không có quyền thực hiện thao tác này.';
+    if ([502, 503, 504].includes(error.response.status)) return 'Dịch vụ nghiệp vụ đang tạm thời không phản hồi. Vui lòng thử lại.';
+    if (error.response.status >= 500) return 'Máy chủ gặp lỗi khi xử lý dữ liệu. Vui lòng thử lại hoặc liên hệ quản trị viên.';
     return error.response?.data?.message || fallback;
   }
   return fallback;

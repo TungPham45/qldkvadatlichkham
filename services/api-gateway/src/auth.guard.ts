@@ -1,7 +1,14 @@
 import type { IncomingMessage, ServerResponse } from 'http';
 import jwt from 'jsonwebtoken';
 
-const PUBLIC_POST = new Set(['/api/auth/login', '/api/auth/register', '/api/auth/refresh']);
+const PUBLIC_POST = new Set([
+  '/api/auth/login',
+  '/api/auth/register',
+  '/api/auth/refresh',
+  '/api/auth/password-reset/request',
+  '/api/auth/password-reset/verify',
+  '/api/auth/password-reset/confirm',
+]);
 
 export function sendJson(res: ServerResponse, status: number, code: string, message: string) {
   res.statusCode = status;

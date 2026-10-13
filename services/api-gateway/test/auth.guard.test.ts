@@ -75,6 +75,18 @@ test('internal endpoints stay hidden and public login remains accessible', async
   assert.equal(login.lookups, 0);
 });
 
+test('all password reset steps are publicly accessible', async () => {
+  for (const path of [
+    '/api/auth/password-reset/request',
+    '/api/auth/password-reset/verify',
+    '/api/auth/password-reset/confirm',
+  ]) {
+    const result = await invoke({ path, method: 'POST', token: '' });
+    assert.equal(result.passed, true);
+    assert.equal(result.lookups, 0);
+  }
+});
+
 test('account verification fails closed when the auth service is unavailable', async () => {
   const result = await invoke({ unavailable: true });
   assert.equal(result.status, 502);

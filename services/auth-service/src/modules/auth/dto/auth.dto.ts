@@ -65,3 +65,30 @@ export class RefreshDto {
   @IsString()
   refreshToken: string;
 }
+
+export class RequestPasswordResetDto {
+  @Matches(/^0\d{9,10}$/, { message: 'Số điện thoại không hợp lệ.' })
+  phone: string;
+}
+
+export class VerifyPasswordResetOtpDto extends RequestPasswordResetDto {
+  @Matches(/^\d{6}$/, { message: 'Mã OTP phải gồm đúng 6 chữ số.' })
+  otp: string;
+}
+
+export class ConfirmPasswordResetDto {
+  @IsString()
+  @MinLength(32)
+  @MaxLength(200)
+  resetToken: string;
+
+  @IsString()
+  @MinLength(6)
+  @MaxLength(100)
+  newPassword: string;
+
+  @IsString()
+  @MinLength(6)
+  @MaxLength(100)
+  confirmPassword: string;
+}

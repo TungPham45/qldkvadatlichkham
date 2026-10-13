@@ -29,4 +29,31 @@ export class AuthRepository {
   deleteById(id: string) {
     return this.accounts.delete({ idTaiKhoan: id });
   }
+
+  async findAccountIdsByPhone(phone: string) {
+    const rows = await this.accounts.manager.query(
+      `SELECT DISTINCT profile.id_tai_khoan AS "idTaiKhoan"
+       FROM (
+         SELECT ql.id_tai_khoan, ql.so_dien_thoai
+         FROM quan_ly ql
+         UNION ALL
+         SELECT bs.id_tai_khoan, bs.so_dien_thoai
+         FROM bac_si bs
+         UNION ALL
+         SELECT link.id_tai_khoan, bn.so_dien_thoai
+         FROM tai_khoan_benh_nhan link
+         JOIN benh_nhan bn ON bn.id_benh_nhan = link.id_benh_nhan
+         WHERE link.la_chu_ho_so = TRUE AND link.trang_thai = 'Active'
+       ) profile
+       JOIN tai_khoan tk ON tk.id_tai_khoan = profile.id_tai_khoan
+       WHERE profile.so_dien_thoai = $1
+       LIMIT 2`,
+      [phone],
+    ) as Array<{ idTaiKhoan: string }>;
+    return rows.map((row) => row.idTaiKhoan);
+  }
+
+  updatePassword(id: string, passwordHash: string) {
+    return this.accounts.update({ idTaiKhoan: id }, { matKhauMaHoa: passwordHash });
+  }
 }

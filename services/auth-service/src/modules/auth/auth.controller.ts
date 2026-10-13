@@ -2,7 +2,14 @@ import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 import { CurrentUser, JwtAuthGuard } from '@qlpk/common';
 import { AccessTokenPayload } from '@qlpk/common';
 import { AuthService } from './auth.service';
-import { LoginDto, RefreshDto, RegisterDto } from './dto/auth.dto';
+import {
+  ConfirmPasswordResetDto,
+  LoginDto,
+  RefreshDto,
+  RegisterDto,
+  RequestPasswordResetDto,
+  VerifyPasswordResetOtpDto,
+} from './dto/auth.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -21,6 +28,21 @@ export class AuthController {
   @Post('refresh')
   refresh(@Body() dto: RefreshDto) {
     return this.auth.refresh(dto);
+  }
+
+  @Post('password-reset/request')
+  requestPasswordReset(@Body() dto: RequestPasswordResetDto) {
+    return this.auth.requestPasswordReset(dto);
+  }
+
+  @Post('password-reset/verify')
+  verifyPasswordResetOtp(@Body() dto: VerifyPasswordResetOtpDto) {
+    return this.auth.verifyPasswordResetOtp(dto);
+  }
+
+  @Post('password-reset/confirm')
+  confirmPasswordReset(@Body() dto: ConfirmPasswordResetDto) {
+    return this.auth.confirmPasswordReset(dto);
   }
 
   @Post('logout')

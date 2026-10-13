@@ -59,23 +59,11 @@ export class MedicalService {
   async history(user: AccessTokenPayload, q: PageQuery) {
     const where: string[] = []; const values: unknown[] = [];
     const add = (sql: string, value: unknown) => { values.push(value); where.push(sql.replace('?', `$${values.length}`)); };
-<<<<<<< HEAD
     if (user.role === AppRole.PATIENT) add(`EXISTS (
       SELECT 1 FROM tai_khoan_benh_nhan owner
       WHERE owner.id_benh_nhan = bn.id_benh_nhan AND owner.id_tai_khoan = ?
         AND owner.la_chu_ho_so = TRUE AND owner.trang_thai = 'Active'
     )`, user.sub);
-=======
-    if (user.role === AppRole.PATIENT) {
-      add(`EXISTS (
-        SELECT 1
-        FROM tai_khoan_benh_nhan patient_link
-        WHERE patient_link.id_benh_nhan = bn.id_benh_nhan
-          AND patient_link.id_tai_khoan = ?
-          AND patient_link.trang_thai = 'Active'
-      )`, user.sub);
-    }
->>>>>>> 4d0d13c508dbea20eec8b30b3188d70376b4009a
     else if (user.role === AppRole.DOCTOR) add('bs.id_tai_khoan = ?', user.sub);
     else if (q.patientId) add('pk.id_benh_nhan = ?', q.patientId);
     if (user.role === AppRole.MANAGER && q.doctorId) add('pk.id_bac_si = ?', q.doctorId);

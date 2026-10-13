@@ -37,6 +37,7 @@ function fixture(target: TaiKhoan, options: { actor?: TaiKhoan; related?: boolea
     getRepository() { return repository; },
     async query(statement: string) {
       sql.push(statement);
+      if (statement.includes('SELECT link.id_tai_khoan')) return options.noOwner ? [] : [{ id_tai_khoan: target.idTaiKhoan }];
       if (statement.includes('SELECT id_tai_khoan FROM tai_khoan_benh_nhan')) return options.noOwner ? [] : [{ id_tai_khoan: target.idTaiKhoan }];
       if (statement.includes('SELECT id_tai_khoan, la_chu_ho_so')) return options.noOwner ? [] : [{ id_tai_khoan: target.idTaiKhoan, la_chu_ho_so: true }];
       if (statement.includes('UPDATE benh_nhan') && options.bhytConflict) throw { code: '23505', constraint: 'uq_benh_nhan_so_bhyt' };
@@ -51,6 +52,9 @@ function fixture(target: TaiKhoan, options: { actor?: TaiKhoan; related?: boolea
   };
   const dataSource = {
     getRepository() { return repository; },
+    async query() {
+      return [{ hasPatientAccountLink: true, hasPatientInsuranceFlag: true, hasDoctorInsuranceFlag: true }];
+    },
     async transaction(callback: (value: typeof manager) => unknown) { return callback(manager); },
   } as unknown as DataSource;
   return { service: new AccountsService(dataSource), sql, mutations: () => ({ saved, deleted }) };
@@ -117,17 +121,10 @@ test('doctor account with schedules is retained without cascading schedule delet
   assert.equal(result.mutations().deleted, 0);
 });
 
-<<<<<<< HEAD
 test('deleting a patient account removes only its links and retains medical history', async () => {
   const result = fixture(account('patient', 'NguoiDung'), { related: true });
   assert.deepEqual(await result.service.remove('actor', 'patient'), { success: true });
   assert.deepEqual(result.sql, ['DELETE FROM tai_khoan_benh_nhan WHERE id_tai_khoan = $1']);
-=======
-test('patient account can be removed without deleting its independent clinical record', async () => {
-  const result = fixture(account('patient', 'NguoiDung'), { related: true });
-  assert.deepEqual(await result.service.remove('actor', 'patient'), { success: true });
-  assert.equal(result.sql.some((statement) => statement.startsWith('DELETE')), false);
->>>>>>> 4d0d13c508dbea20eec8b30b3188d70376b4009a
   assert.equal(result.mutations().deleted, 1);
 });
 
@@ -141,18 +138,11 @@ test('clinical foreign key conflicts produce a Vietnamese retention explanation'
   assert.equal(result.mutations().deleted, 0);
 });
 
-<<<<<<< HEAD
 test('a patient login account can be removed without deleting any independent profile', async () => {
   const result = fixture(account('patient', 'NguoiDung'));
   assert.deepEqual(await result.service.remove('actor', 'patient'), { success: true });
   assert.ok(result.sql.some((statement) => statement.startsWith('DELETE FROM tai_khoan_benh_nhan')));
   assert.equal(result.sql.some((statement) => statement.includes('FROM benh_nhan')), false);
-=======
-test('removing an unused patient account preserves the patient profile', async () => {
-  const result = fixture(account('patient', 'NguoiDung'));
-  assert.deepEqual(await result.service.remove('actor', 'patient'), { success: true });
-  assert.equal(result.sql.some((statement) => statement.startsWith('DELETE FROM benh_nhan')), false);
->>>>>>> 4d0d13c508dbea20eec8b30b3188d70376b4009a
   assert.equal(result.mutations().deleted, 1);
 });
 

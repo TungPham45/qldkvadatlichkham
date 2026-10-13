@@ -110,6 +110,17 @@ Mật khẩu của mọi tài khoản seed: `123456`
 
 Seed có **15 bác sĩ** (bs1–bs15), **8 chuyên khoa**, xen kẽ nhận BHYT / không BHYT. Đăng ký công khai trên `/register` chỉ tạo bệnh nhân. Bác sĩ và quản lý không tự đăng ký.
 
+## Demo quên mật khẩu bằng OTP
+
+Chức năng này không gửi SMS và không tốn phí. Khi `PASSWORD_RESET_DEMO_MODE=true`, mã OTP ngẫu nhiên được hiển thị ngay trên giao diện để phục vụ demo.
+
+1. Mở hộp **Đăng nhập** và chọn **Quên mật khẩu?**.
+2. Nhập số điện thoại đã đăng ký với tài khoản.
+3. Nhập mã OTP 6 chữ số đang hiển thị trong khung màu xanh.
+4. Nhập và xác nhận mật khẩu mới, sau đó đăng nhập lại.
+
+OTP có hiệu lực 5 phút, tối đa 5 lần nhập. Phiên đổi mật khẩu có hiệu lực 10 phút và chỉ dùng một lần. Dữ liệu OTP được giữ trong bộ nhớ của `auth-service`, vì vậy mã đang chờ sẽ mất khi service khởi động lại. Trước khi triển khai thật, đặt `PASSWORD_RESET_DEMO_MODE=false` và thay phần hiển thị OTP bằng dịch vụ SMS.
+
 ## Migration và kiểm tra database
 
 Kiểm tra migration nào đang chờ mà không thay đổi database:

@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { errorMessage } from '../api/client';
+import { passwordResetApi } from '../features/auth/password-reset-api';
 import { useAuth } from '../stores/auth-store';
 import { roleHome } from '../utils/format';
 import '../styles/auth-modal.css';
@@ -27,6 +28,7 @@ const emptyRegisterForm = {
 };
 
 const bhytPattern = /^[A-Za-z0-9]{10,15}$/;
+type PasswordResetStep = 'login' | 'phone' | 'otp' | 'password' | 'done';
 
 function PasswordEye({ visible }: { visible: boolean }) {
   return visible ? (
@@ -44,7 +46,15 @@ export function AuthModal({ mode, onClose, onModeChange }: AuthModalProps) {
   const [password, setPassword] = useState('');
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [showRegisterPassword, setShowRegisterPassword] = useState(false);
+  const [showResetPassword, setShowResetPassword] = useState(false);
   const [registerForm, setRegisterForm] = useState(emptyRegisterForm);
+  const [resetStep, setResetStep] = useState<PasswordResetStep>('login');
+  const [resetPhone, setResetPhone] = useState('');
+  const [resetOtp, setResetOtp] = useState('');
+  const [resetToken, setResetToken] = useState('');
+  const [demoOtp, setDemoOtp] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [busy, setBusy] = useState(false);
@@ -66,12 +76,32 @@ export function AuthModal({ mode, onClose, onModeChange }: AuthModalProps) {
   useEffect(() => {
     setError('');
     setSuccess('');
+    setResetStep('login');
   }, [mode]);
 
   function changeMode(nextMode: AuthMode) {
     setError('');
     setSuccess('');
     onModeChange(nextMode);
+  }
+
+  function startPasswordReset() {
+    setError('');
+    setSuccess('');
+    setResetPhone('');
+    setResetOtp('');
+    setResetToken('');
+    setDemoOtp('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setResetStep('phone');
+  }
+
+  function backToLogin() {
+    setError('');
+    setSuccess('');
+    setPassword('');
+    setResetStep('login');
   }
 
   async function submitLogin(event: FormEvent) {
@@ -122,6 +152,63 @@ export function AuthModal({ mode, onClose, onModeChange }: AuthModalProps) {
     }
   }
 
+  async function submitResetPhone(event: FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    setError('');
+    try {
+      const result = await passwordResetApi.request(resetPhone.trim());
+      setDemoOtp(result.demoOtp || '');
+      setResetOtp('');
+      setResetStep('otp');
+    } catch (err) {
+      setError(errorMessage(err, 'Không thể tạo mã OTP.'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submitResetOtp(event: FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    setError('');
+    try {
+      const result = await passwordResetApi.verify(resetPhone.trim(), resetOtp);
+      setResetToken(result.resetToken);
+      setNewPassword('');
+      setConfirmPassword('');
+      setResetStep('password');
+    } catch (err) {
+      setError(errorMessage(err, 'Mã OTP không hợp lệ.'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submitNewPassword(event: FormEvent) {
+    event.preventDefault();
+    if (newPassword !== confirmPassword) {
+      setError('Mật khẩu xác nhận không khớp.');
+      return;
+    }
+    setBusy(true);
+    setError('');
+    try {
+      const result = await passwordResetApi.confirm(resetToken, newPassword, confirmPassword);
+      setSuccess(result.message);
+      setResetToken('');
+      setResetOtp('');
+      setDemoOtp('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setResetStep('done');
+    } catch (err) {
+      setError(errorMessage(err, 'Không thể đổi mật khẩu.'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function setRegisterField(field: keyof typeof registerForm, value: string) {
     setRegisterForm((current) => ({ ...current, [field]: value }));
   }
@@ -132,33 +219,120 @@ export function AuthModal({ mode, onClose, onModeChange }: AuthModalProps) {
         <button className="auth-modal__close" type="button" aria-label="Đóng cửa sổ" disabled={busy} onClick={onClose}>×</button>
 
         {mode === 'login' ? (
-          <>
-            <header className="auth-modal__header">
-              <span>Cổng thông tin bệnh viện</span>
-              <h2 id="auth-modal-title">Đăng nhập</h2>
-              <p>Nhập tài khoản để tiếp tục.</p>
-            </header>
-            <form className="auth-modal__form" onSubmit={submitLogin}>
-              <label>
-                <span>Tên đăng nhập</span>
-                <input ref={firstInputRef} value={username} onChange={(event) => setUsername(event.target.value)} minLength={3} maxLength={100} autoComplete="username" required />
-              </label>
-              <label>
-                <span>Mật khẩu</span>
-                <span className="auth-modal__password"><input value={password} onChange={(event) => setPassword(event.target.value)} minLength={6} maxLength={100} type={showLoginPassword ? 'text' : 'password'} autoComplete="current-password" required /><button type="button" aria-label={showLoginPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'} aria-pressed={showLoginPassword} onClick={() => setShowLoginPassword((visible) => !visible)}><PasswordEye visible={showLoginPassword} /></button></span>
-              </label>
-              {error ? (
-                <div className="auth-modal__message auth-modal__message--error" role="alert">
-                  <strong>{error}</strong>
-                  <span>Bạn có muốn nhập lại thông tin không?</span>
-                  <div><button type="button" onClick={() => { setError(''); firstInputRef.current?.focus(); }}>Nhập lại</button><button type="button" onClick={onClose}>Đóng</button></div>
-                </div>
+          resetStep === 'login' ? (
+            <>
+              <header className="auth-modal__header">
+                <span>Cổng thông tin bệnh viện</span>
+                <h2 id="auth-modal-title">Đăng nhập</h2>
+                <p>Nhập tài khoản để tiếp tục.</p>
+              </header>
+              <form className="auth-modal__form" onSubmit={submitLogin}>
+                <label>
+                  <span>Tên đăng nhập</span>
+                  <input ref={firstInputRef} value={username} onChange={(event) => setUsername(event.target.value)} minLength={3} maxLength={100} autoComplete="username" required />
+                </label>
+                <label>
+                  <span>Mật khẩu</span>
+                  <span className="auth-modal__password"><input value={password} onChange={(event) => setPassword(event.target.value)} minLength={6} maxLength={100} type={showLoginPassword ? 'text' : 'password'} autoComplete="current-password" required /><button type="button" aria-label={showLoginPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'} aria-pressed={showLoginPassword} onClick={() => setShowLoginPassword((visible) => !visible)}><PasswordEye visible={showLoginPassword} /></button></span>
+                </label>
+                <div className="auth-modal__forgot"><button type="button" onClick={startPasswordReset}>Quên mật khẩu?</button></div>
+                {error ? (
+                  <div className="auth-modal__message auth-modal__message--error" role="alert">
+                    <strong>{error}</strong>
+                    <span>Bạn có muốn nhập lại thông tin không?</span>
+                    <div><button type="button" onClick={() => { setError(''); firstInputRef.current?.focus(); }}>Nhập lại</button><button type="button" onClick={onClose}>Đóng</button></div>
+                  </div>
+                ) : null}
+                {success ? <div className="auth-modal__message auth-modal__message--success" role="status">{success}</div> : null}
+                <button className="auth-modal__submit" type="submit" disabled={busy || Boolean(success)}>{busy ? 'Đang đăng nhập...' : 'Đăng nhập'}</button>
+              </form>
+              <p className="auth-modal__switch">Chưa có tài khoản? <button type="button" onClick={() => changeMode('register')}>Đăng ký ngay</button></p>
+            </>
+          ) : resetStep === 'done' ? (
+            <>
+              <header className="auth-modal__header">
+                <span>Khôi phục tài khoản</span>
+                <h2 id="auth-modal-title">Đã đổi mật khẩu</h2>
+                <p>Mật khẩu mới đã được lưu.</p>
+              </header>
+              <div className="auth-modal__success-panel" role="status">
+                <span aria-hidden="true">✓</span>
+                <h3>Thành công</h3>
+                <p>{success}</p>
+                <button className="auth-modal__submit" type="button" onClick={backToLogin}>Đăng nhập ngay</button>
+              </div>
+            </>
+          ) : (
+            <>
+              <header className="auth-modal__header">
+                <span>Khôi phục tài khoản</span>
+                <h2 id="auth-modal-title">
+                  {resetStep === 'phone' ? 'Quên mật khẩu' : resetStep === 'otp' ? 'Nhập mã OTP' : 'Tạo mật khẩu mới'}
+                </h2>
+                <p>
+                  {resetStep === 'phone'
+                    ? 'Nhập số điện thoại đã đăng ký với tài khoản.'
+                    : resetStep === 'otp'
+                      ? `Mã OTP có hiệu lực 5 phút cho số ${resetPhone}.`
+                      : 'Mật khẩu mới cần có ít nhất 6 ký tự.'}
+                </p>
+              </header>
+              <div className="auth-modal__steps" aria-label="Tiến trình đặt lại mật khẩu">
+                <span className={resetStep === 'phone' ? 'is-active' : 'is-done'}>1</span>
+                <i />
+                <span className={resetStep === 'otp' ? 'is-active' : resetStep === 'password' ? 'is-done' : ''}>2</span>
+                <i />
+                <span className={resetStep === 'password' ? 'is-active' : ''}>3</span>
+              </div>
+
+              {resetStep === 'phone' ? (
+                <form className="auth-modal__form" onSubmit={submitResetPhone}>
+                  <label>
+                    <span>Số điện thoại</span>
+                    <input ref={firstInputRef} value={resetPhone} onChange={(event) => setResetPhone(event.target.value.replace(/\D/g, '').slice(0, 11))} pattern="0[0-9]{9,10}" inputMode="tel" autoComplete="tel" required />
+                  </label>
+                  {error ? <div className="auth-modal__message auth-modal__message--error" role="alert"><strong>{error}</strong></div> : null}
+                  <button className="auth-modal__submit" type="submit" disabled={busy}>{busy ? 'Đang tạo OTP...' : 'Lấy mã OTP'}</button>
+                  <button className="auth-modal__secondary" type="button" disabled={busy} onClick={backToLogin}>Quay lại đăng nhập</button>
+                </form>
               ) : null}
-              {success ? <div className="auth-modal__message auth-modal__message--success" role="status">{success}</div> : null}
-              <button className="auth-modal__submit" type="submit" disabled={busy || Boolean(success)}>{busy ? 'Đang đăng nhập...' : 'Đăng nhập'}</button>
-            </form>
-            <p className="auth-modal__switch">Chưa có tài khoản? <button type="button" onClick={() => changeMode('register')}>Đăng ký ngay</button></p>
-          </>
+
+              {resetStep === 'otp' ? (
+                <form className="auth-modal__form" onSubmit={submitResetOtp}>
+                  {demoOtp ? (
+                    <div className="auth-modal__demo-otp" role="status">
+                      <strong>{demoOtp}</strong>
+                    </div>
+                  ) : (
+                    <div className="auth-modal__message auth-modal__message--info" role="status">Nếu số điện thoại tồn tại, OTP đã được tạo.</div>
+                  )}
+                  <label>
+                    <span>Mã OTP gồm 6 chữ số</span>
+                    <input ref={firstInputRef} value={resetOtp} onChange={(event) => setResetOtp(event.target.value.replace(/\D/g, '').slice(0, 6))} pattern="[0-9]{6}" inputMode="numeric" autoComplete="one-time-code" placeholder="000000" required />
+                  </label>
+                  {error ? <div className="auth-modal__message auth-modal__message--error" role="alert"><strong>{error}</strong></div> : null}
+                  <button className="auth-modal__submit" type="submit" disabled={busy}>{busy ? 'Đang kiểm tra...' : 'Xác minh OTP'}</button>
+                  <button className="auth-modal__secondary" type="button" disabled={busy} onClick={() => { setError(''); setResetStep('phone'); }}>Dùng số điện thoại khác</button>
+                </form>
+              ) : null}
+
+              {resetStep === 'password' ? (
+                <form className="auth-modal__form" onSubmit={submitNewPassword}>
+                  <label>
+                    <span>Mật khẩu mới</span>
+                    <span className="auth-modal__password"><input ref={firstInputRef} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} minLength={6} maxLength={100} type={showResetPassword ? 'text' : 'password'} autoComplete="new-password" required /><button type="button" aria-label={showResetPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'} aria-pressed={showResetPassword} onClick={() => setShowResetPassword((visible) => !visible)}><PasswordEye visible={showResetPassword} /></button></span>
+                  </label>
+                  <label>
+                    <span>Xác nhận mật khẩu mới</span>
+                    <input value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} minLength={6} maxLength={100} type={showResetPassword ? 'text' : 'password'} autoComplete="new-password" required />
+                  </label>
+                  {error ? <div className="auth-modal__message auth-modal__message--error" role="alert"><strong>{error}</strong></div> : null}
+                  <button className="auth-modal__submit" type="submit" disabled={busy}>{busy ? 'Đang đổi mật khẩu...' : 'Đổi mật khẩu'}</button>
+                  <button className="auth-modal__secondary" type="button" disabled={busy} onClick={backToLogin}>Hủy</button>
+                </form>
+              ) : null}
+            </>
+          )
         ) : (
           <>
             <header className="auth-modal__header">

@@ -123,7 +123,6 @@ function fixture(initial: BenhNhan | null, options: {
   const dataSource = {
     async transaction<T>(work: (scope: EntityManager) => Promise<T>) {
       transactions += 1;
-<<<<<<< HEAD
       const snapshot = { stored: stored ? { ...stored } : null, linkOwnerId, relativeLinked, removed };
       try {
         const result = await work(manager);
@@ -132,15 +131,6 @@ function fixture(initial: BenhNhan | null, options: {
       } catch (error) {
         stored = snapshot.stored; linkOwnerId = snapshot.linkOwnerId;
         relativeLinked = snapshot.relativeLinked; removed = snapshot.removed; aborted = false;
-=======
-      const snapshot = { stored: stored ? { ...stored } : null, linkOwnerId, removed };
-      try {
-        return await work(manager);
-      } catch (error) {
-        stored = snapshot.stored;
-        linkOwnerId = snapshot.linkOwnerId;
-        removed = snapshot.removed;
->>>>>>> 4d0d13c508dbea20eec8b30b3188d70376b4009a
         throw error;
       }
     },

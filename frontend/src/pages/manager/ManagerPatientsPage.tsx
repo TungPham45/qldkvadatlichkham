@@ -1,5 +1,5 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
-import { errorMessage } from '../../api/client';
+import { errorMessage, hasApiErrorCode } from '../../api/client';
 import { AdminModal } from '../../components/AdminModal';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { ManagerPager } from '../../components/ManagerPager';
@@ -11,6 +11,14 @@ import { ageLabel, formatDate, genderLabel } from '../../utils/format';
 const pageSize = 10;
 const emptyForm = { hoTen: '', ngaySinh: '', gioiTinh: 'Nam', soDienThoai: '', email: '', diaChi: '', coBhyt: 'false', soBhyt: '', trangThai: 'Active', username: '', password: '' };
 const bhytPattern = /^[A-Za-z0-9]{10,15}$/;
+
+function patientSaveError(error: unknown) {
+  if (hasApiErrorCode(error, 'USERNAME_ALREADY_EXISTS')) return 'Tên đăng nhập đã tồn tại. Vui lòng nhập tên đăng nhập khác.';
+  if (hasApiErrorCode(error, 'PHONE_ALREADY_EXISTS')) return 'Số điện thoại đã được sử dụng. Vui lòng nhập số điện thoại khác.';
+  if (hasApiErrorCode(error, 'EMAIL_ALREADY_EXISTS')) return 'Email đã được sử dụng. Vui lòng nhập email khác.';
+  if (hasApiErrorCode(error, 'BHYT_ALREADY_EXISTS')) return 'Số thẻ BHYT đã được sử dụng. Vui lòng kiểm tra lại.';
+  return errorMessage(error);
+}
 
 export function ManagerPatientsPage() {
   const [items, setItems] = useState<ManagedPatient[]>([]);
@@ -27,6 +35,7 @@ export function ManagerPatientsPage() {
   const [deleting, setDeleting] = useState<ManagedPatient | null>(null);
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState('');
+  const [saveError, setSaveError] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -39,10 +48,10 @@ export function ManagerPatientsPage() {
 
   useEffect(() => { void load(); }, [load]);
 
-  function openCreate() { setForm(emptyForm); setFormError(''); setEditing(null); }
+  function openCreate() { setForm(emptyForm); setFormError(''); setSaveError(''); setEditing(null); }
   function openEdit(item: ManagedPatient) {
-    setForm({ hoTen: item.hoTen, ngaySinh: item.ngaySinh?.slice(0, 10) || '', gioiTinh: item.gioiTinh || '', soDienThoai: item.soDienThoai || '', email: item.email || '', diaChi: item.diaChi || '', coBhyt: item.coBhyt ? 'true' : 'false', soBhyt: item.soBhyt || '', trangThai: item.trangThai, username: item.username, password: '' });
-    setFormError(''); setEditing(item);
+    setForm({ hoTen: item.hoTen, ngaySinh: item.ngaySinh?.slice(0, 10) || '', gioiTinh: item.gioiTinh ?? '', soDienThoai: item.soDienThoai ?? '', email: item.email ?? '', diaChi: item.diaChi ?? '', coBhyt: item.coBhyt ? 'true' : 'false', soBhyt: item.soBhyt || '', trangThai: item.trangThai, username: item.username, password: '' });
+    setFormError(''); setSaveError(''); setEditing(item);
   }
   function setField(field: keyof typeof form, value: string) { setForm((current) => ({ ...current, [field]: value })); }
 
@@ -67,7 +76,7 @@ export function ManagerPatientsPage() {
         await directoryApi.createPatient({ ...profileBody, username: form.username.trim(), password: form.password });
       }
       setEditing(undefined); await load();
-    } catch (err) { setFormError(errorMessage(err)); } finally { setBusy(false); }
+    } catch (err) { setSaveError(patientSaveError(err)); } finally { setBusy(false); }
   }
 
   async function remove() {
@@ -76,8 +85,8 @@ export function ManagerPatientsPage() {
   }
 
   async function exportExcel() {
-    const result = await directoryApi.patients({ page: 1, pageSize: 100, q: search || undefined, gioiTinh: gender || undefined, trangThai: status || undefined });
-    exportCsv('danh-sach-benh-nhan.csv', ['Mã BN', 'Họ tên', 'Ngày sinh', 'Giới tính', 'Số điện thoại', 'Email', 'Địa chỉ', 'BHYT', 'Số BHYT', 'Trạng thái'], result.items.map((item) => [`BN-${String(item.id).padStart(5, '0')}`, item.hoTen, formatDate(item.ngaySinh), genderLabel(item.gioiTinh), item.soDienThoai, item.email, item.diaChi, item.coBhyt ? 'Có' : 'Không', item.soBhyt || '', item.trangThai]));
+    const items = await directoryApi.allPatients({ q: search || undefined, gioiTinh: gender || undefined, trangThai: status || undefined });
+    exportCsv('danh-sach-benh-nhan.csv', ['Mã BN', 'Họ tên', 'Ngày sinh', 'Giới tính', 'Số điện thoại', 'Email', 'Địa chỉ', 'BHYT', 'Số BHYT', 'Trạng thái'], items.map((item) => [`BN-${String(item.id).padStart(5, '0')}`, item.hoTen, formatDate(item.ngaySinh), genderLabel(item.gioiTinh), item.soDienThoai, item.email, item.diaChi, item.coBhyt ? 'Có' : 'Không', item.soBhyt || '', item.trangThai]));
   }
 
   return (
@@ -120,6 +129,7 @@ export function ManagerPatientsPage() {
         {!editing ? <><label><span>Tên đăng nhập</span><input value={form.username} onChange={(e) => setField('username', e.target.value)} required /></label><label><span>Mật khẩu</span><input type="password" value={form.password} onChange={(e) => setField('password', e.target.value)} minLength={6} required /></label></> : null}
         {formError ? <p className="manager-form__error is-wide">{formError}</p> : null}<div className="manager-form__actions is-wide"><button type="button" onClick={() => setEditing(undefined)}>Hủy</button><button className="manager-btn--primary" disabled={busy}>{busy ? 'Đang lưu...' : 'Lưu thông tin'}</button></div>
       </form></AdminModal> : null}
+      {saveError ? <div className="manager-notice__backdrop" role="presentation"><section className="manager-notice" role="alertdialog" aria-modal="true" aria-labelledby="patient-save-error-title"><div className="manager-notice__icon">!</div><h2 id="patient-save-error-title">Không thể lưu bệnh nhân</h2><p>{saveError}</p><button className="manager-btn manager-btn--primary" type="button" onClick={() => setSaveError('')}>Sửa lại thông tin</button></section></div> : null}
       {deleting ? <ConfirmDialog title="Xóa bệnh nhân" message={`Bạn có chắc muốn xóa bệnh nhân ${deleting.hoTen}? Dữ liệu đã phát sinh lịch khám sẽ được bảo vệ.`} confirmLabel="Xóa bệnh nhân" danger busy={busy} onClose={() => setDeleting(null)} onConfirm={() => void remove()} /> : null}
     </main>
   );

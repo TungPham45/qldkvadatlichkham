@@ -191,6 +191,7 @@
 }
 
 .auth-modal__submit:disabled,
+.auth-modal__secondary:disabled,
 .auth-modal__close:disabled {
   cursor: not-allowed;
   opacity: 0.58;
@@ -210,6 +211,7 @@
 }
 
 .auth-modal__switch button,
+.auth-modal__forgot button,
 .auth-modal__message button {
   padding: 0;
   border: 0;
@@ -218,6 +220,65 @@
   cursor: pointer;
   font: inherit;
   font-weight: 750;
+}
+
+.auth-modal__forgot {
+  margin-top: -7px;
+  text-align: right;
+}
+
+.auth-modal__forgot button:hover,
+.auth-modal__switch button:hover {
+  text-decoration: underline;
+}
+
+.auth-modal__steps {
+  display: grid;
+  margin: 20px 4px 0;
+  grid-template-columns: 28px 1fr 28px 1fr 28px;
+  align-items: center;
+}
+
+.auth-modal__steps span {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 1px solid #cad6e4;
+  border-radius: 50%;
+  background: #fff;
+  color: #718095;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.auth-modal__steps span.is-active,
+.auth-modal__steps span.is-done {
+  border-color: #2866c2;
+  background: #2866c2;
+  color: #fff;
+}
+
+.auth-modal__steps i {
+  height: 2px;
+  background: #d7e0ea;
+}
+
+.auth-modal__demo-otp {
+  display: grid;
+  padding: 14px;
+  border: 1px dashed #74a2de;
+  border-radius: 11px;
+  background: #f1f7ff;
+  color: #214d87;
+  text-align: center;
+}
+
+.auth-modal__demo-otp strong {
+  color: #174f9c;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 28px;
+  letter-spacing: 0.18em;
 }
 
 .auth-modal__message {
@@ -249,6 +310,12 @@
   border-color: #bfe7d4;
   background: #eefaf4;
   color: #14704e;
+}
+
+.auth-modal__message--info {
+  border-color: #c4d8f1;
+  background: #f2f7fd;
+  color: #275a96;
 }
 
 .auth-modal__success-panel {

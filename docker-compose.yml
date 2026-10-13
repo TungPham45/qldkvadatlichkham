@@ -38,6 +38,7 @@ services:
       - qlpk_pg:/var/lib/postgresql/data
       - ./database/qlphongkham.sql:/docker-entrypoint-initdb.d/01-qlphongkham.sql
       - ./database/migrations/001_schedule_workflow.sql:/docker-entrypoint-initdb.d/02-schedule-workflow.sql
+      - ./database/migrations/002_medicine_catalog.sql:/docker-entrypoint-initdb.d/03-medicine-catalog.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d qlphongkham"]
       interval: 5s

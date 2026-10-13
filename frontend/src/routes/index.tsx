@@ -9,10 +9,12 @@ import { ManagerAccountsPage } from '../pages/manager/ManagerAccountsPage';
 import { ManagerDoctorsPage } from '../pages/manager/ManagerDoctorsPage';
 import { ManagerPatientsPage } from '../pages/manager/ManagerPatientsPage';
 import { ManagerSchedulesPage } from '../pages/manager/ManagerSchedulesPage';
+import { ManagerMedicinesPage } from '../pages/manager/ManagerMedicinesPage';
 import { ManagerSpecialtiesPage } from '../pages/manager/ManagerSpecialtiesPage';
 import { MyAppointmentsPage } from '../pages/patient/MyAppointmentsPage';
 import { PatientProfilePage } from '../pages/patient/PatientProfilePage';
 import { DiseasesPage } from '../pages/manager/DiseasesPage';
+import { ManagerSuggestionsPage } from '../pages/manager/ManagerSuggestionsPage';
 import { MedicalHistoryPage } from '../pages/shared/MedicalHistoryPage';
 import { NotificationsPage } from '../pages/shared/NotificationsPage';
 import { ReceptionPage } from '../pages/shared/ReceptionPage';
@@ -50,9 +52,11 @@ export function AppRoutes() {
             <Route path="/manager/patients" element={<ManagerPatientsPage />} />
             <Route path="/manager/doctors" element={<ManagerDoctorsPage />} />
             <Route path="/manager/specialties" element={<ManagerSpecialtiesPage />} />
+            <Route path="/manager/medicines" element={<ManagerMedicinesPage />} />
             <Route path="/manager/accounts" element={<ManagerAccountsPage />} />
             <Route path="/manager/doctor-schedules" element={<ManagerSchedulesPage />} />
             <Route path="/manager/diseases" element={<DiseasesPage />} />
+            <Route path="/manager/medicine-suggestions" element={<ManagerSuggestionsPage />} />
           </Route>
           <Route element={<RoleProtectedRoute role={['DOCTOR', 'MANAGER']} />}>
             <Route path="/medical-history" element={<MedicalHistoryPage />} />

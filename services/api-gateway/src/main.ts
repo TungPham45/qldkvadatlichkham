@@ -33,6 +33,9 @@ function serviceFor(url: string) {
   if (path.startsWith('/medical-records') || path.startsWith('/diseases') || path.startsWith('/reception')) {
     return process.env.MEDICAL_RECORD_SERVICE_URL || 'http://localhost:3010';
   }
+  if (path.startsWith('/medicines') || path.startsWith('/pharmacy') || path.startsWith('/medicine-suggestions')) {
+    return process.env.PHARMACY_SERVICE_URL || 'http://localhost:3011';
+  }
   if (path.startsWith('/notifications')) return process.env.NOTIFICATION_SERVICE_URL || 'http://localhost:3013';
   return process.env.AUTH_SERVICE_URL || 'http://localhost:3001';
 }

@@ -22,6 +22,7 @@ export function AppHeader({ onMenu }: { onMenu: () => void }) {
 
   if (user?.role === 'MANAGER') {
     const title = pathname.includes('diseases') ? 'Danh mục tên bệnh'
+      : pathname.includes('medicines') ? 'Quản lý Thuốc'
       : pathname.includes('medical-history') ? 'Lịch sử khám'
       : pathname.includes('reception') ? 'Tiếp nhận bệnh nhân'
       : pathname.includes('notifications') ? 'Thông báo'

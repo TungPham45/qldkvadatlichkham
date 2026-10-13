@@ -358,13 +358,16 @@ CREATE TABLE thuoc (
     don_vi VARCHAR(50),
     don_gia NUMERIC(12,2) NOT NULL DEFAULT 0,
     so_luong_ton INTEGER NOT NULL DEFAULT 0,
+    nguong_canh_bao INTEGER NOT NULL DEFAULT 50,
     han_su_dung DATE,
     nha_san_xuat VARCHAR(255),
+    nhom_thuoc VARCHAR(100),
     dang_hoat_dong BOOLEAN NOT NULL DEFAULT TRUE,
     ngay_tao TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     ngay_cap_nhat TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT chk_thuoc_don_gia CHECK (don_gia >= 0),
-    CONSTRAINT chk_thuoc_ton CHECK (so_luong_ton >= 0)
+    CONSTRAINT chk_thuoc_ton CHECK (so_luong_ton >= 0),
+    CONSTRAINT chk_thuoc_nguong CHECK (nguong_canh_bao >= 0)
 );
 
 -- 18. GOI_Y_THUOC
@@ -375,6 +378,7 @@ CREATE TABLE goi_y_thuoc (
     muc_do_uu_tien INTEGER NOT NULL DEFAULT 1,
     muc_dich_su_dung VARCHAR(255),
     lieu_dung_goi_y VARCHAR(255),
+    so_luong_goi_y INTEGER,
     ghi_chu TEXT,
     dang_hoat_dong BOOLEAN NOT NULL DEFAULT TRUE,
     ngay_tao TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -386,7 +390,8 @@ CREATE TABLE goi_y_thuoc (
         FOREIGN KEY (id_thuoc) REFERENCES thuoc(id_thuoc)
         ON UPDATE CASCADE ON DELETE RESTRICT,
     CONSTRAINT uq_goi_y_benh_thuoc UNIQUE (id_danh_muc_ten_benh, id_thuoc),
-    CONSTRAINT chk_goi_y_uu_tien CHECK (muc_do_uu_tien > 0)
+    CONSTRAINT chk_goi_y_uu_tien CHECK (muc_do_uu_tien > 0),
+    CONSTRAINT chk_goi_y_so_luong CHECK (so_luong_goi_y IS NULL OR so_luong_goi_y > 0)
 );
 
 -- 19. GIAO_DICH_KHO_THUOC
@@ -544,6 +549,7 @@ CREATE INDEX idx_tkbn_tai_khoan ON tai_khoan_benh_nhan(id_tai_khoan);
 CREATE INDEX idx_tkbn_benh_nhan ON tai_khoan_benh_nhan(id_benh_nhan);
 CREATE INDEX idx_lich_hen_tai_khoan_dat ON lich_hen(id_tai_khoan_dat);
 CREATE INDEX idx_thuoc_ten_thuoc ON thuoc(ten_thuoc);
+CREATE INDEX idx_thuoc_nhom_thuoc ON thuoc(nhom_thuoc);
 CREATE INDEX idx_lich_hen_trang_thai ON lich_hen(trang_thai);
 CREATE INDEX idx_thong_bao_lich_hen ON thong_bao(id_lich_hen);
 
@@ -1444,15 +1450,58 @@ INSERT INTO tiep_nhan_benh_nhan (id_tiep_nhan_benh_nhan, id_lich_hen, can_nang, 
 (79, 118, 51, 171, 36.5, 118, 83, 87, 99, 'Noi man ngua', NULL, '2026-03-30 13:50:00'),
 (80, 119, 52, 172, 36.6, 119, 68, 88, 96, 'Dau bung, buon non', NULL, '2026-02-27 09:20:00'),
 (81, 120, 53, 173, 36.7, 120, 69, 89, 97, 'Dau hong, nghen mui', NULL, '2026-03-27 11:50:00');
+-- Danh muc benh theo ICD-10 (TT 06/2026/TT-BYT). Tham chieu: https://icd.kcb.vn/icd-10-tt06/icd10-tt06
 INSERT INTO danh_muc_ten_benh (id_danh_muc_ten_benh, ma_benh, ten_benh, mo_ta, nhom_benh, trang_thai, ngay_tao, ngay_cap_nhat) VALUES
-(1, 'BENH001', 'Roi loan tieu hoa', 'Danh muc benh Roi loan tieu hoa', 'Tieu hoa', 'Active', '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
-(2, 'BENH002', 'Viem hong', 'Danh muc benh Viem hong', 'Ho hap', 'Active', '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
-(3, 'BENH003', 'Viem phoi', 'Danh muc benh Viem phoi', 'Ho hap', 'Active', '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
-(4, 'BENH004', 'Dau da day', 'Danh muc benh Dau da day', 'Tieu hoa', 'Active', '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
-(5, 'BENH005', 'Hoi chung met moi', 'Danh muc benh Hoi chung met moi', 'Toan than', 'Active', '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
-(6, 'BENH006', 'Tang huyet ap nhe', 'Danh muc benh Tang huyet ap nhe', 'Tim mach', 'Active', '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
-(7, 'BENH007', 'Di ung', 'Danh muc benh Di ung', 'Di ung - mien dich', 'Active', '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
-(8, 'BENH008', 'Cam cum', 'Danh muc benh Cam cum', 'Ho hap', 'Active', '2026-01-01 08:00:00', '2026-01-01 08:00:00');
+(1,  'K30',   'Chứng khó tiêu', 'ICD-10 K30 — Functional dyspepsia', 'XI. Bệnh hệ tiêu hóa (K00–K93)', 'Active', '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
+(2,  'J02.9', 'Viêm họng cấp tính, không xác định', 'ICD-10 J02.9 — Acute pharyngitis, unspecified', 'X. Bệnh hệ hô hấp (J00–J99)', 'Active', '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
+(3,  'J18.9', 'Viêm phổi, không xác định', 'ICD-10 J18.9 — Pneumonia, unspecified', 'X. Bệnh hệ hô hấp (J00–J99)', 'Active', '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
+(4,  'K29.7', 'Viêm dạ dày, không xác định', 'ICD-10 K29.7 — Gastritis, unspecified', 'XI. Bệnh hệ tiêu hóa (K00–K93)', 'Active', '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
+(5,  'R53',   'Khó chịu và mệt mỏi', 'ICD-10 R53 — Malaise and fatigue', 'XVIII. Triệu chứng, dấu hiệu (R00–R99)', 'Active', '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
+(6,  'I10',   'Bệnh tăng huyết áp vô căn (nguyên phát)', 'ICD-10 I10 — Essential (primary) hypertension', 'IX. Bệnh hệ tuần hoàn (I00–I99)', 'Active', '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
+(7,  'T78.4', 'Dị ứng, không xác định', 'ICD-10 T78.4 — Allergy, unspecified', 'XIX. Chấn thương, ngộ độc (S00–T98)', 'Active', '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
+(8,  'J11.1', 'Cúm kèm biểu hiện hô hấp khác, virus không xác định', 'ICD-10 J11.1 — Influenza with other respiratory manifestations, virus not identified', 'X. Bệnh hệ hô hấp (J00–J99)', 'Active', '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
+(9,  'A09',   'Viêm dạ dày-ruột và viêm đại tràng do nhiễm trùng và nguyên nhân không xác định', 'ICD-10 A09 — Infectious gastroenteritis and colitis, unspecified', 'I. Bệnh nhiễm trùng và ký sinh trùng (A00–B99)', 'Active', '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
+(10, 'A90',   'Sốt xuất huyết dengue', 'ICD-10 A90 — Dengue fever [classical dengue]', 'I. Bệnh nhiễm trùng và ký sinh trùng (A00–B99)', 'Active', '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
+(11, 'B01.9', 'Thủy đậu không biến chứng', 'ICD-10 B01.9 — Varicella without complication', 'I. Bệnh nhiễm trùng và ký sinh trùng (A00–B99)', 'Active', '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
+(12, 'B18.1', 'Viêm gan virus B mạn tính', 'ICD-10 B18.1 — Chronic viral hepatitis B', 'I. Bệnh nhiễm trùng và ký sinh trùng (A00–B99)', 'Active', '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
+(13, 'B34.9', 'Nhiễm virus, không xác định', 'ICD-10 B34.9 — Viral infection, unspecified', 'I. Bệnh nhiễm trùng và ký sinh trùng (A00–B99)', 'Active', '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
+(14, 'E03.9', 'Suy giáp, không xác định', 'ICD-10 E03.9 — Hypothyroidism, unspecified', 'IV. Bệnh nội tiết, dinh dưỡng và chuyển hóa (E00–E90)', 'Active', '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
+(15, 'E11.9', 'Bệnh đái tháo đường típ 2 không có biến chứng', 'ICD-10 E11.9 — Type 2 diabetes mellitus without complications', 'IV. Bệnh nội tiết, dinh dưỡng và chuyển hóa (E00–E90)', 'Active', '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
+(16, 'E66.9', 'Béo phì, không xác định', 'ICD-10 E66.9 — Obesity, unspecified', 'IV. Bệnh nội tiết, dinh dưỡng và chuyển hóa (E00–E90)', 'Active', '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
+(17, 'E78.5', 'Tăng lipid máu, không xác định', 'ICD-10 E78.5 — Hyperlipidaemia, unspecified', 'IV. Bệnh nội tiết, dinh dưỡng và chuyển hóa (E00–E90)', 'Active', '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
+(18, 'F32.9', 'Giai đoạn trầm cảm, không xác định', 'ICD-10 F32.9 — Depressive episode, unspecified', 'V. Rối loạn tâm thần và hành vi (F00–F99)', 'Active', '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
+(19, 'F41.1', 'Rối loạn lo âu lan tỏa', 'ICD-10 F41.1 — Generalized anxiety disorder', 'V. Rối loạn tâm thần và hành vi (F00–F99)', 'Active', '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
+(20, 'G40.9', 'Động kinh, không xác định', 'ICD-10 G40.9 — Epilepsy, unspecified', 'VI. Bệnh hệ thần kinh (G00–G99)', 'Active', '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
+(21, 'G43.9', 'Đau nửa đầu, không xác định', 'ICD-10 G43.9 — Migraine, unspecified', 'VI. Bệnh hệ thần kinh (G00–G99)', 'Active', '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
+(22, 'H10.9', 'Viêm kết mạc, không xác định', 'ICD-10 H10.9 — Conjunctivitis, unspecified', 'VII. Bệnh mắt và phần phụ (H00–H59)', 'Active', '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
+(23, 'H66.9', 'Viêm tai giữa, không xác định', 'ICD-10 H66.9 — Otitis media, unspecified', 'VIII. Bệnh tai và xương chũm (H60–H95)', 'Active', '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
+(24, 'I20.9', 'Đau thắt ngực, không xác định', 'ICD-10 I20.9 — Angina pectoris, unspecified', 'IX. Bệnh hệ tuần hoàn (I00–I99)', 'Active', '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
+(25, 'I25.9', 'Bệnh tim thiếu máu cục bộ mạn tính, không xác định', 'ICD-10 I25.9 — Chronic ischaemic heart disease, unspecified', 'IX. Bệnh hệ tuần hoàn (I00–I99)', 'Active', '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
+(26, 'I48',   'Rung nhĩ và cuồng nhĩ', 'ICD-10 I48 — Atrial fibrillation and flutter', 'IX. Bệnh hệ tuần hoàn (I00–I99)', 'Active', '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
+(27, 'I63.9', 'Nhồi máu não, không xác định', 'ICD-10 I63.9 — Cerebral infarction, unspecified', 'IX. Bệnh hệ tuần hoàn (I00–I99)', 'Active', '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
+(28, 'J00',   'Viêm mũi họng cấp tính [cảm lạnh thông thường]', 'ICD-10 J00 — Acute nasopharyngitis [common cold]', 'X. Bệnh hệ hô hấp (J00–J99)', 'Active', '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
+(29, 'J03.9', 'Viêm amidan cấp tính, không xác định', 'ICD-10 J03.9 — Acute tonsillitis, unspecified', 'X. Bệnh hệ hô hấp (J00–J99)', 'Active', '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
+(30, 'J06.9', 'Nhiễm trùng đường hô hấp trên cấp tính, không xác định', 'ICD-10 J06.9 — Acute upper respiratory infection, unspecified', 'X. Bệnh hệ hô hấp (J00–J99)', 'Active', '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
+(31, 'J32.9', 'Viêm xoang mạn tính, không xác định', 'ICD-10 J32.9 — Chronic sinusitis, unspecified', 'X. Bệnh hệ hô hấp (J00–J99)', 'Active', '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
+(32, 'J44.9', 'Bệnh phổi tắc nghẽn mạn tính, không xác định', 'ICD-10 J44.9 — Chronic obstructive pulmonary disease, unspecified', 'X. Bệnh hệ hô hấp (J00–J99)', 'Active', '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
+(33, 'J45.9', 'Hen phế quản, không xác định', 'ICD-10 J45.9 — Asthma, unspecified', 'X. Bệnh hệ hô hấp (J00–J99)', 'Active', '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
+(34, 'K21.0', 'Bệnh trào ngược dạ dày-thực quản kèm viêm thực quản', 'ICD-10 K21.0 — Gastro-oesophageal reflux disease with oesophagitis', 'XI. Bệnh hệ tiêu hóa (K00–K93)', 'Active', '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
+(35, 'K58.9', 'Hội chứng ruột kích thích không xác định', 'ICD-10 K58.9 — Irritable bowel syndrome without diarrhoea', 'XI. Bệnh hệ tiêu hóa (K00–K93)', 'Active', '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
+(36, 'K80.2', 'Sỏi túi mật không kèm viêm túi mật', 'ICD-10 K80.2 — Calculus of gallbladder without cholecystitis', 'XI. Bệnh hệ tiêu hóa (K00–K93)', 'Active', '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
+(37, 'L20.9', 'Viêm da cơ địa, không xác định', 'ICD-10 L20.9 — Atopic dermatitis, unspecified', 'XII. Bệnh da và mô dưới da (L00–L99)', 'Active', '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
+(38, 'L30.9', 'Viêm da, không xác định', 'ICD-10 L30.9 — Dermatitis, unspecified', 'XII. Bệnh da và mô dưới da (L00–L99)', 'Active', '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
+(39, 'L50.9', 'Mày đay, không xác định', 'ICD-10 L50.9 — Urticaria, unspecified', 'XII. Bệnh da và mô dưới da (L00–L99)', 'Active', '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
+(40, 'M17.9', 'Thoái hóa khớp gối, không xác định', 'ICD-10 M17.9 — Gonarthrosis, unspecified', 'XIII. Bệnh hệ cơ xương khớp (M00–M99)', 'Active', '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
+(41, 'M54.5', 'Đau lưng dưới', 'ICD-10 M54.5 — Low back pain', 'XIII. Bệnh hệ cơ xương khớp (M00–M99)', 'Active', '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
+(42, 'M79.1', 'Đau cơ', 'ICD-10 M79.1 — Myalgia', 'XIII. Bệnh hệ cơ xương khớp (M00–M99)', 'Active', '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
+(43, 'N30.9', 'Viêm bàng quang, không xác định', 'ICD-10 N30.9 — Cystitis, unspecified', 'XIV. Bệnh hệ sinh dục-tiết niệu (N00–N99)', 'Active', '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
+(44, 'N39.0', 'Nhiễm trùng đường tiết niệu ở vị trí không xác định', 'ICD-10 N39.0 — Urinary tract infection, site not specified', 'XIV. Bệnh hệ sinh dục-tiết niệu (N00–N99)', 'Active', '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
+(45, 'N40',   'Tăng sản tuyến tiền liệt', 'ICD-10 N40 — Hyperplasia of prostate', 'XIV. Bệnh hệ sinh dục-tiết niệu (N00–N99)', 'Active', '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
+(46, 'N80.9', 'Lạc nội mạc tử cung, không xác định', 'ICD-10 N80.9 — Endometriosis, unspecified', 'XIV. Bệnh hệ sinh dục-tiết niệu (N00–N99)', 'Active', '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
+(47, 'R10.4', 'Đau bụng khác và không xác định', 'ICD-10 R10.4 — Other and unspecified abdominal pain', 'XVIII. Triệu chứng, dấu hiệu (R00–R99)', 'Active', '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
+(48, 'R51',   'Đau đầu', 'ICD-10 R51 — Headache', 'XVIII. Triệu chứng, dấu hiệu (R00–R99)', 'Active', '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
+(49, 'S06.0', 'Chấn động não', 'ICD-10 S06.0 — Concussion', 'XIX. Chấn thương, ngộ độc (S00–T98)', 'Active', '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
+(50, 'Z00.0', 'Khám tổng quát và điều tra người không có triệu chứng hoặc không có chẩn đoán được báo cáo', 'ICD-10 Z00.0 — General medical examination', 'XXI. Yếu tố ảnh hưởng sức khỏe (Z00–Z99)', 'Active', '2026-01-01 08:00:00', '2026-01-01 08:00:00');
 INSERT INTO phieu_kham (id_phieu_kham, id_lich_hen, id_benh_nhan, id_bac_si, ngay_kham, trieu_chung, ket_qua_kham, ket_luan, huong_dieu_tri, ghi_chu_bac_si, ngay_tai_kham, phi_kham, ngay_tao, ngay_cap_nhat) VALUES
 (1, 1, 12, 3, '2026-02-15', 'Dau nguc, hoi hop', 'Ket qua tham kham phu hop voi chan doan Roi loan tieu hoa.', 'Theo doi tai nha', 'Dieu tri theo don thuoc va theo doi', NULL, NULL, 100000.00, '2026-02-15 10:30:00', '2026-02-15 11:00:00'),
 (2, 2, 8, 1, '2026-01-07', 'Dau bung, buon non', 'Ket qua tham kham phu hop voi chan doan Viem hong.', 'Diet, tap luyen dieu do', 'Dieu tri theo don thuoc va theo doi', NULL, NULL, 100000.00, '2026-01-07 09:30:00', '2026-01-07 10:00:00'),
@@ -1718,6 +1767,27 @@ INSERT INTO thuoc (id_thuoc, ten_thuoc, hoat_chat, ham_luong, don_vi, don_gia, s
 (98, 'Gaviscon 4', 'Gaviscon', '10 ml', 'Hop', 15000.00, 218, '2026-10-01', 'Imexpharm', TRUE, '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
 (99, 'ORS 4', 'ORS', '1 goi', 'Vao', 8000.00, 53, '2028-05-26', 'Domesco', TRUE, '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
 (100, 'Prednisolone 4', 'Prednisolone', '5 mg', 'Hop', 7000.00, 189, '2026-03-01', 'Pymepharco', FALSE, '2026-01-01 08:00:00', '2026-01-01 08:00:00');
+
+UPDATE thuoc SET nhom_thuoc = CASE
+    WHEN ten_thuoc ILIKE '%Paracetamol%' OR ten_thuoc ILIKE '%Ibuprofen%' THEN 'Giảm đau - Hạ sốt'
+    WHEN ten_thuoc ILIKE '%Amoxicillin%' OR ten_thuoc ILIKE '%Azithromycin%' THEN 'Kháng sinh'
+    WHEN ten_thuoc ILIKE '%Cetirizine%' OR ten_thuoc ILIKE '%Loratadine%' THEN 'Kháng Histamin'
+    WHEN ten_thuoc ILIKE '%Omeprazole%' OR ten_thuoc ILIKE '%Esomeprazole%'
+      OR ten_thuoc ILIKE '%Pantoprazole%' OR ten_thuoc ILIKE '%Domperidone%'
+      OR ten_thuoc ILIKE '%Gaviscon%' THEN 'Tiêu hóa'
+    WHEN ten_thuoc ILIKE '%Metformin%' THEN 'Đái tháo đường'
+    WHEN ten_thuoc ILIKE '%Amlodipine%' OR ten_thuoc ILIKE '%Losartan%' THEN 'Tim mạch'
+    WHEN ten_thuoc ILIKE '%Atorvastatin%' OR ten_thuoc ILIKE '%Simvastatin%' THEN 'Lipid máu'
+    WHEN ten_thuoc ILIKE '%Dextromethorphan%' OR ten_thuoc ILIKE '%Bromhexine%'
+      OR ten_thuoc ILIKE '%Ambroxol%' THEN 'Hô hấp'
+    WHEN ten_thuoc ILIKE '%Vitamin%' OR ten_thuoc ILIKE '%Zinc%'
+      OR ten_thuoc ILIKE '%Calcium%' OR ten_thuoc ILIKE '%Magnesium%' THEN 'Vitamin - Khoáng chất'
+    WHEN ten_thuoc ILIKE '%Prednisolone%' THEN 'Corticoid'
+    WHEN ten_thuoc ILIKE '%ORS%' THEN 'Bù nước điện giải'
+    ELSE 'Khác'
+END
+WHERE nhom_thuoc IS NULL;
+
 INSERT INTO goi_y_thuoc (id_goi_y_thuoc, id_danh_muc_ten_benh, id_thuoc, muc_do_uu_tien, muc_dich_su_dung, lieu_dung_goi_y, ghi_chu, dang_hoat_dong, ngay_tao, ngay_cap_nhat) VALUES
 (1, 1, 74, 1, 'Ho tro dieu tri theo chan doan', 'Theo chi dinh cua bac si', NULL, TRUE, '2026-01-01 08:00:00', '2026-01-01 08:00:00'),
 (2, 1, 42, 2, 'Ho tro dieu tri theo chan doan', 'Theo chi dinh cua bac si', NULL, TRUE, '2026-01-01 08:00:00', '2026-01-01 08:00:00'),

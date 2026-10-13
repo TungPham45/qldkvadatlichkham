@@ -127,7 +127,9 @@ export function ManagerAccountsPage() {
           {action.kind === 'status' ? (
             <FilterSelect label="Trạng thái" value={nextStatus} onChange={(value) => setNextStatus(value as AccountStatus)} options={statusOptions} />
           ) : (
-            <p className="text-sm text-muted">Xác nhận xóa tài khoản này? Tài khoản có lịch làm việc, lịch khám hoặc hồ sơ y tế sẽ được giữ lại; bạn có thể khóa hoặc ngừng hoạt động tài khoản.</p>
+            <p className="text-sm text-muted">{action.account.vaiTro === 'NguoiDung'
+              ? 'Xóa tài khoản đăng nhập và các liên kết của tài khoản này? Thông tin bệnh nhân, người thân, lịch khám và hồ sơ y tế vẫn được giữ lại.'
+              : 'Xác nhận xóa tài khoản này? Tài khoản bác sĩ có lịch làm việc, lịch khám hoặc hồ sơ y tế sẽ được giữ lại; bạn có thể khóa hoặc ngừng hoạt động tài khoản.'}</p>
           )}
           {actionError ? <p role="alert" className="text-sm text-danger">{actionError}</p> : null}
           <div className="flex justify-end gap-3">

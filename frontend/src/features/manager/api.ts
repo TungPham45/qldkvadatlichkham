@@ -1,5 +1,6 @@
 import { api } from '../../api/client';
 import type { DoctorProfile, ScheduleCode, ScheduleItem } from '../../types';
+import { directoryApi } from './directory-api';
 
 export interface ManagerScheduleInput {
   doctorId: number;
@@ -18,6 +19,7 @@ export interface ManagerScheduleFilters {
   q?: string;
   date?: string;
   shift?: string;
+  doctorId?: number;
 }
 
 export interface ManagerDashboard {
@@ -43,6 +45,15 @@ export interface ManagerDoctorGroup {
 export const managerApi = {
   dashboard: () => api.get<ManagerDashboard>('/manager/dashboard').then((response) => response.data),
   doctors: () => api.get<DoctorProfile[]>('/doctors').then((response) => response.data),
+  doctorDirectory: async () => {
+    const first = await directoryApi.doctors({ page: 1, pageSize: 100 });
+    const pageCount = Math.ceil(first.total / first.pageSize);
+    const remaining = await Promise.all(Array.from({ length: Math.max(0, pageCount - 1) }, (_, index) =>
+      directoryApi.doctors({ page: index + 2, pageSize: 100 }),
+    ));
+    const items = [first, ...remaining].flatMap((page) => page.items);
+    return [...new Map(items.map((doctor) => [doctor.id, doctor])).values()];
+  },
   schedules: (params: ManagerScheduleFilters) =>
     api.get<{ summary: { total: number; pending: number; approved: number; rejected: number }; doctors: ManagerDoctorGroup[] }>('/manager/doctor-schedules', { params })
       .then((response) => response.data),
@@ -51,6 +62,6 @@ export const managerApi = {
   deleteSchedule: (id: number) => api.delete(`/manager/doctor-schedules/${id}`),
   approve: (id: number) => api.patch(`/manager/doctor-schedules/${id}/approve`),
   reject: (id: number, lyDo: string) => api.patch(`/manager/doctor-schedules/${id}/reject`, { lyDo }),
-  bulkApprove: (week: string, chuyenKhoaId?: string, filters?: { q?: string; date?: string; shift?: string }) =>
+  bulkApprove: (week: string, chuyenKhoaId?: string, filters?: { q?: string; date?: string; shift?: string; doctorId?: number }) =>
     api.post('/manager/doctor-schedules/bulk-approve', { week, chuyenKhoaId: chuyenKhoaId ? Number(chuyenKhoaId) : undefined, ...filters }),
 };

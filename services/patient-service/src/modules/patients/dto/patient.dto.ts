@@ -1,4 +1,4 @@
-import { Transform, Type } from 'class-transformer';
+import { Transform } from 'class-transformer';
 import { IsBoolean, IsDateString, IsEmail, IsIn, IsOptional, IsString, IsUUID, Matches, MaxLength, MinLength, ValidateIf } from 'class-validator';
 
 const trim = ({ value }: { value: unknown }) => typeof value === 'string' ? value.trim() : value;
@@ -48,7 +48,6 @@ export class CreateOwnPatientDto extends PatientProfileFieldsDto {
   @Matches(/^0\d{9,10}$/, { message: 'Số điện thoại bắt đầu bằng 0 và có 10 hoặc 11 chữ số.' })
   soDienThoai: string;
 
-  @Type(() => Boolean)
   @IsBoolean()
   coBhyt: boolean;
 
@@ -78,13 +77,12 @@ export class UpdateOwnPatientDto extends PatientProfileFieldsDto {
   @Matches(/^0\d{9,10}$/, { message: 'Số điện thoại bắt đầu bằng 0 và có 10 hoặc 11 chữ số.' })
   soDienThoai?: string;
 
-  @Type(() => Boolean)
-  @IsOptional()
+  @ValidateIf((_, value) => value !== undefined)
   @IsBoolean()
   coBhyt?: boolean;
 
   @Transform(bhytNumber)
-  @ValidateIf((dto: UpdateOwnPatientDto) => dto.coBhyt === true || (dto.coBhyt === undefined && dto.soBhyt != null))
+  @ValidateIf((dto: UpdateOwnPatientDto) => dto.coBhyt !== false && dto.soBhyt != null)
   @IsString({ message: 'Hãy nhập số thẻ BHYT để xác nhận có BHYT.' })
   @Matches(BHYT_NUMBER_PATTERN, { message: BHYT_NUMBER_MESSAGE })
   soBhyt?: string | null;
@@ -122,8 +120,7 @@ export class CreatePatientDto {
   @MaxLength(255)
   diaChi: string;
 
-  @Type(() => Boolean)
-  @IsOptional()
+  @ValidateIf((_, value) => value !== undefined)
   @IsBoolean()
   coBhyt?: boolean;
 

@@ -167,16 +167,22 @@ export class DoctorScheduleService {
   async managerUpdate(id: number, dto: ManageScheduleDto) {
     const previous = await this.requireSchedule(id);
     const result = await this.dataSource.transaction(async (manager) => {
+      const lockedDoctors = new Map<number, BacSi>();
       for (const doctorId of [...new Set([previous.idBacSi, dto.doctorId])].sort((a, b) => a - b)) {
-        await this.lockDoctor(manager, doctorId, doctorId === dto.doctorId);
+        lockedDoctors.set(doctorId, await this.lockDoctor(manager, doctorId, false));
       }
       const row = await this.lockSchedule(manager, id);
       if (row.idBacSi !== previous.idBacSi) throw new AppException(409, ErrorCode.SCHEDULE_NOT_EDITABLE, 'Lịch vừa được thay đổi. Vui lòng tải lại.');
       const values = this.managerValues(dto, row.trangThai);
       const before = { doctorId: row.idBacSi, date: row.ngayLamViec };
-      const affectsAppointments = row.idBacSi !== values.idBacSi || row.ngayLamViec !== values.ngayLamViec
+      const changesHours = row.idBacSi !== values.idBacSi || row.ngayLamViec !== values.ngayLamViec
         || normalizeTime(row.gioBatDau) !== values.gioBatDau || normalizeTime(row.gioKetThuc) !== values.gioKetThuc
-        || row.thoiLuongMoiCa !== values.thoiLuongMoiCa || !isApprovedScheduleStatus(values.trangThai);
+        || row.thoiLuongMoiCa !== values.thoiLuongMoiCa;
+      const opensAppointments = !isApprovedScheduleStatus(row.trangThai) && isApprovedScheduleStatus(values.trangThai);
+      if ((changesHours || opensAppointments) && lockedDoctors.get(values.idBacSi)?.trangThai !== 'Active') {
+        throw new AppException(404, ErrorCode.DOCTOR_NOT_FOUND, 'Không thể mở hoặc chuyển ca cho bác sĩ ngừng hoạt động.');
+      }
+      const affectsAppointments = changesHours || !isApprovedScheduleStatus(values.trangThai);
       if (affectsAppointments) await this.assertNoAppointments(manager, row);
       if (values.trangThai !== ScheduleStatus.REJECTED) {
         await this.assertNoOverlap(manager, values.idBacSi, values.ngayLamViec, values.gioBatDau, values.gioKetThuc, id);

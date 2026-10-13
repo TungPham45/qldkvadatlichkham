@@ -30,7 +30,7 @@ function formFromProfile(profile: PatientProfile | null): typeof emptyForm {
 }
 
 function isSelf(item: BookablePatient) {
-  return item.laChuHoSo || item.loaiQuanHe === 'BanThan';
+  return item.laChuHoSo;
 }
 
 export function PatientProfilePage() {
@@ -88,7 +88,7 @@ export function PatientProfilePage() {
     if (busy) return;
     if (!form.hoTen.trim()) { setError('Hãy nhập họ tên.'); return; }
     if (!/^0\d{9,10}$/.test(form.soDienThoai.trim())) {
-      setError('Số điện thoại bắt buộc, bắt đầu bằng 0 và có 10 hoặc 11 chữ số (dùng để gửi OTP).');
+      setError('Số điện thoại bắt buộc, bắt đầu bằng 0 và có 10 hoặc 11 chữ số.');
       return;
     }
     const hasBhyt = form.coBhyt === 'true';
@@ -232,7 +232,7 @@ export function PatientProfilePage() {
                   ) : null}
                   <TextField className="desk:col-span-2" label="Địa chỉ" autoComplete="street-address" value={form.diaChi} onChange={(event) => set('diaChi', event.target.value)} maxLength={255} />
                 </fieldset>
-                <p className="mt-3 text-xs text-muted">Họ tên và số điện thoại là bắt buộc (SĐT dùng gửi OTP). Chọn Có BHYT thì phải nhập số thẻ để xác nhận; khi đó bạn chọn được cả bác sĩ nhận BHYT và ngoài BHYT.</p>
+                <p className="mt-3 text-xs text-muted">Họ tên và số điện thoại là bắt buộc. Khi chọn có BHYT, hãy nhập số thẻ gồm 10–15 ký tự chữ hoặc số.</p>
                 <div className="mt-5 flex gap-3">
                   <Button type="submit" disabled={busy}>{busy ? 'Đang lưu...' : profile ? 'Lưu thay đổi' : 'Thêm thông tin'}</Button>
                   <Button type="button" variant="ghost" disabled={busy} onClick={() => { setEditing(false); setError(''); }}>Hủy</Button>
@@ -311,7 +311,7 @@ export function PatientProfilePage() {
       {confirmDelete ? (
         <ConfirmDialog
           title="Xóa thông tin cá nhân"
-          message="Bạn muốn xóa thông tin cá nhân? Tài khoản đăng nhập vẫn được giữ để thêm lại thông tin. Hồ sơ đã có lịch hẹn hoặc dữ liệu khám bệnh sẽ không thể xóa."
+          message="Bạn muốn xóa thông tin cá nhân? Tài khoản đăng nhập vẫn được giữ để thêm lại thông tin. Hồ sơ đã có lịch hẹn, dữ liệu khám bệnh hoặc liên kết đặt hộ sẽ không thể xóa."
           confirmLabel={busy ? 'Đang xóa...' : 'Xóa thông tin'}
           danger
           busy={busy}

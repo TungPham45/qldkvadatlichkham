@@ -4,11 +4,13 @@ require('reflect-metadata');
 const { plainToInstance } = require('class-transformer');
 const { validate } = require('class-validator');
 const { Reflector } = require('@nestjs/core');
+const { DataSource } = require('typeorm');
 const { RolesGuard, ROLES_KEY, ScheduleStatus, ErrorCode } = require('@qlpk/common');
-const { BacSi, LichLamViec } = require('../dist/database/entities');
+const { BacSi, LichLamViec, QuanLy, STAFF_ENTITIES } = require('../dist/database/entities');
+const { DoctorScheduleRepository } = require('../dist/modules/doctor-schedules/doctor-schedule.repository');
 const { DoctorScheduleService } = require('../dist/modules/doctor-schedules/doctor-schedule.service');
 const { DoctorScheduleController } = require('../dist/modules/doctor-schedules/doctor-schedule.controller');
-const { ManageScheduleDto } = require('../dist/modules/doctor-schedules/dto/schedule.dto');
+const { ManageScheduleDto, ScheduleItemDto, WeekQueryDto, BulkApproveDto, ManagerScheduleQueryDto } = require('../dist/modules/doctor-schedules/dto/schedule.dto');
 
 const input = (overrides = {}) => ({ doctorId: 1, ngayLamViec: '2027-01-11', gioBatDau: '07:30', gioKetThuc: '11:30', thoiLuongMoiCa: 30, statusCode: 'APPROVED', ghiChu: '  Ca sáng  ', ...overrides });
 const row = (overrides = {}) => ({ idLichLamViec: 1, idBacSi: 1, ngayLamViec: '2027-01-11', gioBatDau: '07:30:00', gioKetThuc: '11:30:00', thoiLuongMoiCa: 30, trangThai: ScheduleStatus.APPROVED, ghiChu: null, ...overrides });
@@ -67,7 +69,7 @@ function fixture(initialRows = [], appointments = []) {
   const repo = { findById: async (id) => structuredClone(rows.find((item) => item.idLichLamViec === id) || null), findDoctorByAccount: async () => doctors[0] };
   const service = new DoctorScheduleService(repo, dataSource, {});
   service.invalidateAvailability = async (doctorId, date) => { invalidations.push({ doctorId, date }); };
-  return { service, rows: () => rows, locks, invalidations };
+  return { service, rows: () => rows, locks, invalidations, doctors };
 }
 
 test('manager CRUD normalizes and persists schema fields, locks doctor before schedule and invalidates both dates', async () => {
@@ -127,6 +129,34 @@ test('DTO rejects impossible dates, invalid times, zero slots and unknown status
   }
 });
 
+test('calendar queries and doctor submissions reject impossible dates and invalid filter IDs', async () => {
+  for (const [Dto, payload] of [
+    [ScheduleItemDto, { ngayLamViec: '2027-02-30', ca: 'SANG' }],
+    [WeekQueryDto, { week: '2027-02-30' }],
+    [BulkApproveDto, { week: '2027-02-30' }],
+    [ManagerScheduleQueryDto, { week: '2027-02-30' }],
+    [ManagerScheduleQueryDto, { doctorId: 0 }],
+    [ManagerScheduleQueryDto, { chuyenKhoaId: -1 }],
+    [BulkApproveDto, { week: '2027-01-11', doctorId: -1 }],
+  ]) {
+    assert.ok((await validate(plainToInstance(Dto, payload))).length > 0);
+  }
+  assert.equal((await validate(plainToInstance(WeekQueryDto, { week: '2027-01-11' }))).length, 0);
+});
+
+test('admin can maintain notes and close an inactive doctor schedule but cannot move hours or reopen it', async () => {
+  const f = fixture([row()]);
+  f.doctors[0].trangThai = 'Inactive';
+  await f.service.managerUpdate(1, input({ ghiChu: 'Bác sĩ đã nghỉ' }));
+  assert.equal(f.rows()[0].ghiChu, 'Bác sĩ đã nghỉ');
+  await assert.rejects(f.service.managerUpdate(1, input({ gioBatDau: '08:00' })), hasCode(ErrorCode.DOCTOR_NOT_FOUND));
+  await f.service.managerUpdate(1, input({ statusCode: 'REJECTED' }));
+  assert.equal(f.rows()[0].trangThai, ScheduleStatus.REJECTED);
+  await assert.rejects(f.service.managerUpdate(1, input()), hasCode(ErrorCode.DOCTOR_NOT_FOUND));
+  await f.service.managerRemove(1);
+  assert.equal(f.rows().length, 0);
+});
+
 test('manager schedule CRUD/list/approval reject doctor and patient roles', () => {
   const guard = new RolesGuard(new Reflector());
   for (const method of ['list', 'managerCreate', 'managerUpdate', 'managerRemove', 'approve', 'reject', 'bulk']) {
@@ -161,4 +191,35 @@ test('bulk approval fails if a pending schedule changed after searching, and pre
   const result = await f.service.bulkApprove({ week: '2027-01-11' });
   assert.equal(result.approved, 1);
   assert.equal(f.rows()[0].trangThai, ScheduleStatus.APPROVED);
+});
+
+test('manager search and bulk query treat percent, underscore and escape character as literal text', async () => {
+  const source = new DataSource({ type: 'postgres', entities: STAFF_ENTITIES });
+  await source.buildMetadatas();
+  const schedules = source.getRepository(LichLamViec);
+  const originalBuilder = schedules.createQueryBuilder.bind(schedules);
+  let generated;
+  schedules.createQueryBuilder = (...args) => {
+    const builder = originalBuilder(...args);
+    builder.getRawMany = async () => { generated = builder.getQueryAndParameters(); return []; };
+    return builder;
+  };
+  const repository = new DoctorScheduleRepository(schedules, source.getRepository(BacSi), source.getRepository(QuanLy));
+  const filter = { from: '2027-01-11', to: '2027-01-17', doctorId: 1, date: '2027-01-11', shift: 'SANG', statuses: [ScheduleStatus.PENDING] };
+  for (const [search, pattern] of [['%', '%!%%'], ['_', '%!_%'], ['!', '%!!%'], ['Ca 50%_!', '%Ca 50!%!_!!%'], ['Ca sáng', '%Ca sáng%']]) {
+    await repository.queryManagerSchedules({ ...filter, q: search });
+    const [sql, parameters] = generated;
+    assert.equal((sql.match(/ESCAPE '!'/g) || []).length, 5);
+    assert.equal(parameters.at(-1), pattern);
+    assert.ok(parameters.includes(filter.date));
+    assert.ok(parameters.includes(filter.doctorId));
+    assert.ok(parameters.includes(ScheduleStatus.PENDING));
+    assert.ok(parameters.includes('07:30:00'));
+    assert.ok(parameters.includes('11:30:00'));
+    assert.match(sql, /"bs"\."ho_ten" ILIKE/);
+    assert.match(sql, /"bs"\."so_chung_chi_hanh_nghe" ILIKE/);
+    assert.match(sql, /"ck"\."ten_chuyen_khoa" ILIKE/);
+    assert.match(sql, /"l"\."ghi_chu" ILIKE/);
+    assert.match(sql, /CAST\("l"\."ngay_lam_viec" AS text\) ILIKE/);
+  }
 });

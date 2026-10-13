@@ -3,7 +3,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { AccessTokenPayload, AppRole, CurrentUser, JwtAuthGuard, Roles, RolesGuard } from '@qlpk/common';
 import { AccountsService } from './accounts.service';
 import { AccountsQueryDto, AccountStatusDto } from './dto/accounts.dto';
-import { CreateDoctorByManagerDto, CreatePatientByManagerDto, ProfilesQueryDto, UpdateDoctorByManagerDto, UpdatePatientByManagerDto } from './dto/manager-profiles.dto';
+import { CreateDoctorByManagerDto, CreatePatientByManagerDto, PatientProfilesQueryDto, ProfilesQueryDto, UpdateDoctorByManagerDto, UpdatePatientByManagerDto } from './dto/manager-profiles.dto';
 import { DoctorPhotoService, type DoctorPhotoUpload } from './doctor-photo.service';
 
 @Controller('auth/accounts')
@@ -18,7 +18,7 @@ export class AccountsController {
   }
 
   @Get('patients')
-  listPatients(@CurrentUser() user: AccessTokenPayload, @Query() query: ProfilesQueryDto) {
+  listPatients(@CurrentUser() user: AccessTokenPayload, @Query() query: PatientProfilesQueryDto) {
     return this.accounts.listPatients(user.sub, query);
   }
 

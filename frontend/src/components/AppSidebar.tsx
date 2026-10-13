@@ -61,7 +61,7 @@ export function AppSidebar({ open, onNavigate }: { open: boolean; onNavigate: ()
             {item.label}
           </NavLink>
         ))}
-        <button className={`${linkClass} cursor-pointer border-0 bg-transparent`} onClick={() => logout().then(() => { window.location.href = '/login'; })}>Đăng xuất</button>
+        {user.role !== 'DOCTOR' ? <button className={`${linkClass} cursor-pointer border-0 bg-transparent`} onClick={() => logout().then(() => { window.location.href = '/login'; })}>Đăng xuất</button> : null}
       </nav>
       <div className="mt-auto p-4 text-xs text-[#8ea3bd]">Phiên làm việc được bảo vệ</div>
     </aside>

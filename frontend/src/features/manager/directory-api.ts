@@ -11,14 +11,14 @@ export interface DirectoryResult<T> {
 
 export interface ManagedPatient {
   id: number;
-  accountId: string;
+  accountId: string | null;
   username: string;
   hoTen: string;
-  ngaySinh: string;
-  gioiTinh: 'Nam' | 'Nu';
-  soDienThoai: string;
-  email: string;
-  diaChi: string;
+  ngaySinh: string | null;
+  gioiTinh: string | null;
+  soDienThoai: string | null;
+  email: string | null;
+  diaChi: string | null;
   coBhyt: boolean;
   soBhyt: string | null;
   trangThai: ManagedStatus;

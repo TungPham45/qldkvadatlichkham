@@ -36,6 +36,12 @@ export class ProfilesQueryDto {
   pageSize = 10;
 }
 
+export class PatientProfilesQueryDto extends ProfilesQueryDto {
+  @IsOptional()
+  @IsIn(['Nam', 'Nu', 'Khac'])
+  gioiTinh: string | undefined = undefined;
+}
+
 class ProfileFieldsDto {
   @IsString()
   @MinLength(1)
@@ -44,9 +50,6 @@ class ProfileFieldsDto {
 
   @IsDateString()
   ngaySinh: string;
-
-  @IsIn(['Nam', 'Nu'])
-  gioiTinh: 'Nam' | 'Nu';
 
   @Matches(/^0\d{9,10}$/, { message: 'Số điện thoại không hợp lệ.' })
   soDienThoai: string;
@@ -59,7 +62,13 @@ class ProfileFieldsDto {
   trangThai: AccountStatus;
 }
 
-export class CreatePatientByManagerDto extends ProfileFieldsDto {
+class PatientProfileFieldsDto extends ProfileFieldsDto {
+  @ValidateIf((_, value) => value !== null)
+  @IsIn(['Nam', 'Nu', 'Khac'])
+  gioiTinh: 'Nam' | 'Nu' | 'Khac' | null;
+}
+
+export class CreatePatientByManagerDto extends PatientProfileFieldsDto {
   @IsString()
   @MaxLength(255)
   diaChi: string;
@@ -83,7 +92,7 @@ export class CreatePatientByManagerDto extends ProfileFieldsDto {
   password: string;
 }
 
-export class UpdatePatientByManagerDto extends ProfileFieldsDto {
+export class UpdatePatientByManagerDto extends PatientProfileFieldsDto {
   @IsString()
   @MaxLength(255)
   diaChi: string;
@@ -100,6 +109,9 @@ export class UpdatePatientByManagerDto extends ProfileFieldsDto {
 }
 
 export class CreateDoctorByManagerDto extends ProfileFieldsDto {
+  @IsIn(['Nam', 'Nu'])
+  gioiTinh: 'Nam' | 'Nu';
+
   @IsString()
   @MaxLength(255)
   bangCap: string;
@@ -127,6 +139,9 @@ export class CreateDoctorByManagerDto extends ProfileFieldsDto {
 }
 
 export class UpdateDoctorByManagerDto extends ProfileFieldsDto {
+  @IsIn(['Nam', 'Nu'])
+  gioiTinh: 'Nam' | 'Nu';
+
   @IsString()
   @MaxLength(255)
   bangCap: string;

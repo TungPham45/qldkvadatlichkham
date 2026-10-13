@@ -17,11 +17,15 @@ export class AccountsService {
     const builder = this.dataSource.getRepository(TaiKhoan).createQueryBuilder('account')
       .leftJoin('quan_ly', 'manager', 'manager.id_tai_khoan = account.id_tai_khoan')
       .leftJoin('bac_si', 'doctor', 'doctor.id_tai_khoan = account.id_tai_khoan')
+<<<<<<< HEAD
+      .leftJoin('tai_khoan_benh_nhan', 'patient_link', 'patient_link.id_tai_khoan = account.id_tai_khoan AND patient_link.la_chu_ho_so = TRUE')
+=======
       .leftJoin(
         'tai_khoan_benh_nhan',
         'patient_link',
         'patient_link.id_tai_khoan = account.id_tai_khoan AND patient_link.la_chu_ho_so = TRUE',
       )
+>>>>>>> 4d0d13c508dbea20eec8b30b3188d70376b4009a
       .leftJoin('benh_nhan', 'patient', 'patient.id_benh_nhan = patient_link.id_benh_nhan');
     if (query.vaiTro) builder.andWhere('account.vai_tro = :vaiTro', { vaiTro: query.vaiTro });
     if (query.trangThai) builder.andWhere('account.trang_thai = :trangThai', { trangThai: query.trangThai });
@@ -53,10 +57,10 @@ export class AccountsService {
 
   async listPatients(actorId: string, query: ProfilesQueryDto) {
     await this.requireManager(actorId);
-    const { where, values } = this.profileFilters(query, 'patient', ['patient.ho_ten', 'patient.email', 'patient.so_dien_thoai', 'account.ten_dang_nhap']);
+    const { where, values } = this.profileFilters(query, 'patient', ['patient.ho_ten', 'patient.email', 'patient.so_dien_thoai', 'patient.so_bhyt', 'account.ten_dang_nhap'], 'COALESCE(account.trang_thai, patient.trang_thai)');
     const joins = `FROM benh_nhan patient
-      JOIN tai_khoan_benh_nhan link ON link.id_benh_nhan = patient.id_benh_nhan AND link.la_chu_ho_so = TRUE
-      JOIN tai_khoan account ON account.id_tai_khoan = link.id_tai_khoan`;
+      LEFT JOIN tai_khoan_benh_nhan link ON link.id_benh_nhan = patient.id_benh_nhan AND link.la_chu_ho_so = TRUE
+      LEFT JOIN tai_khoan account ON account.id_tai_khoan = link.id_tai_khoan`;
     const countRows = await this.dataSource.query(
       `SELECT COUNT(*)::int AS total ${joins} ${where}`,
       values,
@@ -64,10 +68,10 @@ export class AccountsService {
     const offsetIndex = values.length + 1;
     const limitIndex = values.length + 2;
     const items = await this.dataSource.query(
-      `SELECT patient.id_benh_nhan AS id, account.id_tai_khoan AS "accountId", account.ten_dang_nhap AS username,
+      `SELECT patient.id_benh_nhan AS id, account.id_tai_khoan AS "accountId", COALESCE(account.ten_dang_nhap, '') AS username,
         patient.ho_ten AS "hoTen", patient.ngay_sinh AS "ngaySinh", patient.gioi_tinh AS "gioiTinh",
         patient.so_dien_thoai AS "soDienThoai", patient.email, patient.dia_chi AS "diaChi",
-        patient.co_bhyt AS "coBhyt", patient.so_bhyt AS "soBhyt", account.trang_thai AS "trangThai"
+        patient.co_bhyt AS "coBhyt", patient.so_bhyt AS "soBhyt", COALESCE(account.trang_thai, patient.trang_thai) AS "trangThai"
        ${joins}
        ${where} ORDER BY patient.id_benh_nhan ASC OFFSET $${offsetIndex} LIMIT $${limitIndex}`,
       [...values, (query.page - 1) * query.pageSize, query.pageSize],
@@ -153,26 +157,29 @@ export class AccountsService {
   }
 
   async updatePatient(actorId: string, id: number, dto: UpdatePatientByManagerDto) {
-    await this.requireManager(actorId);
-    return this.dataSource.transaction(async (manager) => {
-      const rows = await manager.query(
-        `SELECT link.id_tai_khoan
-         FROM tai_khoan_benh_nhan link
-         WHERE link.id_benh_nhan = $1 AND link.la_chu_ho_so = TRUE
-         FOR UPDATE`,
-        [id],
-      );
-      if (!rows.length) throw new AppException(404, 'PATIENT_NOT_FOUND', 'Không tìm thấy bệnh nhân.');
-      await this.assertUniqueProfile(manager, 'benh_nhan', dto.email, dto.soDienThoai, id);
-      const soBhyt = dto.coBhyt === true && dto.soBhyt ? dto.soBhyt.trim().toUpperCase() : null;
-      await manager.query(
-        `UPDATE benh_nhan SET ho_ten=$2, ngay_sinh=$3, gioi_tinh=$4, so_dien_thoai=$5, email=$6, dia_chi=$7,
-          co_bhyt=$8, so_bhyt=$9, trang_thai=$10, ngay_cap_nhat=CURRENT_TIMESTAMP WHERE id_benh_nhan=$1`,
-        [id, dto.hoTen.trim(), dto.ngaySinh.slice(0, 10), dto.gioiTinh, dto.soDienThoai, dto.email.trim().toLowerCase(), dto.diaChi.trim(), Boolean(soBhyt), soBhyt, dto.trangThai],
-      );
-      await manager.query('UPDATE tai_khoan SET trang_thai=$2, ngay_cap_nhat=CURRENT_TIMESTAMP WHERE id_tai_khoan=$1', [rows[0].id_tai_khoan, dto.trangThai]);
-      return { id };
-    });
+    try {
+      return await this.dataSource.transaction(async (manager) => {
+        const admins = await this.lockAdmins(manager, actorId);
+        const owner = await this.lockPatientProfile(manager, id);
+        if (owner?.idTaiKhoan === actorId && dto.trangThai !== 'Active') {
+          throw new AppException(409, 'ACCOUNT_SELF_CHANGE', 'Bạn không thể khóa hoặc ngừng hoạt động tài khoản đang đăng nhập.');
+        }
+        if (owner) this.protectLastAdmin(owner, admins, dto.trangThai !== 'Active');
+        await this.assertUniqueProfile(manager, 'benh_nhan', dto.email, dto.soDienThoai, id);
+        const soBhyt = dto.coBhyt === true && dto.soBhyt ? dto.soBhyt.trim().toUpperCase() : null;
+        await manager.query(
+          `UPDATE benh_nhan SET ho_ten=$2, ngay_sinh=$3, gioi_tinh=$4, so_dien_thoai=$5, email=$6, dia_chi=$7,
+            co_bhyt=$8, so_bhyt=$9, trang_thai=$10, ngay_cap_nhat=CURRENT_TIMESTAMP WHERE id_benh_nhan=$1`,
+          [id, dto.hoTen.trim(), dto.ngaySinh.slice(0, 10), dto.gioiTinh, dto.soDienThoai, dto.email.trim().toLowerCase(), dto.diaChi.trim(), Boolean(soBhyt), soBhyt, dto.trangThai],
+        );
+        if (owner) {
+          await manager.query('UPDATE tai_khoan SET trang_thai=$2, ngay_cap_nhat=CURRENT_TIMESTAMP WHERE id_tai_khoan=$1', [owner.idTaiKhoan, dto.trangThai]);
+        }
+        return { id };
+      });
+    } catch (error) {
+      this.translateCreateConflict(error);
+    }
   }
 
   async createDoctor(actorId: string, dto: CreateDoctorByManagerDto) {
@@ -204,6 +211,10 @@ export class AccountsService {
     await this.requireManager(actorId);
     try {
       return await this.dataSource.transaction(async (manager) => {
+        await this.lockAdmins(manager, actorId);
+        const owners = await manager.query('SELECT id_tai_khoan FROM bac_si WHERE id_bac_si = $1', [id]);
+        if (!owners.length) throw new AppException(404, ErrorCode.DOCTOR_NOT_FOUND, 'Không tìm thấy bác sĩ.');
+        await this.findLocked(manager, owners[0].id_tai_khoan);
         const rows = await manager.query('SELECT id_tai_khoan FROM bac_si WHERE id_bac_si = $1 FOR UPDATE', [id]);
         if (!rows.length) throw new AppException(404, ErrorCode.DOCTOR_NOT_FOUND, 'Không tìm thấy bác sĩ.');
         await this.assertUniqueDoctor(manager, undefined, dto.soDienThoai, dto.soChungChiHanhNghe, id);
@@ -225,6 +236,21 @@ export class AccountsService {
   }
 
   async removeProfile(actorId: string, table: 'benh_nhan' | 'bac_si', idColumn: 'id_benh_nhan' | 'id_bac_si', id: number) {
+    if (table === 'benh_nhan') {
+      try {
+        return await this.dataSource.transaction(async (manager) => {
+          await this.lockAdmins(manager, actorId);
+          await this.lockPatientProfile(manager, id);
+          await manager.query('DELETE FROM benh_nhan WHERE id_benh_nhan = $1', [id]);
+          return { success: true };
+        });
+      } catch (error) {
+        if (error && typeof error === 'object' && (error as { code?: string }).code === '23503') {
+          throw new AppException(409, 'PATIENT_PROFILE_IN_USE', 'Bệnh nhân đã có lịch khám hoặc hồ sơ y tế nên không thể xóa. Bạn vẫn có thể sửa thông tin bệnh nhân.');
+        }
+        throw error;
+      }
+    }
     await this.requireManager(actorId);
     const rows = table === 'benh_nhan'
       ? await this.dataSource.query(
@@ -279,7 +305,7 @@ export class AccountsService {
     this.assertManager(actor);
   }
 
-  private profileFilters(query: ProfilesQueryDto, alias: string, columns: string[]) {
+  private profileFilters(query: ProfilesQueryDto, alias: string, columns: string[], statusColumn = 'account.trang_thai') {
     const clauses: string[] = [];
     const values: unknown[] = [];
     if (query.q?.trim()) {
@@ -292,7 +318,7 @@ export class AccountsService {
     }
     if (query.trangThai) {
       values.push(query.trangThai);
-      clauses.push(`account.trang_thai = $${values.length}`);
+      clauses.push(`${statusColumn} = $${values.length}`);
     }
     return { where: clauses.length ? `WHERE ${clauses.join(' AND ')}` : '', values };
   }
@@ -347,7 +373,11 @@ export class AccountsService {
     const conflict = isDbConflict(error);
     if (conflict?.constraint.includes('ten_dang_nhap')) throw new AppException(409, ErrorCode.USERNAME_ALREADY_EXISTS, 'Tên đăng nhập đã tồn tại.');
     if (conflict?.constraint.includes('email')) throw new AppException(409, ErrorCode.EMAIL_ALREADY_EXISTS, 'Email đã được sử dụng.');
+<<<<<<< HEAD
+    if (conflict?.constraint.includes('so_bhyt')) throw new AppException(409, 'BHYT_ALREADY_EXISTS', 'Số thẻ BHYT đã được sử dụng.');
+=======
     if (conflict?.constraint.includes('so_dien_thoai')) throw new AppException(409, ErrorCode.PHONE_ALREADY_EXISTS, 'Số điện thoại đã được sử dụng.');
+>>>>>>> 4d0d13c508dbea20eec8b30b3188d70376b4009a
     if (conflict?.constraint.includes('so_chung_chi')) throw new AppException(409, 'LICENSE_ALREADY_EXISTS', 'Số chứng chỉ hành nghề đã tồn tại.');
     throw error;
   }
@@ -375,6 +405,25 @@ export class AccountsService {
     return account;
   }
 
+  private async lockPatientProfile(manager: EntityManager, patientId: number) {
+    const owners = await manager.query(
+      'SELECT id_tai_khoan FROM tai_khoan_benh_nhan WHERE id_benh_nhan = $1 AND la_chu_ho_so = TRUE', [patientId],
+    );
+    const owner = owners.length ? await manager.getRepository(TaiKhoan).findOne({
+      where: { idTaiKhoan: owners[0].id_tai_khoan }, lock: { mode: 'pessimistic_write' },
+    }) : null;
+    const links = await manager.query(
+      'SELECT id_tai_khoan, la_chu_ho_so FROM tai_khoan_benh_nhan WHERE id_benh_nhan = $1 FOR UPDATE', [patientId],
+    );
+    const currentOwner = links.find((link: { la_chu_ho_so: boolean }) => link.la_chu_ho_so === true);
+    if (currentOwner && currentOwner.id_tai_khoan !== owner?.idTaiKhoan) {
+      throw new AppException(409, 'PATIENT_PROFILE_CHANGED', 'Liên kết bệnh nhân vừa thay đổi. Vui lòng tải lại.');
+    }
+    const patients = await manager.query('SELECT id_benh_nhan FROM benh_nhan WHERE id_benh_nhan = $1 FOR UPDATE', [patientId]);
+    if (!patients.length) throw new AppException(404, ErrorCode.PATIENT_NOT_FOUND, 'Không tìm thấy bệnh nhân.');
+    return currentOwner ? owner : null;
+  }
+
   private protectLastAdmin(account: TaiKhoan, admins: TaiKhoan[], removesActive: boolean) {
     if (removesActive && account.vaiTro === 'Admin' && account.trangThai === 'Active'
       && admins.filter((admin) => admin.trangThai === 'Active').length <= 1) {
@@ -392,10 +441,15 @@ export class AccountsService {
       if (schedules.length) throw new AppException(409, 'ACCOUNT_HAS_RELATED_DATA', linkedDataMessage);
       await manager.query('DELETE FROM bac_si WHERE id_tai_khoan = $1', [account.idTaiKhoan]);
     } else if (account.vaiTro === 'NguoiDung') {
+<<<<<<< HEAD
+      // Patient profiles and clinical records exist independently from login accounts.
+      await manager.query('DELETE FROM tai_khoan_benh_nhan WHERE id_tai_khoan = $1', [account.idTaiKhoan]);
+=======
       // benh_nhan is an independent clinical record. Deleting the login account
       // only removes tai_khoan_benh_nhan through its FK cascade; the patient and
       // all medical history remain intact.
       return;
+>>>>>>> 4d0d13c508dbea20eec8b30b3188d70376b4009a
     }
   }
 }

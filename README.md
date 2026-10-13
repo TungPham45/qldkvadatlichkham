@@ -18,7 +18,7 @@ Mở terminal tại thư mục gốc của project, không phải thư mục `fr
 npm run dev
 ```
 
-Lệnh này tắt các container app (auth, patient, staff, appointment, gateway, frontend) nếu chúng đang chiếm cổng, bật PostgreSQL và Redis, rồi chạy app trên máy host với watch:
+Lệnh này tắt các container app (auth, patient, staff, appointment, medical-record, notification, gateway, frontend) nếu chúng đang chiếm cổng, bật PostgreSQL và Redis, chạy migration có kiểm tra, rồi chạy app trên máy host với watch:
 
 | Process | Cổng |
 | --- | --- |
@@ -33,7 +33,7 @@ Lệnh này tắt các container app (auth, patient, staff, appointment, gateway
 
 Sửa TypeScript hoặc giao diện thì process tương ứng tự tải lại. Postgres trên máy host là `localhost:5433`, Redis là `localhost:6379`, đúng với `.env`.
 
-Database `qlphongkham` được tạo từ `qlphongkham.sql`, rồi chạy thêm `database/migrations/001_schedule_workflow.sql`. Hai file SQL chỉ chạy khi volume Postgres còn trống.
+Database `qlphongkham` được tạo từ `qlphongkham.sql` khi volume Postgres còn trống. Sau đó `npm run db:migrate` áp dụng tuần tự các file trong `database/migrations/` cho cả database mới và volume đã tồn tại. Runner kiểm tra checksum, tạo bản sao lưu `.dump` trong `database/backups/`, rồi chạy từng migration trong transaction. Nếu không sao lưu được hoặc dữ liệu hiện tại vi phạm constraint mới, migration dừng và rollback.
 
 Mở http://localhost:5173. Vite chuyển `/api` sang gateway ở cổng 3000.
 
@@ -51,7 +51,7 @@ Dùng khi không sửa code. Dừng `npm run dev` trước, vì hai cách cùng 
 npm run stack
 ```
 
-Lệnh này là `docker compose --profile app up -d --build`. Profile `app` bật auth-service, patient-service, staff-service, appointment-service, API Gateway và giao diện nginx, cùng Postgres và Redis. Các service trong container nối Postgres qua host `postgres` cổng `5432` và Redis qua host `redis`. `medical-record-service` và `notification-service` không nằm trong profile này.
+Lệnh này là `docker compose --profile app up -d --build`. Profile `app` bật auth-service, patient-service, staff-service, appointment-service, medical-record-service, notification-service, API Gateway và giao diện nginx, cùng Postgres và Redis. Migration có backup chạy xong trước khi các service kết nối database. Các service trong container nối Postgres qua host `postgres` cổng `5432` và Redis qua host `redis`.
 
 Đợi container khỏe:
 
@@ -91,8 +91,8 @@ docker compose --profile app up -d --build frontend
 | patient-service | http://localhost:3002 |
 | staff-service | http://localhost:3003 |
 | appointment-service | http://localhost:3004 |
-| medical-record-service | http://localhost:3010, chỉ khi `npm run dev` |
-| notification-service | http://localhost:3013, chỉ khi `npm run dev` |
+| medical-record-service | http://localhost:3010 |
+| notification-service | http://localhost:3013 |
 | PostgreSQL | localhost:5433, database `qlphongkham`, user/password `postgres` / `postgres` |
 | Redis | localhost:6379 |
 
@@ -110,15 +110,32 @@ Mật khẩu của mọi tài khoản seed: `123456`
 
 Seed có **15 bác sĩ** (bs1–bs15), **8 chuyên khoa**, xen kẽ nhận BHYT / không BHYT. Đăng ký công khai trên `/register` chỉ tạo bệnh nhân. Bác sĩ và quản lý không tự đăng ký.
 
-## Reset database (giữ dữ liệu mẫu)
+## Migration và kiểm tra database
+
+Kiểm tra migration nào đang chờ mà không thay đổi database:
+
+```powershell
+npm.cmd run db:migrate:status
+```
+
+Áp dụng migration an toàn cho volume hiện tại (tự sao lưu trước khi đổi schema):
+
+```powershell
+npm.cmd run db:migrate
+npm.cmd run db:check
+```
+
+Không sửa nội dung migration đã được ghi trong `schema_migrations`; hãy tạo file migration có số thứ tự mới. `db:check` chỉ đọc và kiểm tra version, timezone, bảng/cột, khóa ngoại, index, dữ liệu trùng, orphan và dữ liệu mẫu.
+
+## Reset database demo (xóa toàn bộ dữ liệu)
 
 Seed nằm trong `database/qlphongkham.sql` và được Docker nạp tự động khi volume Postgres **trống**. Muốn khởi tạo lại DB (xóa hết rồi nạp lại seed):
 
-```bash
-npm run db:reset
+```powershell
+npm.cmd run db:reset -- --confirm-data-loss
 ```
 
-Lệnh này chạy `docker compose down -v` rồi bật lại Postgres/Redis. Lần khởi động tiếp theo lại có đầy đủ bác sĩ, bệnh nhân và lịch mẫu.
+Lệnh này chạy `docker compose down -v` rồi bật lại Postgres/Redis. Đây là thao tác phá hủy và không dùng để cập nhật database đang có dữ liệu. Nếu không truyền đúng cờ xác nhận, script sẽ dừng mà không thay đổi gì.
 
 ## Cách dùng lần đầu
 

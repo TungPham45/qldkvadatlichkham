@@ -33,7 +33,7 @@ const patientA = {
   diaChi: 'Ha Noi',
   username: `bn_a_${stamp}`,
   password: '123456',
-  confirmPassword: '123456',
+  coBhyt: false,
 };
 const patientB = {
   ...patientA,
@@ -72,8 +72,9 @@ const forbidden = await request('/manager/doctor-schedules/1/approve', {
 });
 assert(forbidden.status === 403 && forbidden.data.code === 'FORBIDDEN', 'patient cannot approve', forbidden);
 
-const dayBase = new Date(Date.UTC(2026, 10, 1));
-dayBase.setUTCDate(1 + (Number(stamp) % 27));
+const dayBase = new Date();
+dayBase.setUTCHours(0, 0, 0, 0);
+dayBase.setUTCDate(dayBase.getUTCDate() + 90 + (Number(stamp) % 30));
 const day = dayBase.toISOString().slice(0, 10);
 const created = await request('/doctor-schedules', {
   method: 'POST',
@@ -111,10 +112,24 @@ assert(visible.status === 200, 'approved availability', visible.status);
 assert(visible.data.slots.some((slot) => slot.start === '07:30:00' && slot.available), 'morning slot visible', visible.data.slots.slice(0, 3));
 assert(!visible.data.slots.some((slot) => slot.start >= '13:30:00'), 'rejected afternoon hidden', visible.data.slots);
 
+const [profilesA, profilesB] = await Promise.all([
+  request('/patients/bookable', { token: registeredA.data.accessToken }),
+  request('/patients/bookable', { token: registeredB.data.accessToken }),
+]);
+assert(profilesA.status === 200 && profilesA.data.length > 0, 'first patient profile is bookable', profilesA);
+assert(profilesB.status === 200 && profilesB.data.length > 0, 'second patient profile is bookable', profilesB);
+
+const [otpA, otpB] = await Promise.all([
+  request('/appointments/otp/send', { method: 'POST', token: registeredA.data.accessToken, body: { benhNhanId: profilesA.data[0].id } }),
+  request('/appointments/otp/send', { method: 'POST', token: registeredB.data.accessToken, body: { benhNhanId: profilesB.data[0].id } }),
+]);
+assert(otpA.status === 201 || otpA.status === 200, 'first booking OTP', otpA);
+assert(otpB.status === 201 || otpB.status === 200, 'second booking OTP', otpB);
+
 const payload = { bacSiId: 1, ngayHen: day, gioHen: '07:30:00', lyDoKham: 'Dau hong va sot nhe' };
 const [first, second] = await Promise.all([
-  request('/appointments', { method: 'POST', token: registeredA.data.accessToken, body: payload }),
-  request('/appointments', { method: 'POST', token: registeredB.data.accessToken, body: payload }),
+  request('/appointments', { method: 'POST', token: registeredA.data.accessToken, body: { ...payload, benhNhanId: profilesA.data[0].id, maOtp: otpA.data.maOtpGiaLap } }),
+  request('/appointments', { method: 'POST', token: registeredB.data.accessToken, body: { ...payload, benhNhanId: profilesB.data[0].id, maOtp: otpB.data.maOtpGiaLap } }),
 ]);
 const results = [first, second].sort((a, b) => a.status - b.status);
 assert(results[0].status === 200 || results[0].status === 201, 'one booking succeeds', results[0]);
@@ -123,7 +138,10 @@ assert(results[1].status === 409 && results[1].data.code === 'APPOINTMENT_SLOT_A
 const after = await request(`/appointments/availability?doctorId=1&date=${day}`, { token: registeredA.data.accessToken });
 const booked = after.data.slots.find((slot) => slot.start === '07:30:00');
 assert(booked && booked.available === false, 'booked slot disabled', booked);
-const mine = await request('/appointments/me', { token: results[0].data ? registeredA.data.accessToken : registeredB.data.accessToken });
+const successfulToken = first.status === 200 || first.status === 201
+  ? registeredA.data.accessToken
+  : registeredB.data.accessToken;
+const mine = await request('/appointments/me', { token: successfulToken });
 assert(mine.status === 200, 'patient can list appointments', mine.status);
 
 if (process.exitCode) process.exit(process.exitCode);

@@ -8,6 +8,12 @@
  */
 import { spawnSync } from 'node:child_process';
 
+if (!process.argv.includes('--confirm-data-loss')) {
+  console.error('DA DUNG: db:reset se xoa Docker volume va toan bo du lieu PostgreSQL.');
+  console.error('Neu that su muon reset moi truong demo, chay: npm run db:reset -- --confirm-data-loss');
+  process.exit(2);
+}
+
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
     stdio: 'inherit',

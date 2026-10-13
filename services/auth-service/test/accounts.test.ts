@@ -117,10 +117,17 @@ test('doctor account with schedules is retained without cascading schedule delet
   assert.equal(result.mutations().deleted, 0);
 });
 
+<<<<<<< HEAD
 test('deleting a patient account removes only its links and retains medical history', async () => {
   const result = fixture(account('patient', 'NguoiDung'), { related: true });
   assert.deepEqual(await result.service.remove('actor', 'patient'), { success: true });
   assert.deepEqual(result.sql, ['DELETE FROM tai_khoan_benh_nhan WHERE id_tai_khoan = $1']);
+=======
+test('patient account can be removed without deleting its independent clinical record', async () => {
+  const result = fixture(account('patient', 'NguoiDung'), { related: true });
+  assert.deepEqual(await result.service.remove('actor', 'patient'), { success: true });
+  assert.equal(result.sql.some((statement) => statement.startsWith('DELETE')), false);
+>>>>>>> 4d0d13c508dbea20eec8b30b3188d70376b4009a
   assert.equal(result.mutations().deleted, 1);
 });
 
@@ -134,11 +141,18 @@ test('clinical foreign key conflicts produce a Vietnamese retention explanation'
   assert.equal(result.mutations().deleted, 0);
 });
 
+<<<<<<< HEAD
 test('a patient login account can be removed without deleting any independent profile', async () => {
   const result = fixture(account('patient', 'NguoiDung'));
   assert.deepEqual(await result.service.remove('actor', 'patient'), { success: true });
   assert.ok(result.sql.some((statement) => statement.startsWith('DELETE FROM tai_khoan_benh_nhan')));
   assert.equal(result.sql.some((statement) => statement.includes('FROM benh_nhan')), false);
+=======
+test('removing an unused patient account preserves the patient profile', async () => {
+  const result = fixture(account('patient', 'NguoiDung'));
+  assert.deepEqual(await result.service.remove('actor', 'patient'), { success: true });
+  assert.equal(result.sql.some((statement) => statement.startsWith('DELETE FROM benh_nhan')), false);
+>>>>>>> 4d0d13c508dbea20eec8b30b3188d70376b4009a
   assert.equal(result.mutations().deleted, 1);
 });
 

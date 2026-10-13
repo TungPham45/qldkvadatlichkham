@@ -24,8 +24,12 @@ async function run(options = {}) {
       sql.push({ statement, parameters });
       if (statement.includes('FROM tai_khoan\n')) return options.disabledAccount ? [] : [{ id_tai_khoan: 'patient-account' }];
       if (statement.includes('FROM bac_si')) return [{ id_bac_si: 7 }];
+<<<<<<< HEAD
       if (statement.includes('FROM tai_khoan_benh_nhan')) return options.revokedLink ? [] : [{ id_benh_nhan: 9 }];
       if (statement.includes('FROM benh_nhan')) return options.missingProfile ? [] : [{ id: '9', hoTen: 'Bệnh nhân', soDienThoai: '0901234567' }];
+=======
+      if (statement.includes('FROM benh_nhan')) return options.missingProfile ? [] : [{ id: 9, hoTen: 'Bệnh nhân', soDienThoai: '0901234567' }];
+>>>>>>> 4d0d13c508dbea20eec8b30b3188d70376b4009a
       if (statement.includes('FROM lich_lam_viec')) return options.changedSchedule ? [] : [schedule];
       if (statement.includes('FROM lich_hen')) return options.booked ? [{ id_lich_hen: 1 }] : [];
       if (statement.includes('INSERT INTO thong_bao')) return [];
@@ -35,8 +39,13 @@ async function run(options = {}) {
   };
   const service = new AppointmentService({}, { async transaction(callback) { return callback(manager); } },
     { client: {
+<<<<<<< HEAD
       async get() { return JSON.stringify({ maOtp: options.invalidOtp ? '000000' : dto.maOtp }); },
       async del(key) { deletedKeys.push(key); },
+=======
+      async get() { return JSON.stringify({ maOtp: dto.maOtp }); },
+      async del() { invalidated += 1; },
+>>>>>>> 4d0d13c508dbea20eec8b30b3188d70376b4009a
     } },
     { async acquire() { return 'owner'; }, async release() { released += 1; } });
   try {
@@ -62,7 +71,11 @@ test('booking locks the account before doctor and checks linked patient rights i
   assert.equal(result.result.benhNhanId, 9);
   assert.equal(result.saved, 1);
   assert.equal(result.released, 1);
+<<<<<<< HEAD
   assert.deepEqual(result.deletedKeys, ['appointment:otp:patient-account:9', 'availability:7:2099-01-12']);
+=======
+  assert.equal(result.invalidated, 2);
+>>>>>>> 4d0d13c508dbea20eec8b30b3188d70376b4009a
 });
 
 test('a schedule removed or rejected before the doctor lock is acquired cannot be booked', async () => {
@@ -72,6 +85,7 @@ test('a schedule removed or rejected before the doctor lock is acquired cannot b
   assert.equal(result.released, 1);
 });
 
+<<<<<<< HEAD
 test('a deleted profile or revoked link cannot create an appointment', async () => {
   for (const options of [{ missingProfile: true }, { revokedLink: true }]) {
     const result = await run(options);
@@ -85,6 +99,11 @@ test('a locked or deleted account cannot book with an earlier access token and O
   const result = await run({ disabledAccount: true });
   assert.equal(result.error.getResponse().code, 'ACCOUNT_DISABLED');
   assert.equal(result.sql.length, 1);
+=======
+test('an unlinked patient profile cannot be booked by the account', async () => {
+  const result = await run({ missingProfile: true });
+  assert.equal(result.error.getResponse().code, 'FORBIDDEN');
+>>>>>>> 4d0d13c508dbea20eec8b30b3188d70376b4009a
   assert.equal(result.saved, 0);
   assert.equal(result.released, 1);
 });

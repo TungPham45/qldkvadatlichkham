@@ -347,6 +347,16 @@ export class PatientService {
         coBhyt: dto.coBhyt ?? false, soBhyt: dto.soBhyt,
       });
     } catch (error) {
+<<<<<<< HEAD
+=======
+      const conflict = isDbConflict(error);
+      if (conflict?.constraint.includes('email')) {
+        throw new AppException(409, ErrorCode.EMAIL_ALREADY_EXISTS, 'Email đã được sử dụng.');
+      }
+      if (conflict?.constraint.includes('so_dien_thoai')) {
+        throw new AppException(409, ErrorCode.PHONE_ALREADY_EXISTS, 'Số điện thoại đã được sử dụng.');
+      }
+>>>>>>> 4d0d13c508dbea20eec8b30b3188d70376b4009a
       const raced = await this.patients.findByAccount(dto.idTaiKhoan);
       if (raced) return this.toView(raced, dto.idTaiKhoan);
       throw error;

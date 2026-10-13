@@ -1,11 +1,11 @@
 import { FormEvent, useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
-import { errorMessage } from '../api/client';
-import { Button } from '../components/Button';
-import { TextField } from '../components/TextField';
-import { AuthLayout } from '../layouts/AuthLayout';
-import { useAuth } from '../stores/auth-store';
-import { hospitalName, roleHome } from '../utils/format';
+import { errorMessage } from '../../api/client';
+import { Button } from '../../components/Button';
+import { TextField } from '../../components/TextField';
+import { AuthLayout } from '../../layouts/AuthLayout';
+import { useAuth } from '../../stores/auth-store';
+import { hospitalName, roleHome } from '../../utils/format';
 
 export function LoginPage() {
   const { user, ready, login } = useAuth();

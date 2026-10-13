@@ -1,26 +1,26 @@
 import { useEffect, useRef, useState } from 'react';
-import { errorMessage } from '../api/client';
-import { doctorApi } from '../features/doctor/api';
-import { managerApi, type ManagerDoctorGroup, type ManagerScheduleInput } from '../features/manager/api';
-import { Button } from '../components/Button';
-import { DataTable } from '../components/DataTable';
-import { EmptyState } from '../components/EmptyState';
-import { ErrorState } from '../components/ErrorState';
-import { FilterSelect } from '../components/FilterSelect';
-import { LoadingState } from '../components/LoadingState';
-import { Modal } from '../components/Modal';
-import { PageContainer } from '../components/PageContainer';
-import { PageHeader } from '../components/PageHeader';
-import { SearchInput } from '../components/SearchInput';
-import { SelectField } from '../components/SelectField';
-import { StatCard } from '../components/StatCard';
-import { StatusBadge } from '../components/StatusBadge';
-import { TextArea } from '../components/TextArea';
-import { TextField } from '../components/TextField';
-import { WeekPicker } from '../components/WeekPicker';
-import { useDebouncedValue } from '../hooks/useDebouncedValue';
-import type { DoctorProfile, ScheduleCode, ScheduleItem, Specialty } from '../types';
-import { formatDate, formatTime, scheduleLabel, startOfWeek, todayIso } from '../utils/format';
+import { errorMessage } from '../../api/client';
+import { doctorApi } from '../../features/doctor/api';
+import { managerApi, type ManagerDoctorGroup, type ManagerScheduleInput } from '../../features/manager/api';
+import { Button } from '../../components/Button';
+import { DataTable } from '../../components/DataTable';
+import { EmptyState } from '../../components/EmptyState';
+import { ErrorState } from '../../components/ErrorState';
+import { FilterSelect } from '../../components/FilterSelect';
+import { LoadingState } from '../../components/LoadingState';
+import { Modal } from '../../components/Modal';
+import { PageContainer } from '../../components/PageContainer';
+import { PageHeader } from '../../components/PageHeader';
+import { SearchInput } from '../../components/SearchInput';
+import { SelectField } from '../../components/SelectField';
+import { StatCard } from '../../components/StatCard';
+import { StatusBadge } from '../../components/StatusBadge';
+import { TextArea } from '../../components/TextArea';
+import { TextField } from '../../components/TextField';
+import { WeekPicker } from '../../components/schedule/WeekPicker';
+import { useDebouncedValue } from '../../hooks/useDebouncedValue';
+import type { DoctorProfile, ScheduleCode, ScheduleItem, Specialty } from '../../types';
+import { formatDate, formatTime, scheduleLabel, startOfWeek, todayIso } from '../../utils/format';
 
 interface ScheduleForm {
   doctorId: string;
@@ -155,7 +155,7 @@ export function ManagerSchedulesPage() {
   const doctorOptions = [...availableDoctors];
   if (form && !doctorOptions.some((item) => String(item.id) === form.doctorId)) {
     const current = doctors.find((item) => String(item.id) === form.doctorId);
-    if (current) doctorOptions.push({ id: current.id, hoTen: current.hoTen + ' (ngừng hoạt động)', maBacSi: current.maBacSi, chuyenKhoa: null, email: null, soDienThoai: null, bangCap: null, gioiTinh: null });
+    if (current) doctorOptions.push({ id: current.id, hoTen: current.hoTen + ' (ngừng hoạt động)', maBacSi: current.maBacSi, chuyenKhoa: null, email: null, soDienThoai: null, bangCap: null, gioiTinh: null, nhanBhyt: false });
   }
 
   return (

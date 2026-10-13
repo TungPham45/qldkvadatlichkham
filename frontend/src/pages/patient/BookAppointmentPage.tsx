@@ -1,25 +1,25 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { errorMessage, hasApiErrorCode } from '../api/client';
-import { AppointmentSlot } from '../components/AppointmentSlot';
-import { BookingOtpModal } from '../components/BookingOtpModal';
-import { Button } from '../components/Button';
-import { EmptyState } from '../components/EmptyState';
-import { ErrorState } from '../components/ErrorState';
-import { LoadingState } from '../components/LoadingState';
-import { PatientPicker } from '../components/PatientPicker';
+import { errorMessage, hasApiErrorCode } from '../../api/client';
+import { AppointmentSlot } from '../../components/patient/AppointmentSlot';
+import { BookingOtpModal } from '../../components/patient/BookingOtpModal';
+import { Button } from '../../components/Button';
+import { EmptyState } from '../../components/EmptyState';
+import { ErrorState } from '../../components/ErrorState';
+import { LoadingState } from '../../components/LoadingState';
+import { PatientPicker } from '../../components/patient/PatientPicker';
 import {
   emptyRelativeForm,
   RelativeProfileModal,
   relativeFormFromPatient,
-} from '../components/RelativeProfileModal';
-import { SelectField } from '../components/SelectField';
-import { TextArea } from '../components/TextArea';
-import { appointmentApi, type AvailabilityShift, type AvailabilitySlot } from '../features/appointment/api';
-import { doctorApi } from '../features/doctor/api';
-import { patientApi, type RelativeProfileInput } from '../features/patient/api';
-import type { BookablePatient, DoctorProfile, Specialty } from '../types';
-import { addDays, ageLabel, formatDate, formatTime, genderLabel, initials, relationLabel, todayIso, weekdayLabel } from '../utils/format';
+} from '../../components/patient/RelativeProfileModal';
+import { SelectField } from '../../components/SelectField';
+import { TextArea } from '../../components/TextArea';
+import { appointmentApi, type AvailabilityShift, type AvailabilitySlot } from '../../features/appointment/api';
+import { doctorApi } from '../../features/doctor/api';
+import { patientApi, type RelativeProfileInput } from '../../features/patient/api';
+import type { BookablePatient, DoctorProfile, Specialty } from '../../types';
+import { addDays, ageLabel, formatDate, formatTime, genderLabel, initials, relationLabel, todayIso, weekdayLabel } from '../../utils/format';
 
 function isSelfPatient(item: BookablePatient) {
   return item.laChuHoSo || item.loaiQuanHe === 'BanThan';

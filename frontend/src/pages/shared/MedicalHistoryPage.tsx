@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
-import { errorMessage } from '../api/client';
-import { AdminModal } from '../components/AdminModal';
-import { EmptyState } from '../components/EmptyState';
-import { ErrorState } from '../components/ErrorState';
-import { LoadingState } from '../components/LoadingState';
-import { ManagerPager } from '../components/ManagerPager';
-import { clinicalApi, type MedicalRecord } from '../features/clinical/api';
-import { useDebouncedValue } from '../hooks/useDebouncedValue';
-import { useAuth } from '../stores/auth-store';
+import { errorMessage } from '../../api/client';
+import { AdminModal } from '../../components/AdminModal';
+import { EmptyState } from '../../components/EmptyState';
+import { ErrorState } from '../../components/ErrorState';
+import { LoadingState } from '../../components/LoadingState';
+import { ManagerPager } from '../../components/ManagerPager';
+import { clinicalApi, type MedicalRecord } from '../../features/clinical/api';
+import { useDebouncedValue } from '../../hooks/useDebouncedValue';
+import { useAuth } from '../../stores/auth-store';
 
 const limit = 10;
 

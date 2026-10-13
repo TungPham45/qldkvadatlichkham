@@ -1,15 +1,15 @@
 import { useEffect, useState } from 'react';
-import { errorMessage } from '../api/client';
-import { scheduleApi } from '../features/schedule/api';
-import { Button } from '../components/Button';
-import { ErrorState } from '../components/ErrorState';
-import { LoadingState } from '../components/LoadingState';
-import { PageContainer } from '../components/PageContainer';
-import { PageHeader } from '../components/PageHeader';
-import { WeekPicker } from '../components/WeekPicker';
-import { WeeklyScheduleGrid } from '../components/WeeklyScheduleGrid';
-import type { ScheduleItem, ShiftCode } from '../types';
-import { addDays, startOfWeek, todayIso } from '../utils/format';
+import { errorMessage } from '../../api/client';
+import { scheduleApi } from '../../features/schedule/api';
+import { Button } from '../../components/Button';
+import { ErrorState } from '../../components/ErrorState';
+import { LoadingState } from '../../components/LoadingState';
+import { PageContainer } from '../../components/PageContainer';
+import { PageHeader } from '../../components/PageHeader';
+import { WeekPicker } from '../../components/schedule/WeekPicker';
+import { WeeklyScheduleGrid } from '../../components/schedule/WeeklyScheduleGrid';
+import type { ScheduleItem, ShiftCode } from '../../types';
+import { addDays, startOfWeek, todayIso } from '../../utils/format';
 
 export function DoctorSchedulePage() {
   const [week, setWeek] = useState(startOfWeek(todayIso()));

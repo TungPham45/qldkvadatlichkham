@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { AuthModal, type AuthMode } from '../components/AuthModal';
-import { patientApi, patientProfileChangedEvent } from '../features/patient/api';
-import { useAuth } from '../stores/auth-store';
-import { hospitalHotline, hospitalName, hospitalSubtitle, initials, roleHome, roleLabel } from '../utils/format';
-import '../styles/home-page.css';
+import { AuthModal, type AuthMode } from '../../components/AuthModal';
+import { patientApi, patientProfileChangedEvent } from '../../features/patient/api';
+import { useAuth } from '../../stores/auth-store';
+import { hospitalHotline, hospitalName, hospitalSubtitle, initials, roleHome, roleLabel } from '../../utils/format';
+import '../../styles/home-page.css';
 
 function HospitalMark() {
   return (

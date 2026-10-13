@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Button } from './Button';
-import { Modal } from './Modal';
-import { TextField } from './TextField';
+import { Button } from '../Button';
+import { Modal } from '../Modal';
+import { TextField } from '../TextField';
 
 export function BookingOtpModal({
   phoneMask,

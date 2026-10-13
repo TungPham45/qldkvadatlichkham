@@ -1,22 +1,22 @@
 import axios from 'axios';
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { errorMessage } from '../api/client';
-import { Button } from '../components/Button';
-import { ConfirmDialog } from '../components/ConfirmDialog';
-import { EmptyState } from '../components/EmptyState';
-import { ErrorState } from '../components/ErrorState';
-import { LoadingState } from '../components/LoadingState';
+import { errorMessage } from '../../api/client';
+import { Button } from '../../components/Button';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { EmptyState } from '../../components/EmptyState';
+import { ErrorState } from '../../components/ErrorState';
+import { LoadingState } from '../../components/LoadingState';
 import {
   emptyRelativeForm,
   RelativeProfileModal,
   relativeFormFromPatient,
-} from '../components/RelativeProfileModal';
-import { SelectField } from '../components/SelectField';
-import { TextField } from '../components/TextField';
-import { patientApi, type PatientProfileInput, type RelativeProfileInput } from '../features/patient/api';
-import type { BookablePatient, PatientProfile } from '../types';
-import { ageLabel, formatDate, genderLabel, initials, relationLabel } from '../utils/format';
+} from '../../components/patient/RelativeProfileModal';
+import { SelectField } from '../../components/SelectField';
+import { TextField } from '../../components/TextField';
+import { patientApi, type PatientProfileInput, type RelativeProfileInput } from '../../features/patient/api';
+import type { BookablePatient, PatientProfile } from '../../types';
+import { ageLabel, formatDate, genderLabel, initials, relationLabel } from '../../utils/format';
 
 const emptyForm = { hoTen: '', ngaySinh: '', gioiTinh: '', soDienThoai: '', email: '', diaChi: '', coBhyt: 'false', soBhyt: '' };
 const bhytPattern = /^[A-Za-z0-9]{10,15}$/;

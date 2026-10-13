@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { errorMessage, hasApiErrorCode } from '../api/client';
-import { EmptyState } from '../components/EmptyState';
-import { ErrorState } from '../components/ErrorState';
-import { LoadingState } from '../components/LoadingState';
-import { StatusBadge } from '../components/StatusBadge';
-import { appointmentApi } from '../features/appointment/api';
-import { patientApi } from '../features/patient/api';
-import type { AppointmentItem, PatientProfile } from '../types';
-import { ageLabel, appointmentLabel, formatDate, formatTime, genderLabel, hospitalName } from '../utils/format';
+import { errorMessage, hasApiErrorCode } from '../../api/client';
+import { EmptyState } from '../../components/EmptyState';
+import { ErrorState } from '../../components/ErrorState';
+import { LoadingState } from '../../components/LoadingState';
+import { StatusBadge } from '../../components/StatusBadge';
+import { appointmentApi } from '../../features/appointment/api';
+import { patientApi } from '../../features/patient/api';
+import type { AppointmentItem, PatientProfile } from '../../types';
+import { ageLabel, appointmentLabel, formatDate, formatTime, genderLabel, hospitalName } from '../../utils/format';
 
 export function PatientDashboardPage() {
   const [patient, setPatient] = useState<PatientProfile | null>(null);

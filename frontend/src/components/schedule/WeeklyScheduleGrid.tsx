@@ -1,5 +1,5 @@
-import type { ScheduleItem, ShiftCode } from '../types';
-import { formatDate, weekdayLabel } from '../utils/format';
+import type { ScheduleItem, ShiftCode } from '../../types';
+import { formatDate, weekdayLabel } from '../../utils/format';
 import { ShiftCard } from './ShiftCard';
 
 const SHIFTS: Array<{ code: ShiftCode; label: string; time: string }> = [

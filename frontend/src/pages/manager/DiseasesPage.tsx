@@ -1,12 +1,12 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
-import { errorMessage } from '../api/client';
-import { AdminModal } from '../components/AdminModal';
-import { EmptyState } from '../components/EmptyState';
-import { ErrorState } from '../components/ErrorState';
-import { LoadingState } from '../components/LoadingState';
-import { ManagerPager } from '../components/ManagerPager';
-import { clinicalApi, type Disease, type DiseaseInput } from '../features/clinical/api';
-import { useDebouncedValue } from '../hooks/useDebouncedValue';
+import { errorMessage } from '../../api/client';
+import { AdminModal } from '../../components/AdminModal';
+import { EmptyState } from '../../components/EmptyState';
+import { ErrorState } from '../../components/ErrorState';
+import { LoadingState } from '../../components/LoadingState';
+import { ManagerPager } from '../../components/ManagerPager';
+import { clinicalApi, type Disease, type DiseaseInput } from '../../features/clinical/api';
+import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 
 const limit = 10;
 const emptyForm: DiseaseInput = { code: '', name: '', group: '', description: '' };

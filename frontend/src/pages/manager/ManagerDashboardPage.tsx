@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { errorMessage } from '../api/client';
-import { managerApi, type ManagerDashboard } from '../features/manager/api';
-import { Button } from '../components/Button';
-import { ErrorState } from '../components/ErrorState';
-import { LoadingState } from '../components/LoadingState';
-import { PageContainer } from '../components/PageContainer';
-import { PageHeader } from '../components/PageHeader';
-import { StatCard } from '../components/StatCard';
+import { errorMessage } from '../../api/client';
+import { managerApi, type ManagerDashboard } from '../../features/manager/api';
+import { Button } from '../../components/Button';
+import { ErrorState } from '../../components/ErrorState';
+import { LoadingState } from '../../components/LoadingState';
+import { PageContainer } from '../../components/PageContainer';
+import { PageHeader } from '../../components/PageHeader';
+import { StatCard } from '../../components/StatCard';
 
 export function ManagerDashboardPage() {
   const [data, setData] = useState<ManagerDashboard | null>(null);

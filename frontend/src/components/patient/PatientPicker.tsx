@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import type { BookablePatient } from '../types';
-import { ageLabel, genderLabel, initials, relationLabel } from '../utils/format';
+import type { BookablePatient } from '../../types';
+import { ageLabel, genderLabel, initials, relationLabel } from '../../utils/format';
 
 function isSelf(item: BookablePatient) {
   return item.laChuHoSo || item.loaiQuanHe === 'BanThan';

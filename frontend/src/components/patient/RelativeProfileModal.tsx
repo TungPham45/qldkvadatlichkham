@@ -1,11 +1,11 @@
 import { type FormEvent, useState } from 'react';
-import type { BookablePatient } from '../types';
-import type { RelativeProfileInput } from '../features/patient/api';
-import { relationLabel, todayIso } from '../utils/format';
-import { Button } from './Button';
-import { Modal } from './Modal';
-import { SelectField } from './SelectField';
-import { TextField } from './TextField';
+import type { BookablePatient } from '../../types';
+import type { RelativeProfileInput } from '../../features/patient/api';
+import { relationLabel, todayIso } from '../../utils/format';
+import { Button } from '../Button';
+import { Modal } from '../Modal';
+import { SelectField } from '../SelectField';
+import { TextField } from '../TextField';
 
 const relations: Array<RelativeProfileInput['loaiQuanHe']> = ['Bo', 'Me', 'Con', 'Vo', 'Chong', 'NguoiThan', 'NguoiChamSoc'];
 

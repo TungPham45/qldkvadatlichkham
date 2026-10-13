@@ -1,5 +1,5 @@
-import type { DoctorProfile } from '../types';
-import { initials } from '../utils/format';
+import type { DoctorProfile } from '../../types';
+import { initials } from '../../utils/format';
 
 export function DoctorCard({ doctor, active, onClick }: { doctor: DoctorProfile; active?: boolean; onClick?: () => void }) {
   return (

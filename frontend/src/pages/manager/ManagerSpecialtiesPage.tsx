@@ -1,11 +1,11 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
-import { errorMessage } from '../api/client';
-import { AdminModal } from '../components/AdminModal';
-import { ConfirmDialog } from '../components/ConfirmDialog';
-import { ManagerPager } from '../components/ManagerPager';
-import { directoryApi, type ManagedSpecialty } from '../features/manager/directory-api';
-import { useDebouncedValue } from '../hooks/useDebouncedValue';
-import { exportCsv } from '../utils/export-csv';
+import { errorMessage } from '../../api/client';
+import { AdminModal } from '../../components/AdminModal';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { ManagerPager } from '../../components/ManagerPager';
+import { directoryApi, type ManagedSpecialty } from '../../features/manager/directory-api';
+import { useDebouncedValue } from '../../hooks/useDebouncedValue';
+import { exportCsv } from '../../utils/export-csv';
 
 const pageSize = 10;
 const emptyForm = { ten: '', moTa: '', trangThai: 'Active' };

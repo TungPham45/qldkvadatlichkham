@@ -1,5 +1,5 @@
-import { scheduleLabel } from '../utils/format';
-import { StatusBadge } from './StatusBadge';
+import { scheduleLabel } from '../../utils/format';
+import { StatusBadge } from '../StatusBadge';
 
 const tones: Record<string, string> = {
   EMPTY: 'border-dashed border-[#c9d5e4] bg-[#fbfcfe]',

@@ -1,12 +1,12 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
-import { errorMessage } from '../api/client';
-import { AdminModal } from '../components/AdminModal';
-import { EmptyState } from '../components/EmptyState';
-import { ErrorState } from '../components/ErrorState';
-import { LoadingState } from '../components/LoadingState';
-import { ManagerPager } from '../components/ManagerPager';
-import { clinicalApi, type ReceptionInput, type ReceptionItem } from '../features/clinical/api';
-import { useDebouncedValue } from '../hooks/useDebouncedValue';
+import { errorMessage } from '../../api/client';
+import { AdminModal } from '../../components/AdminModal';
+import { EmptyState } from '../../components/EmptyState';
+import { ErrorState } from '../../components/ErrorState';
+import { LoadingState } from '../../components/LoadingState';
+import { ManagerPager } from '../../components/ManagerPager';
+import { clinicalApi, type ReceptionInput, type ReceptionItem } from '../../features/clinical/api';
+import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 
 const limit = 10;
 const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());

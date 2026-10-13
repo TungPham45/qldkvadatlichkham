@@ -1,18 +1,18 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { errorMessage, hasApiErrorCode } from '../api/client';
-import { appointmentApi } from '../features/appointment/api';
-import { Button } from '../components/Button';
-import { DataTable } from '../components/DataTable';
-import { EmptyState } from '../components/EmptyState';
-import { ErrorState } from '../components/ErrorState';
-import { LoadingState } from '../components/LoadingState';
-import { PageContainer } from '../components/PageContainer';
-import { PageHeader } from '../components/PageHeader';
-import { Pagination } from '../components/Pagination';
-import { StatusBadge } from '../components/StatusBadge';
-import type { AppointmentItem } from '../types';
-import { appointmentLabel, formatDate, formatTime } from '../utils/format';
+import { errorMessage, hasApiErrorCode } from '../../api/client';
+import { appointmentApi } from '../../features/appointment/api';
+import { Button } from '../../components/Button';
+import { DataTable } from '../../components/DataTable';
+import { EmptyState } from '../../components/EmptyState';
+import { ErrorState } from '../../components/ErrorState';
+import { LoadingState } from '../../components/LoadingState';
+import { PageContainer } from '../../components/PageContainer';
+import { PageHeader } from '../../components/PageHeader';
+import { Pagination } from '../../components/Pagination';
+import { StatusBadge } from '../../components/StatusBadge';
+import type { AppointmentItem } from '../../types';
+import { appointmentLabel, formatDate, formatTime } from '../../utils/format';
 
 export function MyAppointmentsPage() {
   const [page, setPage] = useState(1);

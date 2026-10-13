@@ -1,4 +1,4 @@
-import { formatTime } from '../utils/format';
+import { formatTime } from '../../utils/format';
 
 export function AppointmentSlot({ start, end, available, active, onClick }: { start: string; end: string; available: boolean; active: boolean; onClick: () => void }) {
   const label = available ? `Còn trống, ${formatTime(start)} đến ${formatTime(end)}` : `Đã kín, ${formatTime(start)} đến ${formatTime(end)}`;

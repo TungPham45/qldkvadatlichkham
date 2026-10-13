@@ -1,12 +1,12 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
-import { errorMessage, hasApiErrorCode } from '../api/client';
-import { AdminModal } from '../components/AdminModal';
-import { ConfirmDialog } from '../components/ConfirmDialog';
-import { ManagerPager } from '../components/ManagerPager';
-import { directoryApi, type ManagedDoctor } from '../features/manager/directory-api';
-import { useDebouncedValue } from '../hooks/useDebouncedValue';
-import { exportCsv } from '../utils/export-csv';
-import { initials } from '../utils/format';
+import { errorMessage, hasApiErrorCode } from '../../api/client';
+import { AdminModal } from '../../components/AdminModal';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { ManagerPager } from '../../components/ManagerPager';
+import { directoryApi, type ManagedDoctor } from '../../features/manager/directory-api';
+import { useDebouncedValue } from '../../hooks/useDebouncedValue';
+import { exportCsv } from '../../utils/export-csv';
+import { initials } from '../../utils/format';
 
 const pageSize = 10;
 const emptyForm = { hoTen: '', ngaySinh: '', gioiTinh: 'Nam', soDienThoai: '', email: '', bangCap: '', soChungChiHanhNghe: '', chuyenKhoaId: '', nhanBhyt: 'false', trangThai: 'Active', username: '', password: '' };

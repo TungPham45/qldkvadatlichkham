@@ -16,7 +16,7 @@ import {
 } from 'class-validator';
 
 export class ScheduleItemDto {
-  @IsDateString()
+  @IsDateString({ strict: true })
   ngayLamViec: string;
 
   @IsIn(['SANG', 'CHIEU'])
@@ -73,17 +73,19 @@ export class RejectScheduleDto {
 }
 
 export class BulkApproveDto {
-  @IsDateString()
+  @IsDateString({ strict: true })
   week: string;
 
   @IsOptional()
   @Type(() => Number)
   @IsInt()
+  @Min(1)
   doctorId?: number;
 
   @IsOptional()
   @Type(() => Number)
   @IsInt()
+  @Min(1)
   chuyenKhoaId?: number;
 
   @IsOptional()
@@ -103,13 +105,13 @@ export class BulkApproveDto {
 
 export class WeekQueryDto {
   @IsOptional()
-  @IsDateString()
+  @IsDateString({ strict: true })
   week?: string;
 }
 
 export class ManagerScheduleQueryDto {
   @IsOptional()
-  @IsDateString()
+  @IsDateString({ strict: true })
   week?: string;
 
   @IsOptional()
@@ -124,11 +126,13 @@ export class ManagerScheduleQueryDto {
   @IsOptional()
   @Type(() => Number)
   @IsInt()
+  @Min(1)
   chuyenKhoaId?: number;
 
   @IsOptional()
   @Type(() => Number)
   @IsInt()
+  @Min(1)
   doctorId?: number;
 
   @IsOptional()

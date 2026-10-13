@@ -9,6 +9,21 @@ import { PatientRepository } from './patient.repository';
 export class PatientService {
   constructor(private readonly patients: PatientRepository, private readonly dataSource: DataSource) {}
 
+  private async profileTransaction<T>(work: (manager: EntityManager) => Promise<T>): Promise<T> {
+    try {
+      return await this.dataSource.transaction(work);
+    } catch (error) {
+      const conflict = isDbConflict(error);
+      if (conflict?.constraint === 'uq_benh_nhan_so_bhyt') {
+        throw new AppException(409, 'BHYT_ALREADY_EXISTS', 'Số thẻ BHYT đã được sử dụng cho một hồ sơ bệnh nhân khác.');
+      }
+      if (conflict?.constraint === 'uq_tkbn_mot_ban_than' || conflict?.constraint === 'uq_benh_nhan_chu_ho_so') {
+        throw new AppException(409, 'PATIENT_PROFILE_ALREADY_EXISTS', 'Bạn đã có thông tin cá nhân. Hãy chọn sửa thông tin.');
+      }
+      throw error;
+    }
+  }
+
   private async lockAccount(manager: EntityManager, idTaiKhoan: string) {
     const account = await manager.createQueryBuilder()
       .select('account.id_tai_khoan', 'id')
@@ -41,7 +56,7 @@ export class PatientService {
     return patient;
   }
 
-  private async validateProfile(manager: EntityManager, dto: CreateOwnPatientDto | UpdateOwnPatientDto, patientId?: number) {
+  private async validateProfile(manager: EntityManager, dto: CreateOwnPatientDto | UpdateOwnPatientDto, patientId?: number, current?: BenhNhan) {
     if (dto.ngaySinh && dto.ngaySinh > new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' })) {
       throw new AppException(400, ErrorCode.VALIDATION_ERROR, 'Ngày sinh không được ở tương lai.');
     }
@@ -59,12 +74,21 @@ export class PatientService {
         throw new AppException(409, ErrorCode.PHONE_ALREADY_EXISTS, 'Số điện thoại đã được sử dụng.');
       }
     }
+    const bhyt = this.resolveBhyt(dto, current);
+    if (bhyt?.soBhyt) {
+      const owner = await repository.createQueryBuilder('bn')
+        .where('upper(bn.so_bhyt) = :soBhyt', { soBhyt: bhyt.soBhyt }).getOne();
+      if (owner && owner.idBenhNhan !== patientId) {
+        throw new AppException(409, 'BHYT_ALREADY_EXISTS', 'Số thẻ BHYT đã được sử dụng cho một hồ sơ bệnh nhân khác.');
+      }
+    }
   }
 
-  private resolveBhyt(dto: { coBhyt?: boolean; soBhyt?: string | null }): Pick<BenhNhan, 'coBhyt' | 'soBhyt'> | undefined {
+  private resolveBhyt(dto: { coBhyt?: boolean; soBhyt?: string | null }, current?: BenhNhan): Pick<BenhNhan, 'coBhyt' | 'soBhyt'> | undefined {
     if (dto.coBhyt === false) return { coBhyt: false, soBhyt: null };
     if (dto.coBhyt === true) {
-      const soBhyt = typeof dto.soBhyt === 'string' ? dto.soBhyt.trim().toUpperCase() : '';
+      const value = dto.soBhyt === undefined ? current?.soBhyt : dto.soBhyt;
+      const soBhyt = typeof value === 'string' ? value.trim().toUpperCase() : '';
       if (!/^[A-Z0-9]{10,15}$/.test(soBhyt)) {
         throw new AppException(400, ErrorCode.VALIDATION_ERROR, 'Hãy nhập số thẻ BHYT (10–15 ký tự chữ hoặc số) để xác nhận có BHYT.');
       }
@@ -81,7 +105,7 @@ export class PatientService {
     return undefined;
   }
 
-  private profileChanges(dto: CreateOwnPatientDto | UpdateOwnPatientDto) {
+  private profileChanges(dto: CreateOwnPatientDto | UpdateOwnPatientDto, current?: BenhNhan) {
     const changes: Partial<BenhNhan> = {};
     for (const field of ['hoTen', 'ngaySinh', 'gioiTinh', 'soDienThoai', 'email', 'diaChi'] as const) {
       const value = dto[field];
@@ -89,13 +113,13 @@ export class PatientService {
         Object.assign(changes, { [field]: field === 'email' && value ? value.toLowerCase() : value });
       }
     }
-    const bhyt = this.resolveBhyt(dto);
+    const bhyt = this.resolveBhyt(dto, current);
     if (bhyt) Object.assign(changes, bhyt);
     return changes;
   }
 
   async createOwn(idTaiKhoan: string, dto: CreateOwnPatientDto) {
-    return this.dataSource.transaction(async (manager) => {
+    return this.profileTransaction(async (manager) => {
       await this.lockAccount(manager, idTaiKhoan);
       const existing = await manager.query(
         `SELECT 1 AS ok
@@ -180,7 +204,7 @@ export class PatientService {
   }
 
   async createRelative(idTaiKhoan: string, dto: CreateRelativePatientDto) {
-    return this.dataSource.transaction(async (manager) => {
+    return this.profileTransaction(async (manager) => {
       await this.lockAccount(manager, idTaiKhoan);
       await this.validateProfile(manager, dto);
       const repository = manager.getRepository(BenhNhan);
@@ -211,14 +235,14 @@ export class PatientService {
   }
 
   async updateRelative(idTaiKhoan: string, patientId: number, dto: UpdateRelativePatientDto) {
-    return this.dataSource.transaction(async (manager) => {
+    return this.profileTransaction(async (manager) => {
       await this.lockAccount(manager, idTaiKhoan);
       const { patient, link } = await this.linkedRelative(manager, idTaiKhoan, patientId);
-      const changes = this.profileChanges(dto);
+      const changes = this.profileChanges(dto, patient);
       if (Object.keys(changes).length === 0 && dto.loaiQuanHe === undefined) {
         throw new AppException(400, ErrorCode.VALIDATION_ERROR, 'Hãy nhập thông tin cần cập nhật.');
       }
-      await this.validateProfile(manager, dto, patient.idBenhNhan);
+      await this.validateProfile(manager, dto, patient.idBenhNhan, patient);
       Object.assign(patient, changes);
       const saved = await manager.getRepository(BenhNhan).save(patient);
       let loaiQuanHe = link.loaiQuanHe;
@@ -240,7 +264,7 @@ export class PatientService {
   }
 
   async deleteRelative(idTaiKhoan: string, patientId: number) {
-    return this.dataSource.transaction(async (manager) => {
+    return this.profileTransaction(async (manager) => {
       await this.lockAccount(manager, idTaiKhoan);
       const { patient } = await this.linkedRelative(manager, idTaiKhoan, patientId);
       await manager.query(
@@ -253,28 +277,31 @@ export class PatientService {
         [patientId],
       );
       if (!remaining.length) {
+        await manager.query('SAVEPOINT delete_relative_profile');
         try {
           await manager.getRepository(BenhNhan).remove(patient);
         } catch (error) {
           if (!(error && typeof error === 'object' && 'code' in error && error.code === '23503')) {
             throw error;
           }
+          await manager.query('ROLLBACK TO SAVEPOINT delete_relative_profile');
           // Hồ sơ đã có lịch/hồ sơ khám: chỉ gỡ liên kết đặt hộ, giữ dữ liệu bệnh nhân.
         }
+        await manager.query('RELEASE SAVEPOINT delete_relative_profile');
       }
       return { deleted: true };
     });
   }
 
   async updateOwn(idTaiKhoan: string, dto: UpdateOwnPatientDto) {
-    return this.dataSource.transaction(async (manager) => {
+    return this.profileTransaction(async (manager) => {
       await this.lockAccount(manager, idTaiKhoan);
       const patient = await this.ownPatient(manager, idTaiKhoan);
-      const changes = this.profileChanges(dto);
+      const changes = this.profileChanges(dto, patient);
       if (Object.keys(changes).length === 0) {
         throw new AppException(400, ErrorCode.VALIDATION_ERROR, 'Hãy nhập thông tin cần cập nhật.');
       }
-      await this.validateProfile(manager, dto, patient.idBenhNhan);
+      await this.validateProfile(manager, dto, patient.idBenhNhan, patient);
       Object.assign(patient, changes);
       return this.toView(await manager.getRepository(BenhNhan).save(patient), idTaiKhoan);
     });
@@ -282,9 +309,17 @@ export class PatientService {
 
   async deleteOwn(idTaiKhoan: string) {
     try {
-      return await this.dataSource.transaction(async (manager) => {
+      return await this.profileTransaction(async (manager) => {
         await this.lockAccount(manager, idTaiKhoan);
         const patient = await this.ownPatient(manager, idTaiKhoan);
+        const shared = await manager.query(
+          `SELECT 1 FROM tai_khoan_benh_nhan
+           WHERE id_benh_nhan = $1 AND id_tai_khoan <> $2 LIMIT 1`,
+          [patient.idBenhNhan, idTaiKhoan],
+        );
+        if (shared.length) {
+          throw new AppException(409, 'PATIENT_PROFILE_IN_USE', 'Hồ sơ đang được liên kết với tài khoản khác để đặt lịch hộ nên không thể xóa. Bạn vẫn có thể sửa thông tin.');
+        }
         await manager.query(
           `DELETE FROM tai_khoan_benh_nhan
            WHERE id_tai_khoan = $1 AND id_benh_nhan = $2`,
@@ -305,23 +340,13 @@ export class PatientService {
     const existing = await this.patients.findByAccount(dto.idTaiKhoan);
     if (existing) return this.toView(existing, dto.idTaiKhoan);
 
-    const emailOwner = await this.patients.findByEmail(dto.email);
-    if (emailOwner) {
-      throw new AppException(409, ErrorCode.EMAIL_ALREADY_EXISTS, 'Email đã được sử dụng.');
-    }
-    const phoneOwner = await this.patients.findByPhone(dto.soDienThoai);
-    if (phoneOwner) {
-      throw new AppException(409, ErrorCode.PHONE_ALREADY_EXISTS, 'Số điện thoại đã được sử dụng.');
-    }
-
     try {
-      const created = await this.patients.create(dto);
-      return this.toView(created, dto.idTaiKhoan);
+      return await this.createOwn(dto.idTaiKhoan, {
+        hoTen: dto.hoTen.trim(), ngaySinh: dto.ngaySinh.slice(0, 10), gioiTinh: dto.gioiTinh,
+        soDienThoai: dto.soDienThoai.trim(), email: dto.email.trim(), diaChi: dto.diaChi.trim(),
+        coBhyt: dto.coBhyt ?? false, soBhyt: dto.soBhyt,
+      });
     } catch (error) {
-      const conflict = isDbConflict(error);
-      if (conflict?.constraint.includes('email')) {
-        throw new AppException(409, ErrorCode.EMAIL_ALREADY_EXISTS, 'Email đã được sử dụng.');
-      }
       const raced = await this.patients.findByAccount(dto.idTaiKhoan);
       if (raced) return this.toView(raced, dto.idTaiKhoan);
       throw error;

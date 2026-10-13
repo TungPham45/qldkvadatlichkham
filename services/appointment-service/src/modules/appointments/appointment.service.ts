@@ -173,6 +173,15 @@ export class AppointmentService {
 
     try {
       const { saved, endTime } = await this.dataSource.transaction(async (manager) => {
+        const accounts = await manager.query(
+          `SELECT id_tai_khoan FROM tai_khoan
+           WHERE id_tai_khoan = $1 AND vai_tro = 'NguoiDung' AND trang_thai = 'Active'
+           FOR SHARE`,
+          [accountId],
+        );
+        if (!accounts.length) {
+          throw new AppException(403, ErrorCode.ACCOUNT_DISABLED, 'Tài khoản bệnh nhân không còn hoạt động.');
+        }
         // Use the same doctor lock as schedule management, then validate the current approved slots.
         const doctors = await manager.query(
           'SELECT id_bac_si FROM bac_si WHERE id_bac_si = $1 AND trang_thai = $2 FOR UPDATE',
@@ -181,18 +190,22 @@ export class AppointmentService {
         if (!doctors.length) {
           throw new AppException(404, ErrorCode.DOCTOR_NOT_FOUND, 'Không tìm thấy bác sĩ.');
         }
-        const profiles = await manager.query(
-          `SELECT bn.id_benh_nhan AS id, bn.ho_ten AS "hoTen", bn.so_dien_thoai AS "soDienThoai"
-           FROM benh_nhan bn
-           JOIN tai_khoan_benh_nhan link
-             ON link.id_benh_nhan = bn.id_benh_nhan
-            AND link.id_tai_khoan = $2
-           WHERE bn.id_benh_nhan = $1
-             AND bn.trang_thai = 'Active'
+        const links = await manager.query(
+          `SELECT link.id_benh_nhan FROM tai_khoan_benh_nhan link
+           WHERE link.id_benh_nhan = $1 AND link.id_tai_khoan = $2
              AND link.trang_thai = 'Active'
              AND (link.duoc_dat_lich_ho = TRUE OR link.la_chu_ho_so = TRUE)
-           FOR KEY SHARE OF bn, link`,
+           FOR SHARE OF link`,
           [dto.benhNhanId, accountId],
+        );
+        if (!links.length) {
+          throw new AppException(403, ErrorCode.FORBIDDEN, 'Bạn không được đặt lịch cho người này.');
+        }
+        const profiles = await manager.query(
+          `SELECT id_benh_nhan AS id, ho_ten AS "hoTen", so_dien_thoai AS "soDienThoai"
+           FROM benh_nhan WHERE id_benh_nhan = $1 AND trang_thai = 'Active'
+           FOR SHARE`,
+          [dto.benhNhanId],
         ) as PatientBrief[];
         if (!profiles.length) {
           throw new AppException(403, ErrorCode.FORBIDDEN, 'Bạn không được đặt lịch cho người này.');
@@ -228,7 +241,7 @@ export class AppointmentService {
         const repository = manager.getRepository(LichHen);
         const saved = await repository.save(
           repository.create({
-            idBenhNhan: patient.id,
+            idBenhNhan: dto.benhNhanId,
             idBacSi: dto.bacSiId,
             idTaiKhoanDat: accountId,
             ngayHen: date,

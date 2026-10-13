@@ -52,13 +52,17 @@ class ReceptionDto {
 function clean(value?: string) { return value?.trim() || null; }
 
 @Injectable()
-class MedicalService {
+export class MedicalService {
   constructor(@Inject(DataSource) private readonly db: DataSource) {}
 
   async history(user: AccessTokenPayload, q: PageQuery) {
     const where: string[] = []; const values: unknown[] = [];
     const add = (sql: string, value: unknown) => { values.push(value); where.push(sql.replace('?', `$${values.length}`)); };
-    if (user.role === AppRole.PATIENT) add('bn.id_tai_khoan = ?', user.sub);
+    if (user.role === AppRole.PATIENT) add(`EXISTS (
+      SELECT 1 FROM tai_khoan_benh_nhan owner
+      WHERE owner.id_benh_nhan = bn.id_benh_nhan AND owner.id_tai_khoan = ?
+        AND owner.la_chu_ho_so = TRUE AND owner.trang_thai = 'Active'
+    )`, user.sub);
     else if (user.role === AppRole.DOCTOR) add('bs.id_tai_khoan = ?', user.sub);
     else if (q.patientId) add('pk.id_benh_nhan = ?', q.patientId);
     if (user.role === AppRole.MANAGER && q.doctorId) add('pk.id_bac_si = ?', q.doctorId);
@@ -124,4 +128,4 @@ async function bootstrap() {
   await app.listen(Number(process.env.MEDICAL_RECORD_PORT || 3010));
 }
 
-bootstrap();
+if (require.main === module) void bootstrap();

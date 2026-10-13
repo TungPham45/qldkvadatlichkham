@@ -26,9 +26,15 @@ function profile(): BenhNhan {
   });
 }
 
-function fixture(initial: BenhNhan | null, options: { linked?: boolean; active?: boolean } = {}) {
+function fixture(initial: BenhNhan | null, options: {
+  linked?: boolean; active?: boolean; shared?: boolean; relative?: boolean;
+  duplicateBhyt?: string; saveConflict?: { code: string; constraint: string };
+} = {}) {
   let stored = initial ? { ...initial } : null;
-  let linkOwnerId: string | null = initial ? accountId : null;
+  let linkOwnerId: string | null = initial && !options.relative ? accountId : null;
+  let relativeLinked = options.relative === true;
+  let aborted = false;
+  let savepointProfile = stored ? { ...stored } : null;
   let transactions = 0;
   let removed = false;
   const accountConditions: unknown[] = [];
@@ -50,17 +56,27 @@ function fixture(initial: BenhNhan | null, options: { linked?: boolean; active?:
       return stored?.soDienThoai === query.where.soDienThoai ? { ...stored } : null;
     },
     createQueryBuilder() {
-      let email = '';
+      let lookup: { email?: string; soBhyt?: string } = {};
       return {
-        where(_: string, parameters: { email: string }) { email = parameters.email; return this; },
-        async getOne() { return stored?.email?.toLowerCase() === email ? { ...stored } : null; },
+        where(_: string, parameters: { email?: string; soBhyt?: string }) { lookup = parameters; return this; },
+        async getOne() {
+          if (lookup.email) return stored?.email?.toLowerCase() === lookup.email ? { ...stored } : null;
+          if (lookup.soBhyt) {
+            if (options.duplicateBhyt?.toUpperCase() === lookup.soBhyt) return { ...profile(), idBenhNhan: 999, soBhyt: options.duplicateBhyt };
+            return stored?.soBhyt?.toUpperCase() === lookup.soBhyt ? { ...stored } : null;
+          }
+          return null;
+        },
       };
     },
     create(value: Partial<BenhNhan>) { return Object.assign(new BenhNhan(), { idBenhNhan: 2 }, value); },
-    async save(value: BenhNhan) { stored = { ...value }; return value; },
+    async save(value: BenhNhan) {
+      if (options.saveConflict) throw Object.assign(new Error('unique constraint'), options.saveConflict);
+      stored = { ...value }; return value;
+    },
     async remove(value: BenhNhan) {
       assert.equal(value.idBenhNhan, stored?.idBenhNhan);
-      if (options.linked) throw Object.assign(new Error('foreign key'), { code: '23503' });
+      if (options.linked) { aborted = true; throw Object.assign(new Error('foreign key'), { code: '23503' }); }
       stored = null;
       linkOwnerId = null;
       removed = true;
@@ -72,18 +88,32 @@ function fixture(initial: BenhNhan | null, options: { linked?: boolean; active?:
     async query(sql: string, params: unknown[] = []) {
       sqlCalls.push(sql);
       const normalized = sql.replace(/\s+/g, ' ').trim().toLowerCase();
+      if (normalized.startsWith('rollback to savepoint')) { aborted = false; stored = savepointProfile ? { ...savepointProfile } : null; return []; }
+      if (aborted) throw Object.assign(new Error('current transaction is aborted'), { code: '25P02' });
+      if (normalized.startsWith('savepoint')) { savepointProfile = stored ? { ...stored } : null; return []; }
       if (normalized.includes('from tai_khoan_benh_nhan') && normalized.includes('la_chu_ho_so = true') && normalized.includes('select 1')) {
         return linkOwnerId && params[0] === linkOwnerId ? [{ ok: 1 }] : [];
       }
       if (normalized.includes('from tai_khoan_benh_nhan link') && normalized.includes('for update')) {
+        if (normalized.includes('la_chu_ho_so = false')) {
+          return relativeLinked && params[0] === accountId && params[1] === stored?.idBenhNhan
+            ? [{ loaiQuanHe: 'NguoiThan', laChuHoSo: false, duocDatLichHo: true }] : [];
+        }
         if (params[0] !== accountId || !stored || linkOwnerId !== accountId) return [];
         return [{ id: stored.idBenhNhan }];
+      }
+      if (normalized.includes('from tai_khoan_benh_nhan') && normalized.includes('id_tai_khoan <>')) {
+        return options.shared ? [{ ok: 1 }] : [];
+      }
+      if (normalized.startsWith('select 1 as ok from tai_khoan_benh_nhan where id_benh_nhan')) {
+        return linkOwnerId || relativeLinked || options.shared ? [{ ok: 1 }] : [];
       }
       if (normalized.startsWith('insert into tai_khoan_benh_nhan')) {
         linkOwnerId = String(params[0]);
         return [];
       }
       if (normalized.startsWith('delete from tai_khoan_benh_nhan')) {
+        if (normalized.includes('la_chu_ho_so = false')) { relativeLinked = false; return []; }
         if (params[0] === linkOwnerId) linkOwnerId = null;
         return [];
       }
@@ -91,7 +121,19 @@ function fixture(initial: BenhNhan | null, options: { linked?: boolean; active?:
     },
   } as unknown as EntityManager;
   const dataSource = {
-    async transaction<T>(work: (scope: EntityManager) => Promise<T>) { transactions += 1; return work(manager); },
+    async transaction<T>(work: (scope: EntityManager) => Promise<T>) {
+      transactions += 1;
+      const snapshot = { stored: stored ? { ...stored } : null, linkOwnerId, relativeLinked, removed };
+      try {
+        const result = await work(manager);
+        if (aborted) throw Object.assign(new Error('aborted transaction cannot commit'), { code: '25P02' });
+        return result;
+      } catch (error) {
+        stored = snapshot.stored; linkOwnerId = snapshot.linkOwnerId;
+        relativeLinked = snapshot.relativeLinked; removed = snapshot.removed; aborted = false;
+        throw error;
+      }
+    },
     async query(sql: string, params?: unknown[]) { return manager.query(sql, params); },
   } as unknown as DataSource;
   const service = new PatientService({} as PatientRepository, dataSource);
@@ -102,6 +144,7 @@ function fixture(initial: BenhNhan | null, options: { linked?: boolean; active?:
     sqlCalls,
     get stored() { return stored; },
     get linkOwnerId() { return linkOwnerId; },
+    get relativeLinked() { return relativeLinked; },
     get transactions() { return transactions; },
     get removed() { return removed; },
   };
@@ -200,6 +243,56 @@ test('update coBhyt false clears soBhyt', async () => {
   assert.equal(updated.soBhyt, null);
 });
 
+test('partial BHYT update preserves current card, normalizes new card and clears null', async () => {
+  const state = fixture(profile());
+  const retained = await state.service.updateOwn(accountId, { coBhyt: true });
+  assert.equal(retained.soBhyt, 'DN4010123456789');
+  const normalized = await state.service.updateOwn(accountId, { soBhyt: '  dn4010987654321  ' });
+  assert.equal(normalized.coBhyt, true);
+  assert.equal(normalized.soBhyt, 'DN4010987654321');
+  const cleared = await state.service.updateOwn(accountId, { soBhyt: null });
+  assert.equal(cleared.coBhyt, false);
+  assert.equal(cleared.soBhyt, null);
+});
+
+test('BHYT card belonging to another patient returns conflict before writing', async () => {
+  const state = fixture(profile(), { duplicateBhyt: 'dn4010987654321' });
+  await assert.rejects(state.service.updateOwn(accountId, { soBhyt: 'DN4010987654321' }), statusError(409, 'BHYT_ALREADY_EXISTS'));
+  assert.equal(state.stored?.soBhyt, 'DN4010123456789');
+});
+
+test('case insensitive database BHYT constraint race maps to conflict and rolls back', async () => {
+  const state = fixture(null, { saveConflict: { code: '23505', constraint: 'uq_benh_nhan_so_bhyt' } });
+  await assert.rejects(state.service.createOwn(accountId, {
+    hoTen: 'Nguyễn An', soDienThoai: '0912345678', coBhyt: true, soBhyt: 'dn4010987654321',
+  }), statusError(409, 'BHYT_ALREADY_EXISTS'));
+  assert.equal(state.stored, null);
+  assert.equal(state.linkOwnerId, null);
+});
+
+test('own mutation never falls back to a relative or delegated profile', async () => {
+  const state = fixture(profile(), { relative: true });
+  await assert.rejects(state.service.updateOwn(accountId, { hoTen: 'Không được sửa người thân' }), statusError(404, 'PATIENT_NOT_FOUND'));
+  await assert.rejects(state.service.deleteOwn(accountId), statusError(404, 'PATIENT_NOT_FOUND'));
+  assert.equal(state.relativeLinked, true);
+  assert.equal(state.stored?.hoTen, 'Nguyễn An');
+});
+
+test('own delete protects profile shared with another account', async () => {
+  const state = fixture(profile(), { shared: true });
+  await assert.rejects(state.service.deleteOwn(accountId), statusError(409, 'PATIENT_PROFILE_IN_USE'));
+  assert.equal(state.linkOwnerId, accountId);
+  assert.equal(state.stored?.idBenhNhan, 1);
+});
+
+test('removing delegated relative with clinical data commits unlink using savepoint', async () => {
+  const state = fixture(profile(), { relative: true, linked: true });
+  assert.deepEqual(await state.service.deleteRelative(accountId, 1), { deleted: true });
+  assert.equal(state.relativeLinked, false);
+  assert.equal(state.stored?.idBenhNhan, 1);
+  assert.ok(state.sqlCalls.includes('ROLLBACK TO SAVEPOINT delete_relative_profile'));
+});
+
 test('DTO validates null semantics, names, dates and immutable fields', async () => {
   const nullable = plainToInstance(UpdateOwnPatientDto, { ngaySinh: null, email: '', diaChi: '   ' });
   assert.deepEqual(await validate(nullable), []);
@@ -208,6 +301,11 @@ test('DTO validates null semantics, names, dates and immutable fields', async ()
   for (const input of [{ hoTen: null }, { hoTen: '   ' }, { ngaySinh: '2026-02-30' }, { ngaySinh: '2026-01-01T12:00:00Z' }, { gioiTinh: 'unknown' }]) {
     assert.ok((await validate(plainToInstance(UpdateOwnPatientDto, input))).length > 0);
   }
+  for (const coBhyt of ['false', 'true', null, 0, 1]) {
+    assert.ok((await validate(plainToInstance(UpdateOwnPatientDto, { coBhyt }))).length > 0);
+  }
+  assert.deepEqual(await validate(plainToInstance(UpdateOwnPatientDto, { coBhyt: true })), []);
+  assert.ok((await validate(plainToInstance(CreateOwnPatientDto, { hoTen: 'Nguyễn An', soDienThoai: '0912345678', coBhyt: true }))).length > 0);
   assert.ok((await validate(plainToInstance(CreateOwnPatientDto, {}))).length > 0);
   const forbidden = await validate(plainToInstance(UpdateOwnPatientDto, { hoTen: 'Tên hợp lệ', idTaiKhoan: otherAccountId, trangThai: 'Locked' }), { whitelist: true, forbidNonWhitelisted: true });
   assert.deepEqual(forbidden.map((item) => item.property).sort(), ['idTaiKhoan', 'trangThai']);

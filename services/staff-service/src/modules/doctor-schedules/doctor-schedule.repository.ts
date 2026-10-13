@@ -112,7 +112,13 @@ export class DoctorScheduleRepository {
       const shift = shiftByCode(filter.shift)!;
       query.andWhere('l.gio_bat_dau < :shiftEnd AND l.gio_ket_thuc > :shiftStart', { shiftStart: shift.start, shiftEnd: shift.end });
     }
-    if (filter.q) query.andWhere('(bs.ho_ten ILIKE :q OR bs.so_chung_chi_hanh_nghe ILIKE :q OR ck.ten_chuyen_khoa ILIKE :q OR l.ghi_chu ILIKE :q OR CAST(l.ngay_lam_viec AS text) ILIKE :q)', { q: `%${filter.q}%` });
+    if (filter.q) {
+      const literalSearch = filter.q.replace(/[!%_]/g, '!$&');
+      query.andWhere(
+        "(bs.ho_ten ILIKE :q ESCAPE '!' OR bs.so_chung_chi_hanh_nghe ILIKE :q ESCAPE '!' OR ck.ten_chuyen_khoa ILIKE :q ESCAPE '!' OR l.ghi_chu ILIKE :q ESCAPE '!' OR CAST(l.ngay_lam_viec AS text) ILIKE :q ESCAPE '!')",
+        { q: `%${literalSearch}%` },
+      );
+    }
     return query.getRawMany<ScheduleRow>();
   }
 }

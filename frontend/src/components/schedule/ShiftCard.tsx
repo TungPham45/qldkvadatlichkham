@@ -27,6 +27,7 @@ export function ShiftCard({
       <StatusBadge status={state === 'EMPTY' ? 'neutral' : state} label={scheduleLabel(state)} />
       {note ? <span className="text-[13px] text-muted">{note}</span> : null}
       {state === 'EMPTY' && onSelect ? <button className="cursor-pointer border-0 bg-transparent p-0 text-left font-semibold text-primary-700" onClick={onSelect}>Chọn ca</button> : null}
+      {state === 'REJECTED' && onSelect ? <button className="cursor-pointer border-0 bg-transparent p-0 text-left font-semibold text-primary-700" onClick={onSelect}>Chọn lại ca</button> : null}
       {state === 'SELECTED' && onSelect ? <button className="cursor-pointer border-0 bg-transparent p-0 text-left font-semibold text-primary-700" onClick={onSelect}>Bỏ chọn</button> : null}
       {state === 'PENDING' && onApprove ? <button className="cursor-pointer border-0 bg-transparent p-0 text-left font-semibold text-primary-700" onClick={onApprove}>Duyệt</button> : null}
       {state === 'PENDING' && onReject ? <button className="cursor-pointer border-0 bg-transparent p-0 text-left font-semibold text-primary-700" onClick={onReject}>Từ chối</button> : null}

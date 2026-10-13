@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { resolve } from 'path';
 import { BenhNhan } from './modules/patients/benh-nhan.entity';
 import { PatientModule } from './modules/patients/patient.module';
+import { SchemaUpgradeService } from './schema-upgrade.service';
 
 @Controller()
 class HealthController {
@@ -29,5 +30,6 @@ class HealthController {
     PatientModule,
   ],
   controllers: [HealthController],
+  providers: [SchemaUpgradeService],
 })
 export class AppModule {}

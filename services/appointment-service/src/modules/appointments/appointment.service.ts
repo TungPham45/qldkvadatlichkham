@@ -4,11 +4,14 @@ import {
   AppointmentStatus,
   APPROVED_SCHEDULE_STATUSES,
   ErrorCode,
+  bookingWindows,
   generateSlots,
   internalRequest,
   isDbConflict,
   isPastSlot,
   normalizeTime,
+  shiftBand,
+  timeToMinutes,
 } from '@qlpk/common';
 import { DataSource } from 'typeorm';
 import { DistributedLockService } from '../../redis/redis.module';
@@ -25,6 +28,15 @@ interface ApprovedSchedule {
   endTime: string;
   slotMinutes: number;
   status: string;
+  note?: string | null;
+}
+
+interface AvailabilitySlot {
+  start: string;
+  end: string;
+  available: boolean;
+  scheduleId: number;
+  note: string | null;
 }
 
 interface DoctorBrief {
@@ -167,22 +179,30 @@ export class AppointmentService {
     const schedules = await this.approvedSchedules(doctorId, date);
     const booked = await this.repo.bookedTimes(doctorId, date);
     const taken = new Set(booked.map((row) => normalizeTime(row.gioHen)));
-    const slots: Array<{ start: string; end: string; available: boolean; scheduleId: number }> = [];
+    const slots: AvailabilitySlot[] = [];
     const seen = new Set<string>();
     for (const schedule of schedules) {
-      for (const slot of generateSlots(schedule.startTime, schedule.endTime, schedule.slotMinutes)) {
-        if (seen.has(slot.start) || isPastSlot(date, slot.start)) continue;
-        seen.add(slot.start);
-        slots.push({
-          start: slot.start,
-          end: slot.end,
-          available: !taken.has(slot.start),
-          scheduleId: schedule.id,
-        });
+      for (const window of bookingWindows(schedule.startTime, schedule.endTime)) {
+        for (const slot of generateSlots(window.start, window.end, schedule.slotMinutes)) {
+          if (seen.has(slot.start) || isPastSlot(date, slot.start)) continue;
+          seen.add(slot.start);
+          slots.push({
+            start: slot.start,
+            end: slot.end,
+            available: !taken.has(slot.start),
+            scheduleId: schedule.id,
+            note: schedule.note?.trim() || null,
+          });
+        }
       }
     }
     slots.sort((a, b) => a.start.localeCompare(b.start));
-    return { doctorId, date, slots };
+    return {
+      doctorId,
+      date,
+      slots: slots.map(({ start, end, available }) => ({ start, end, available })),
+      shifts: groupShifts(slots),
+    };
   }
 
   private async approvedSchedules(doctorId: number, date: string) {
@@ -193,10 +213,10 @@ export class AppointmentService {
 
   private matchSlot(schedules: ApprovedSchedule[], start: string) {
     for (const schedule of schedules) {
-      const slot = generateSlots(schedule.startTime, schedule.endTime, schedule.slotMinutes).find(
-        (item) => item.start === start,
-      );
-      if (slot) return { schedule, slot };
+      for (const window of bookingWindows(schedule.startTime, schedule.endTime)) {
+        const slot = generateSlots(window.start, window.end, schedule.slotMinutes).find((item) => item.start === start);
+        if (slot) return { schedule, slot };
+      }
     }
     return null;
   }
@@ -242,4 +262,32 @@ export class AppointmentService {
         : null,
     };
   }
+}
+
+function groupShifts(slots: AvailabilitySlot[]) {
+  const order = ['SANG', 'CHIEU', 'TOI'] as const;
+  const grouped = new Map<string, AvailabilitySlot[]>();
+  for (const slot of slots) {
+    const band = shiftBand(slot.start);
+    const items = grouped.get(band.code) ?? [];
+    items.push(slot);
+    grouped.set(band.code, items);
+  }
+  return order.flatMap((code) => {
+    const items = grouped.get(code);
+    if (!items?.length) return [];
+    const durations = new Set(items.map((slot) => timeToMinutes(slot.end) - timeToMinutes(slot.start)));
+    const notes = [...new Set(items.map((slot) => slot.note).filter((note): note is string => Boolean(note)))];
+    return [{
+      code,
+      label: shiftBand(items[0].start).label,
+      start: items[0].start,
+      end: items[items.length - 1].end,
+      slotMinutes: durations.size === 1 ? [...durations][0] : null,
+      available: items.filter((slot) => slot.available).length,
+      total: items.length,
+      note: notes.length ? notes.join(' · ') : null,
+      slots: items.map(({ start, end, available }) => ({ start, end, available })),
+    }];
+  });
 }

@@ -377,6 +377,7 @@ export class DoctorScheduleService {
       endTime: normalizeTime(row.gioKetThuc),
       slotMinutes: row.thoiLuongMoiCa,
       status: row.trangThai,
+      note: row.ghiChu,
     }));
   }
 

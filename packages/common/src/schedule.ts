@@ -79,6 +79,33 @@ export interface TimeSlot {
   end: string;
 }
 
+/** Ca sáng kết thúc 11:30, ca chiều bắt đầu 13:30. Khoảng giữa là giờ nghỉ, không mở đặt. */
+export const MIDDAY_BREAK = { start: '11:30:00', end: '13:30:00' } as const;
+
+/**
+ * Một lịch phủ cả ngày được tách thành hai cửa sổ đặt, bỏ giờ nghỉ trưa.
+ * Lịch chỉ buổi sáng hoặc chỉ buổi chiều giữ nguyên khung đã duyệt.
+ */
+export function bookingWindows(scheduleStart: string, scheduleEnd: string): TimeSlot[] {
+  const start = normalizeTime(scheduleStart);
+  const end = normalizeTime(scheduleEnd);
+  const spansMidday =
+    timeToMinutes(start) < timeToMinutes(MIDDAY_BREAK.start)
+    && timeToMinutes(end) > timeToMinutes(MIDDAY_BREAK.end);
+  if (!spansMidday) return [{ start, end }];
+  return [
+    { start, end: MIDDAY_BREAK.start },
+    { start: MIDDAY_BREAK.end, end },
+  ];
+}
+
+export function shiftBand(startTime: string): { code: 'SANG' | 'CHIEU' | 'TOI'; label: string } {
+  const minutes = timeToMinutes(startTime);
+  if (minutes < 12 * 60) return { code: 'SANG', label: 'Ca sáng' };
+  if (minutes < 17 * 60 + 30) return { code: 'CHIEU', label: 'Ca chiều' };
+  return { code: 'TOI', label: 'Ca tối' };
+}
+
 export function generateSlots(start: string, end: string, durationMinutes: number): TimeSlot[] {
   if (!Number.isFinite(durationMinutes) || durationMinutes <= 0) return [];
   const slots: TimeSlot[] = [];

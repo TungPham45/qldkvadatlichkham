@@ -1,4 +1,11 @@
-import { IsDateString, IsEmail, IsIn, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import { IsBoolean, IsDateString, IsEmail, IsIn, IsString, Matches, MaxLength, MinLength, ValidateIf } from 'class-validator';
+
+const bhytNumber = ({ value }: { value: unknown }) => {
+  if (typeof value !== 'string') return value;
+  const trimmed = value.trim().toUpperCase();
+  return trimmed || null;
+};
 
 export class RegisterDto {
   @IsString()
@@ -22,10 +29,15 @@ export class RegisterDto {
   @MaxLength(255)
   diaChi: string;
 
-  @IsOptional()
-  @IsString()
-  @MaxLength(50)
-  soBaoHiemYTe?: string;
+  @Type(() => Boolean)
+  @IsBoolean()
+  coBhyt: boolean;
+
+  @Transform(bhytNumber)
+  @ValidateIf((dto: RegisterDto) => dto.coBhyt === true)
+  @IsString({ message: 'Hãy nhập số thẻ BHYT để xác nhận có BHYT.' })
+  @Matches(/^[A-Z0-9]{10,15}$/, { message: 'Số BHYT gồm 10–15 ký tự chữ hoặc số.' })
+  soBhyt?: string | null;
 
   @Matches(/^[a-zA-Z0-9._]{3,100}$/, { message: 'Tên đăng nhập chỉ gồm chữ, số, dấu chấm hoặc gạch dưới, từ 3 đến 100 ký tự.' })
   username: string;

@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, Get, Post, Query, UseGuards } from '@nestjs/common';
 import { AccessTokenPayload, AppRole, CurrentUser, InternalGuard, JwtAuthGuard, Roles, RolesGuard } from '@qlpk/common';
 import { AppointmentService } from './appointment.service';
-import { AvailabilityQueryDto, CreateAppointmentDto, MyAppointmentsQueryDto } from './dto/appointment.dto';
+import { AvailabilityQueryDto, CreateAppointmentDto, MyAppointmentsQueryDto, SendBookingOtpDto } from './dto/appointment.dto';
 
 @Controller('appointments')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -12,6 +12,12 @@ export class AppointmentController {
   @Roles(AppRole.PATIENT)
   availability(@Query() query: AvailabilityQueryDto) {
     return this.appointments.availability(query.doctorId, query.date);
+  }
+
+  @Post('otp/send')
+  @Roles(AppRole.PATIENT)
+  sendOtp(@CurrentUser() user: AccessTokenPayload, @Body() dto: SendBookingOtpDto) {
+    return this.appointments.sendBookingOtp(user.sub, dto.benhNhanId);
   }
 
   @Post()

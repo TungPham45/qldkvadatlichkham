@@ -74,6 +74,20 @@ export function genderLabel(value?: string | null) {
   return value || '—';
 }
 
+export function relationLabel(value?: string | null) {
+  const map: Record<string, string> = {
+    BanThan: 'Bản thân',
+    Bo: 'Bố',
+    Me: 'Mẹ',
+    Con: 'Con',
+    Vo: 'Vợ',
+    Chong: 'Chồng',
+    NguoiThan: 'Người thân',
+    NguoiChamSoc: 'Người chăm sóc',
+  };
+  return (value && map[value]) || value || '—';
+}
+
 export function appointmentLabel(status: string) {
   const map: Record<string, string> = {
     'Cho xac nhan': 'Chờ xác nhận',

@@ -9,7 +9,8 @@ import { exportCsv } from '../utils/export-csv';
 import { ageLabel, formatDate } from '../utils/format';
 
 const pageSize = 10;
-const emptyForm = { hoTen: '', ngaySinh: '', gioiTinh: 'Nam', soDienThoai: '', email: '', diaChi: '', soBaoHiemYTe: '', trangThai: 'Active', username: '', password: '' };
+const emptyForm = { hoTen: '', ngaySinh: '', gioiTinh: 'Nam', soDienThoai: '', email: '', diaChi: '', coBhyt: 'false', soBhyt: '', trangThai: 'Active', username: '', password: '' };
+const bhytPattern = /^[A-Za-z0-9]{10,15}$/;
 
 export function ManagerPatientsPage() {
   const [items, setItems] = useState<ManagedPatient[]>([]);
@@ -40,18 +41,25 @@ export function ManagerPatientsPage() {
 
   function openCreate() { setForm(emptyForm); setFormError(''); setEditing(null); }
   function openEdit(item: ManagedPatient) {
-    setForm({ hoTen: item.hoTen, ngaySinh: item.ngaySinh?.slice(0, 10) || '', gioiTinh: item.gioiTinh, soDienThoai: item.soDienThoai, email: item.email, diaChi: item.diaChi, soBaoHiemYTe: item.soBaoHiemYTe || '', trangThai: item.trangThai, username: item.username, password: '' });
+    setForm({ hoTen: item.hoTen, ngaySinh: item.ngaySinh?.slice(0, 10) || '', gioiTinh: item.gioiTinh, soDienThoai: item.soDienThoai, email: item.email, diaChi: item.diaChi, coBhyt: item.coBhyt ? 'true' : 'false', soBhyt: item.soBhyt || '', trangThai: item.trangThai, username: item.username, password: '' });
     setFormError(''); setEditing(item);
   }
   function setField(field: keyof typeof form, value: string) { setForm((current) => ({ ...current, [field]: value })); }
 
   async function submit(event: FormEvent) {
-    event.preventDefault(); setBusy(true); setFormError('');
+    event.preventDefault();
+    const hasBhyt = form.coBhyt === 'true';
+    const soBhyt = form.soBhyt.trim().toUpperCase();
+    if (hasBhyt && !bhytPattern.test(soBhyt)) {
+      setFormError('Khi chọn có BHYT, hãy nhập số thẻ BHYT (10–15 ký tự chữ hoặc số).');
+      return;
+    }
+    setBusy(true); setFormError('');
     try {
       const profileBody = {
         hoTen: form.hoTen.trim(), ngaySinh: form.ngaySinh, gioiTinh: form.gioiTinh,
         soDienThoai: form.soDienThoai.trim(), email: form.email.trim(), diaChi: form.diaChi.trim(),
-        soBaoHiemYTe: form.soBaoHiemYTe.trim(), trangThai: form.trangThai,
+        coBhyt: hasBhyt, soBhyt: hasBhyt ? soBhyt : null, trangThai: form.trangThai,
       };
       if (editing) {
         await directoryApi.updatePatient(editing.id, profileBody);
@@ -69,7 +77,7 @@ export function ManagerPatientsPage() {
 
   async function exportExcel() {
     const result = await directoryApi.patients({ page: 1, pageSize: 100, q: search || undefined, gioiTinh: gender || undefined, trangThai: status || undefined });
-    exportCsv('danh-sach-benh-nhan.csv', ['Mã BN', 'Họ tên', 'Ngày sinh', 'Giới tính', 'Số điện thoại', 'Email', 'Địa chỉ', 'BHYT', 'Trạng thái'], result.items.map((item) => [`BN-${String(item.id).padStart(5, '0')}`, item.hoTen, formatDate(item.ngaySinh), item.gioiTinh, item.soDienThoai, item.email, item.diaChi, item.soBaoHiemYTe, item.trangThai]));
+    exportCsv('danh-sach-benh-nhan.csv', ['Mã BN', 'Họ tên', 'Ngày sinh', 'Giới tính', 'Số điện thoại', 'Email', 'Địa chỉ', 'BHYT', 'Số BHYT', 'Trạng thái'], result.items.map((item) => [`BN-${String(item.id).padStart(5, '0')}`, item.hoTen, formatDate(item.ngaySinh), item.gioiTinh, item.soDienThoai, item.email, item.diaChi, item.coBhyt ? 'Có' : 'Không', item.soBhyt || '', item.trangThai]));
   }
 
   return (
@@ -101,7 +109,13 @@ export function ManagerPatientsPage() {
         <label><span>Số điện thoại</span><input value={form.soDienThoai} onChange={(e) => setField('soDienThoai', e.target.value)} pattern="0[0-9]{9,10}" required /></label>
         <label><span>Email</span><input type="email" value={form.email} onChange={(e) => setField('email', e.target.value)} required /></label>
         <label className="is-wide"><span>Địa chỉ</span><input value={form.diaChi} onChange={(e) => setField('diaChi', e.target.value)} required /></label>
-        <label><span>Số BHYT</span><input value={form.soBaoHiemYTe} onChange={(e) => setField('soBaoHiemYTe', e.target.value)} /></label>
+        <label><span>Sử dụng BHYT</span><select value={form.coBhyt} onChange={(e) => {
+          const value = e.target.value;
+          setForm((current) => ({ ...current, coBhyt: value, soBhyt: value === 'true' ? current.soBhyt : '' }));
+        }}><option value="true">Có</option><option value="false">Không</option></select></label>
+        {form.coBhyt === 'true' ? (
+          <label><span>Số thẻ BHYT</span><input value={form.soBhyt} onChange={(e) => setField('soBhyt', e.target.value.toUpperCase())} pattern="[A-Za-z0-9]{10,15}" title="Số BHYT gồm 10–15 ký tự chữ hoặc số" maxLength={15} required /></label>
+        ) : null}
         <label><span>Trạng thái</span><select value={form.trangThai} onChange={(e) => setField('trangThai', e.target.value)}><option value="Active">Hoạt động</option><option value="Inactive">Ngừng hoạt động</option><option value="Locked">Đã khóa</option></select></label>
         {!editing ? <><label><span>Tên đăng nhập</span><input value={form.username} onChange={(e) => setField('username', e.target.value)} required /></label><label><span>Mật khẩu</span><input type="password" value={form.password} onChange={(e) => setField('password', e.target.value)} minLength={6} required /></label></> : null}
         {formError ? <p className="manager-form__error is-wide">{formError}</p> : null}<div className="manager-form__actions is-wide"><button type="button" onClick={() => setEditing(undefined)}>Hủy</button><button className="manager-btn--primary" disabled={busy}>{busy ? 'Đang lưu...' : 'Lưu thông tin'}</button></div>

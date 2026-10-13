@@ -9,7 +9,7 @@ import { exportCsv } from '../utils/export-csv';
 import { initials } from '../utils/format';
 
 const pageSize = 10;
-const emptyForm = { hoTen: '', ngaySinh: '', gioiTinh: 'Nam', soDienThoai: '', email: '', bangCap: '', soChungChiHanhNghe: '', chuyenKhoaId: '', trangThai: 'Active', username: '', password: '' };
+const emptyForm = { hoTen: '', ngaySinh: '', gioiTinh: 'Nam', soDienThoai: '', email: '', bangCap: '', soChungChiHanhNghe: '', chuyenKhoaId: '', nhanBhyt: 'false', trangThai: 'Active', username: '', password: '' };
 const doctorImage = (id: number) => `/doctors/doctor-${((id - 1) % 5) + 1}.png`;
 
 function doctorSaveError(error: unknown) {
@@ -59,7 +59,7 @@ export function ManagerDoctorsPage() {
   function setField(field: keyof typeof form, value: string) { setForm((current) => ({ ...current, [field]: value })); }
   function resetPhoto() { setPhoto(null); setPhotoPreview(''); }
   function openCreate() { setForm({ ...emptyForm, chuyenKhoaId: specialties[0] ? String(specialties[0].id) : '' }); resetPhoto(); setFormError(''); setSaveError(''); setEditing(null); }
-  function openEdit(item: ManagedDoctor) { setForm({ hoTen: item.hoTen, ngaySinh: item.ngaySinh?.slice(0, 10) || '', gioiTinh: item.gioiTinh, soDienThoai: item.soDienThoai, email: item.email, bangCap: item.bangCap || '', soChungChiHanhNghe: item.soChungChiHanhNghe || '', chuyenKhoaId: item.chuyenKhoaId ? String(item.chuyenKhoaId) : '', trangThai: item.trangThai, username: item.username, password: '' }); resetPhoto(); setFormError(''); setSaveError(''); setEditing(item); }
+  function openEdit(item: ManagedDoctor) { setForm({ hoTen: item.hoTen, ngaySinh: item.ngaySinh?.slice(0, 10) || '', gioiTinh: item.gioiTinh, soDienThoai: item.soDienThoai, email: item.email, bangCap: item.bangCap || '', soChungChiHanhNghe: item.soChungChiHanhNghe || '', chuyenKhoaId: item.chuyenKhoaId ? String(item.chuyenKhoaId) : '', nhanBhyt: item.nhanBhyt ? 'true' : 'false', trangThai: item.trangThai, username: item.username, password: '' }); resetPhoto(); setFormError(''); setSaveError(''); setEditing(item); }
   function choosePhoto(file?: File) {
     if (!file) { resetPhoto(); return; }
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) { setFormError('Ảnh phải có định dạng JPG, PNG hoặc WEBP.'); return; }
@@ -73,7 +73,7 @@ export function ManagerDoctorsPage() {
         hoTen: form.hoTen.trim(), ngaySinh: form.ngaySinh, gioiTinh: form.gioiTinh,
         soDienThoai: form.soDienThoai.trim(), email: form.email.trim(), bangCap: form.bangCap.trim(),
         soChungChiHanhNghe: form.soChungChiHanhNghe.trim(), chuyenKhoaId: Number(form.chuyenKhoaId),
-        trangThai: form.trangThai,
+        nhanBhyt: form.nhanBhyt === 'true', trangThai: form.trangThai,
       };
       let doctorId: number;
       if (editing) {
@@ -93,7 +93,7 @@ export function ManagerDoctorsPage() {
     } catch (err) { setSaveError(doctorSaveError(err)); } finally { setBusy(false); }
   }
   async function remove() { if (!deleting) return; setBusy(true); try { await directoryApi.deleteDoctor(deleting.id); setDeleting(null); await load(); } catch (err) { setError(errorMessage(err)); setDeleting(null); } finally { setBusy(false); } }
-  async function exportExcel() { const result = await directoryApi.doctors({ page: 1, pageSize: 100, q: search || undefined, gioiTinh: gender || undefined, trangThai: status || undefined }); exportCsv('danh-sach-bac-si.csv', ['Mã BS', 'Họ tên', 'Giới tính', 'Điện thoại', 'Email', 'Chuyên khoa', 'Bằng cấp', 'CCHN', 'Trạng thái'], result.items.map((item) => [`BS-${String(item.id).padStart(4, '0')}`, item.hoTen, item.gioiTinh, item.soDienThoai, item.email, item.chuyenKhoa, item.bangCap, item.soChungChiHanhNghe, item.trangThai])); }
+  async function exportExcel() { const result = await directoryApi.doctors({ page: 1, pageSize: 100, q: search || undefined, gioiTinh: gender || undefined, trangThai: status || undefined }); exportCsv('danh-sach-bac-si.csv', ['Mã BS', 'Họ tên', 'Giới tính', 'Điện thoại', 'Email', 'Chuyên khoa', 'Bằng cấp', 'CCHN', 'BHYT', 'Trạng thái'], result.items.map((item) => [`BS-${String(item.id).padStart(4, '0')}`, item.hoTen, item.gioiTinh, item.soDienThoai, item.email, item.chuyenKhoa, item.bangCap, item.soChungChiHanhNghe, item.nhanBhyt ? 'Nhận BHYT' : 'Không BHYT', item.trangThai])); }
 
   return <main className="manager-page">
     <div className="manager-page__heading"><div><h1>Quản Lý Danh Sách Bác Sĩ</h1><p>Quản lý hồ sơ chuyên môn, chuyên khoa và tài khoản bác sĩ.</p></div><div className="manager-stat"><span>♙</span><div><small>Tổng số</small><strong>{total.toLocaleString('vi-VN')}</strong><em>Bác sĩ</em></div></div></div>
@@ -112,6 +112,7 @@ export function ManagerDoctorsPage() {
       <label><span>Bằng cấp</span><input value={form.bangCap} onChange={(e) => setField('bangCap', e.target.value)} required /></label>
       <label><span>Số CCHN</span><input value={form.soChungChiHanhNghe} onChange={(e) => setField('soChungChiHanhNghe', e.target.value)} required /></label>
       <label><span>Chuyên khoa</span><select value={form.chuyenKhoaId} onChange={(e) => setField('chuyenKhoaId', e.target.value)} required><option value="">Chọn chuyên khoa</option>{specialties.map((item) => <option key={item.id} value={item.id}>{item.ten}</option>)}</select></label>
+      <label><span>Nhận khám BHYT</span><select value={form.nhanBhyt} onChange={(e) => setField('nhanBhyt', e.target.value)}><option value="true">Có</option><option value="false">Không</option></select></label>
       <label><span>Trạng thái</span><select value={form.trangThai} onChange={(e) => setField('trangThai', e.target.value)}><option value="Active">Hoạt động</option><option value="Inactive">Ngừng hoạt động</option><option value="Locked">Đã khóa</option></select></label>
       {!editing ? <><label><span>Tên đăng nhập</span><input value={form.username} onChange={(e) => setField('username', e.target.value)} required /></label><label><span>Mật khẩu</span><input type="password" value={form.password} onChange={(e) => setField('password', e.target.value)} minLength={6} required /></label></> : null}
       {formError ? <p className="manager-form__error is-wide">{formError}</p> : null}

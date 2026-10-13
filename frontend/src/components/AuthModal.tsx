@@ -20,10 +20,13 @@ const emptyRegisterForm = {
   soDienThoai: '',
   email: '',
   diaChi: '',
-  soBaoHiemYTe: '',
+  coBhyt: 'false',
+  soBhyt: '',
   username: '',
   password: '',
 };
+
+const bhytPattern = /^[A-Za-z0-9]{10,15}$/;
 
 function PasswordEye({ visible }: { visible: boolean }) {
   return visible ? (
@@ -90,6 +93,12 @@ export function AuthModal({ mode, onClose, onModeChange }: AuthModalProps) {
 
   async function submitRegister(event: FormEvent) {
     event.preventDefault();
+    const hasBhyt = registerForm.coBhyt === 'true';
+    const soBhyt = registerForm.soBhyt.trim().toUpperCase();
+    if (hasBhyt && !bhytPattern.test(soBhyt)) {
+      setError('Khi chọn có BHYT, hãy nhập số thẻ BHYT (10–15 ký tự chữ hoặc số).');
+      return;
+    }
     setBusy(true);
     setError('');
     try {
@@ -100,7 +109,8 @@ export function AuthModal({ mode, onClose, onModeChange }: AuthModalProps) {
         soDienThoai: registerForm.soDienThoai.trim(),
         email: registerForm.email.trim(),
         diaChi: registerForm.diaChi.trim(),
-        soBaoHiemYTe: registerForm.soBaoHiemYTe.trim(),
+        coBhyt: hasBhyt,
+        soBhyt: hasBhyt ? soBhyt : null,
         username: registerForm.username.trim(),
         password: registerForm.password,
       });
@@ -193,10 +203,34 @@ export function AuthModal({ mode, onClose, onModeChange }: AuthModalProps) {
                   <span>Địa chỉ</span>
                   <input value={registerForm.diaChi} onChange={(event) => setRegisterField('diaChi', event.target.value)} maxLength={255} autoComplete="street-address" required />
                 </label>
-                <label className="auth-modal__full-row">
-                  <span>Số bảo hiểm y tế <small>Không bắt buộc</small></span>
-                  <input value={registerForm.soBaoHiemYTe} onChange={(event) => setRegisterField('soBaoHiemYTe', event.target.value)} maxLength={50} autoComplete="off" />
+                <label>
+                  <span>Sử dụng BHYT</span>
+                  <select value={registerForm.coBhyt} onChange={(event) => {
+                    const value = event.target.value;
+                    setRegisterForm((current) => ({
+                      ...current,
+                      coBhyt: value,
+                      soBhyt: value === 'true' ? current.soBhyt : '',
+                    }));
+                  }}>
+                    <option value="true">Có</option>
+                    <option value="false">Không</option>
+                  </select>
                 </label>
+                {registerForm.coBhyt === 'true' ? (
+                  <label>
+                    <span>Số thẻ BHYT</span>
+                    <input
+                      value={registerForm.soBhyt}
+                      onChange={(event) => setRegisterField('soBhyt', event.target.value.toUpperCase())}
+                      pattern="[A-Za-z0-9]{10,15}"
+                      title="Số BHYT gồm 10–15 ký tự chữ hoặc số"
+                      maxLength={15}
+                      autoComplete="off"
+                      required
+                    />
+                  </label>
+                ) : null}
                 <label>
                   <span>Tên đăng nhập</span>
                   <input value={registerForm.username} onChange={(event) => setRegisterField('username', event.target.value)} pattern="[a-zA-Z0-9._]{3,100}" title="Từ 3 ký tự, chỉ gồm chữ, số, dấu chấm hoặc gạch dưới." autoComplete="username" required />

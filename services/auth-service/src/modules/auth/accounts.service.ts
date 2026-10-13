@@ -49,22 +49,35 @@ export class AccountsService {
   async listPatients(actorId: string, query: ProfilesQueryDto) {
     await this.requireManager(actorId);
     const { where, values } = this.profileFilters(query, 'patient', ['patient.ho_ten', 'patient.email', 'patient.so_dien_thoai', 'account.ten_dang_nhap']);
+    const joins = `FROM benh_nhan patient
+      JOIN tai_khoan_benh_nhan link ON link.id_benh_nhan = patient.id_benh_nhan AND link.la_chu_ho_so = TRUE
+      JOIN tai_khoan account ON account.id_tai_khoan = link.id_tai_khoan`;
     const countRows = await this.dataSource.query(
-      `SELECT COUNT(*)::int AS total FROM benh_nhan patient JOIN tai_khoan account ON account.id_tai_khoan = patient.id_tai_khoan ${where}`,
+      `SELECT COUNT(*)::int AS total ${joins} ${where}`,
       values,
     );
     const offsetIndex = values.length + 1;
     const limitIndex = values.length + 2;
     const items = await this.dataSource.query(
-      `SELECT patient.id_benh_nhan AS id, patient.id_tai_khoan AS "accountId", account.ten_dang_nhap AS username,
+      `SELECT patient.id_benh_nhan AS id, account.id_tai_khoan AS "accountId", account.ten_dang_nhap AS username,
         patient.ho_ten AS "hoTen", patient.ngay_sinh AS "ngaySinh", patient.gioi_tinh AS "gioiTinh",
         patient.so_dien_thoai AS "soDienThoai", patient.email, patient.dia_chi AS "diaChi",
-        patient.so_bao_hiem_y_te AS "soBaoHiemYTe", account.trang_thai AS "trangThai"
-       FROM benh_nhan patient JOIN tai_khoan account ON account.id_tai_khoan = patient.id_tai_khoan
+        patient.co_bhyt AS "coBhyt", patient.so_bhyt AS "soBhyt", account.trang_thai AS "trangThai"
+       ${joins}
        ${where} ORDER BY patient.id_benh_nhan ASC OFFSET $${offsetIndex} LIMIT $${limitIndex}`,
       [...values, (query.page - 1) * query.pageSize, query.pageSize],
     );
-    return { items: items.map((item: { id: string }) => ({ ...item, id: Number(item.id) })), total: Number(countRows[0]?.total || 0), page: query.page, pageSize: query.pageSize };
+    return {
+      items: items.map((item: { id: string; coBhyt: boolean | string | null; soBhyt?: string | null }) => ({
+        ...item,
+        id: Number(item.id),
+        coBhyt: item.coBhyt === true || item.coBhyt === 'true' || item.coBhyt === 't',
+        soBhyt: item.soBhyt ?? null,
+      })),
+      total: Number(countRows[0]?.total || 0),
+      page: query.page,
+      pageSize: query.pageSize,
+    };
   }
 
   async listDoctors(actorId: string, query: ProfilesQueryDto) {
@@ -81,12 +94,23 @@ export class AccountsService {
       `SELECT doctor.id_bac_si AS id, doctor.id_tai_khoan AS "accountId", account.ten_dang_nhap AS username,
         doctor.ho_ten AS "hoTen", doctor.ngay_sinh AS "ngaySinh", doctor.gioi_tinh AS "gioiTinh",
         doctor.so_dien_thoai AS "soDienThoai", doctor.email, doctor.bang_cap AS "bangCap",
-        doctor.so_chung_chi_hanh_nghe AS "soChungChiHanhNghe", account.trang_thai AS "trangThai",
+        doctor.so_chung_chi_hanh_nghe AS "soChungChiHanhNghe", doctor.nhan_bhyt AS "nhanBhyt",
+        account.trang_thai AS "trangThai",
         specialty.id_chuyen_khoa AS "chuyenKhoaId", specialty.ten_chuyen_khoa AS "chuyenKhoa"
        ${joins} ${where} ORDER BY doctor.id_bac_si ASC OFFSET $${offsetIndex} LIMIT $${limitIndex}`,
       [...values, (query.page - 1) * query.pageSize, query.pageSize],
     );
-    return { items: items.map((item: { id: string; chuyenKhoaId: string | null }) => ({ ...item, id: Number(item.id), chuyenKhoaId: item.chuyenKhoaId ? Number(item.chuyenKhoaId) : null })), total: Number(countRows[0]?.total || 0), page: query.page, pageSize: query.pageSize };
+    return {
+      items: items.map((item: { id: string; chuyenKhoaId: string | null; nhanBhyt: boolean | string | null; coBhyt?: boolean | string | null }) => ({
+        ...item,
+        id: Number(item.id),
+        chuyenKhoaId: item.chuyenKhoaId ? Number(item.chuyenKhoaId) : null,
+        nhanBhyt: item.nhanBhyt === true || item.nhanBhyt === 'true' || item.nhanBhyt === 't',
+      })),
+      total: Number(countRows[0]?.total || 0),
+      page: query.page,
+      pageSize: query.pageSize,
+    };
   }
 
   async requireDoctor(actorId: string, id: number) {
@@ -105,10 +129,16 @@ export class AccountsService {
           `INSERT INTO tai_khoan (ten_dang_nhap, mat_khau_ma_hoa, vai_tro, trang_thai) VALUES ($1, $2, 'NguoiDung', $3) RETURNING id_tai_khoan`,
           [dto.username, passwordHash, dto.trangThai],
         );
+        const soBhyt = dto.coBhyt === true && dto.soBhyt ? dto.soBhyt.trim().toUpperCase() : null;
         const rows = await manager.query(
-          `INSERT INTO benh_nhan (id_tai_khoan, ho_ten, ngay_sinh, gioi_tinh, so_dien_thoai, email, dia_chi, so_bao_hiem_y_te, trang_thai)
+          `INSERT INTO benh_nhan (ho_ten, ngay_sinh, gioi_tinh, so_dien_thoai, email, dia_chi, co_bhyt, so_bhyt, trang_thai)
            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id_benh_nhan AS id`,
-          [accounts[0].id_tai_khoan, dto.hoTen.trim(), dto.ngaySinh.slice(0, 10), dto.gioiTinh, dto.soDienThoai, dto.email.trim().toLowerCase(), dto.diaChi.trim(), dto.soBaoHiemYTe?.trim() || null, dto.trangThai],
+          [dto.hoTen.trim(), dto.ngaySinh.slice(0, 10), dto.gioiTinh, dto.soDienThoai, dto.email.trim().toLowerCase(), dto.diaChi.trim(), Boolean(soBhyt), soBhyt, dto.trangThai],
+        );
+        await manager.query(
+          `INSERT INTO tai_khoan_benh_nhan (id_tai_khoan, id_benh_nhan, loai_quan_he, la_chu_ho_so, duoc_dat_lich_ho, trang_thai)
+           VALUES ($1,$2,'BanThan',TRUE,TRUE,'Active')`,
+          [accounts[0].id_tai_khoan, rows[0].id],
         );
         return { id: Number(rows[0].id) };
       });
@@ -120,13 +150,20 @@ export class AccountsService {
   async updatePatient(actorId: string, id: number, dto: UpdatePatientByManagerDto) {
     await this.requireManager(actorId);
     return this.dataSource.transaction(async (manager) => {
-      const rows = await manager.query('SELECT id_tai_khoan FROM benh_nhan WHERE id_benh_nhan = $1 FOR UPDATE', [id]);
+      const rows = await manager.query(
+        `SELECT link.id_tai_khoan
+         FROM tai_khoan_benh_nhan link
+         WHERE link.id_benh_nhan = $1 AND link.la_chu_ho_so = TRUE
+         FOR UPDATE`,
+        [id],
+      );
       if (!rows.length) throw new AppException(404, 'PATIENT_NOT_FOUND', 'Không tìm thấy bệnh nhân.');
       await this.assertUniqueProfile(manager, 'benh_nhan', dto.email, dto.soDienThoai, id);
+      const soBhyt = dto.coBhyt === true && dto.soBhyt ? dto.soBhyt.trim().toUpperCase() : null;
       await manager.query(
         `UPDATE benh_nhan SET ho_ten=$2, ngay_sinh=$3, gioi_tinh=$4, so_dien_thoai=$5, email=$6, dia_chi=$7,
-          so_bao_hiem_y_te=$8, trang_thai=$9, ngay_cap_nhat=CURRENT_TIMESTAMP WHERE id_benh_nhan=$1`,
-        [id, dto.hoTen.trim(), dto.ngaySinh.slice(0, 10), dto.gioiTinh, dto.soDienThoai, dto.email.trim().toLowerCase(), dto.diaChi.trim(), dto.soBaoHiemYTe?.trim() || null, dto.trangThai],
+          co_bhyt=$8, so_bhyt=$9, trang_thai=$10, ngay_cap_nhat=CURRENT_TIMESTAMP WHERE id_benh_nhan=$1`,
+        [id, dto.hoTen.trim(), dto.ngaySinh.slice(0, 10), dto.gioiTinh, dto.soDienThoai, dto.email.trim().toLowerCase(), dto.diaChi.trim(), Boolean(soBhyt), soBhyt, dto.trangThai],
       );
       await manager.query('UPDATE tai_khoan SET trang_thai=$2, ngay_cap_nhat=CURRENT_TIMESTAMP WHERE id_tai_khoan=$1', [rows[0].id_tai_khoan, dto.trangThai]);
       return { id };
@@ -146,9 +183,9 @@ export class AccountsService {
           [dto.username.trim(), passwordHash, dto.trangThai],
         );
         const rows = await manager.query(
-          `INSERT INTO bac_si (id_tai_khoan, ho_ten, ngay_sinh, gioi_tinh, so_dien_thoai, email, bang_cap, so_chung_chi_hanh_nghe, trang_thai)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id_bac_si AS id`,
-          [accounts[0].id_tai_khoan, dto.hoTen.trim(), dto.ngaySinh.slice(0, 10), dto.gioiTinh, dto.soDienThoai, dto.email.trim().toLowerCase(), dto.bangCap.trim(), dto.soChungChiHanhNghe.trim(), dto.trangThai],
+          `INSERT INTO bac_si (id_tai_khoan, ho_ten, ngay_sinh, gioi_tinh, so_dien_thoai, email, bang_cap, so_chung_chi_hanh_nghe, nhan_bhyt, trang_thai)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id_bac_si AS id`,
+          [accounts[0].id_tai_khoan, dto.hoTen.trim(), dto.ngaySinh.slice(0, 10), dto.gioiTinh, dto.soDienThoai, dto.email.trim().toLowerCase(), dto.bangCap.trim(), dto.soChungChiHanhNghe.trim(), dto.nhanBhyt === true, dto.trangThai],
         );
         await manager.query('INSERT INTO bac_si_chuyen_khoa (id_bac_si, id_chuyen_khoa, la_chuyen_khoa_chinh) VALUES ($1,$2,true)', [rows[0].id, dto.chuyenKhoaId]);
         return { id: Number(rows[0].id) };
@@ -169,8 +206,8 @@ export class AccountsService {
         await this.assertSpecialty(manager, dto.chuyenKhoaId);
         await manager.query(
           `UPDATE bac_si SET ho_ten=$2, ngay_sinh=$3, gioi_tinh=$4, so_dien_thoai=$5, email=$6, bang_cap=$7,
-            so_chung_chi_hanh_nghe=$8, trang_thai=$9, ngay_cap_nhat=CURRENT_TIMESTAMP WHERE id_bac_si=$1`,
-          [id, dto.hoTen.trim(), dto.ngaySinh.slice(0, 10), dto.gioiTinh, dto.soDienThoai, dto.email.trim().toLowerCase(), dto.bangCap.trim(), dto.soChungChiHanhNghe.trim(), dto.trangThai],
+            so_chung_chi_hanh_nghe=$8, nhan_bhyt=$9, trang_thai=$10, ngay_cap_nhat=CURRENT_TIMESTAMP WHERE id_bac_si=$1`,
+          [id, dto.hoTen.trim(), dto.ngaySinh.slice(0, 10), dto.gioiTinh, dto.soDienThoai, dto.email.trim().toLowerCase(), dto.bangCap.trim(), dto.soChungChiHanhNghe.trim(), dto.nhanBhyt === true, dto.trangThai],
         );
         await manager.query('UPDATE tai_khoan SET trang_thai=$2, ngay_cap_nhat=CURRENT_TIMESTAMP WHERE id_tai_khoan=$1', [rows[0].id_tai_khoan, dto.trangThai]);
         await manager.query('DELETE FROM bac_si_chuyen_khoa WHERE id_bac_si=$1', [id]);

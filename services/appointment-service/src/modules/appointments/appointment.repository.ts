@@ -17,10 +17,14 @@ export class AppointmentRepository {
       .getMany();
   }
 
-  async paginate(patientId: number, page: number, pageSize: number, upcoming: boolean) {
-    const query = this.appointments
-      .createQueryBuilder('a')
-      .where('a.idBenhNhan = :patientId', { patientId })
+  async paginate(patientIds: number[], accountId: string, page: number, pageSize: number, upcoming: boolean) {
+    const query = this.appointments.createQueryBuilder('a');
+    if (patientIds.length) {
+      query.where('(a.idBenhNhan IN (:...patientIds) OR a.idTaiKhoanDat = :accountId)', { patientIds, accountId });
+    } else {
+      query.where('a.idTaiKhoanDat = :accountId', { accountId });
+    }
+    query
       .orderBy('a.ngayHen', upcoming ? 'ASC' : 'DESC')
       .addOrderBy('a.gioHen', upcoming ? 'ASC' : 'DESC')
       .skip((page - 1) * pageSize)

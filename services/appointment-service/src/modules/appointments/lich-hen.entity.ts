@@ -12,6 +12,9 @@ export class LichHen {
   @Column({ name: 'id_bac_si', type: 'bigint', transformer: bigintColumn })
   idBacSi: number;
 
+  @Column({ name: 'id_tai_khoan_dat', type: 'uuid', nullable: true })
+  idTaiKhoanDat: string | null;
+
   @Column({ name: 'ngay_hen', type: 'date', transformer: dateColumn })
   ngayHen: string;
 

@@ -1,6 +1,12 @@
-import { Type } from 'class-transformer';
-import { IsDateString, IsEmail, IsIn, IsInt, IsOptional, IsString, Matches, Max, MaxLength, Min, MinLength } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import { IsBoolean, IsDateString, IsEmail, IsIn, IsInt, IsOptional, IsString, Matches, Max, MaxLength, Min, MinLength, ValidateIf } from 'class-validator';
 import { accountStatuses, AccountStatus } from './accounts.dto';
+
+const bhytNumber = ({ value }: { value: unknown }) => {
+  if (typeof value !== 'string') return value;
+  const trimmed = value.trim().toUpperCase();
+  return trimmed || null;
+};
 
 export class ProfilesQueryDto {
   @IsOptional()
@@ -58,10 +64,15 @@ export class CreatePatientByManagerDto extends ProfileFieldsDto {
   @MaxLength(255)
   diaChi: string;
 
-  @IsOptional()
-  @IsString()
-  @MaxLength(50)
-  soBaoHiemYTe?: string;
+  @Type(() => Boolean)
+  @IsBoolean()
+  coBhyt: boolean;
+
+  @Transform(bhytNumber)
+  @ValidateIf((dto: CreatePatientByManagerDto) => dto.coBhyt === true)
+  @IsString({ message: 'Hãy nhập số thẻ BHYT để xác nhận có BHYT.' })
+  @Matches(/^[A-Z0-9]{10,15}$/, { message: 'Số BHYT gồm 10–15 ký tự chữ hoặc số.' })
+  soBhyt?: string | null;
 
   @Matches(/^[a-zA-Z0-9._]{3,100}$/)
   username: string;
@@ -77,10 +88,15 @@ export class UpdatePatientByManagerDto extends ProfileFieldsDto {
   @MaxLength(255)
   diaChi: string;
 
-  @IsOptional()
-  @IsString()
-  @MaxLength(50)
-  soBaoHiemYTe?: string;
+  @Type(() => Boolean)
+  @IsBoolean()
+  coBhyt: boolean;
+
+  @Transform(bhytNumber)
+  @ValidateIf((dto: UpdatePatientByManagerDto) => dto.coBhyt === true)
+  @IsString({ message: 'Hãy nhập số thẻ BHYT để xác nhận có BHYT.' })
+  @Matches(/^[A-Z0-9]{10,15}$/, { message: 'Số BHYT gồm 10–15 ký tự chữ hoặc số.' })
+  soBhyt?: string | null;
 }
 
 export class CreateDoctorByManagerDto extends ProfileFieldsDto {
@@ -96,6 +112,10 @@ export class CreateDoctorByManagerDto extends ProfileFieldsDto {
   @IsInt()
   @Min(1)
   chuyenKhoaId: number;
+
+  @Type(() => Boolean)
+  @IsBoolean()
+  nhanBhyt: boolean;
 
   @Matches(/^[a-zA-Z0-9._]{3,100}$/)
   username: string;
@@ -119,4 +139,8 @@ export class UpdateDoctorByManagerDto extends ProfileFieldsDto {
   @IsInt()
   @Min(1)
   chuyenKhoaId: number;
+
+  @Type(() => Boolean)
+  @IsBoolean()
+  nhanBhyt: boolean;
 }

@@ -22,8 +22,25 @@ export interface PatientProfile {
   soDienThoai: string | null;
   email: string | null;
   diaChi: string | null;
-  soBaoHiemYTe: string | null;
+  coBhyt: boolean;
+  soBhyt: string | null;
   trangThai: string;
+}
+
+export type PatientRelation =
+  | 'BanThan'
+  | 'Bo'
+  | 'Me'
+  | 'Con'
+  | 'Vo'
+  | 'Chong'
+  | 'NguoiThan'
+  | 'NguoiChamSoc';
+
+export interface BookablePatient extends PatientProfile {
+  loaiQuanHe: PatientRelation | string;
+  laChuHoSo: boolean;
+  duocDatLichHo: boolean;
 }
 
 export interface Specialty {
@@ -40,6 +57,7 @@ export interface DoctorProfile {
   bangCap: string | null;
   maBacSi: string | null;
   gioiTinh: string | null;
+  nhanBhyt: boolean;
   chuyenKhoa: { id: number; ten: string | null } | null;
 }
 

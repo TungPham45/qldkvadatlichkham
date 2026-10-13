@@ -45,6 +45,9 @@ export class BacSi {
   @Column({ name: 'so_chung_chi_hanh_nghe', type: 'varchar', length: 100, nullable: true })
   soChungChiHanhNghe: string | null;
 
+  @Column({ name: 'nhan_bhyt', type: 'boolean', default: false })
+  nhanBhyt: boolean;
+
   @Column({ name: 'trang_thai', length: 30 })
   trangThai: string;
 }

@@ -28,6 +28,13 @@ export const appointmentApi = {
     api.get<{ slots: AvailabilitySlot[]; shifts?: AvailabilityShift[] }>('/appointments/availability', {
       params: { doctorId, date },
     }).then((response) => response.data),
-  book: (body: { bacSiId: number; ngayHen: string; gioHen: string; lyDoKham: string }) =>
+  sendOtp: (benhNhanId: number) =>
+    api.post<{
+      soDienThoaiMask: string;
+      hetHanSauGiay: number;
+      maOtpGiaLap: string;
+      thongBao: string;
+    }>('/appointments/otp/send', { benhNhanId }).then((response) => response.data),
+  book: (body: { benhNhanId: number; bacSiId: number; ngayHen: string; gioHen: string; lyDoKham: string; maOtp: string }) =>
     api.post('/appointments', body).then((response) => response.data),
 };

@@ -53,7 +53,8 @@ export class AuthService {
           soDienThoai: dto.soDienThoai,
           email: dto.email.trim().toLowerCase(),
           diaChi: dto.diaChi.trim(),
-          soBaoHiemYTe: dto.soBaoHiemYTe?.trim() || null,
+          coBhyt: dto.coBhyt === true,
+          soBhyt: dto.coBhyt === true ? dto.soBhyt : null,
         }),
       });
     } catch (error) {

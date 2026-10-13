@@ -7,7 +7,7 @@ interface AuthState {
   user: AuthUser | null;
   ready: boolean;
   login: (username: string, password: string) => Promise<AuthUser>;
-  register: (payload: Record<string, string>) => Promise<AuthUser>;
+  register: (payload: Record<string, unknown>) => Promise<AuthUser>;
   logout: () => Promise<void>;
 }
 

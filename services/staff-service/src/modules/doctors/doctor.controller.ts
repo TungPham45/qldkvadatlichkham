@@ -22,10 +22,15 @@ export class DoctorController {
 
   @Get('doctors')
   @UseGuards(JwtAuthGuard)
-  async list(@Query('chuyenKhoaId') chuyenKhoaId?: string, @Query('bookable') bookable?: string) {
+  async list(
+    @Query('chuyenKhoaId') chuyenKhoaId?: string,
+    @Query('bookable') bookable?: string,
+    @Query('nhanBhyt') nhanBhyt?: string,
+  ) {
     return this.queryDoctors({
       chuyenKhoaId: chuyenKhoaId ? Number(chuyenKhoaId) : undefined,
       bookable: bookable === 'true',
+      nhanBhyt: nhanBhyt === 'true' ? true : nhanBhyt === 'false' ? false : undefined,
     });
   }
 
@@ -64,7 +69,13 @@ export class DoctorController {
     return rows[0] ?? null;
   }
 
-  private async queryDoctors(filter: { chuyenKhoaId?: number; bookable?: boolean; ids?: number[]; accountId?: string }) {
+  private async queryDoctors(filter: {
+    chuyenKhoaId?: number;
+    bookable?: boolean;
+    nhanBhyt?: boolean;
+    ids?: number[];
+    accountId?: string;
+  }) {
     const query = this.doctors
       .createQueryBuilder('bs')
       .leftJoin('bac_si_chuyen_khoa', 'bsck', 'bsck.id_bac_si = bs.id_bac_si AND bsck.la_chuyen_khoa_chinh = true')
@@ -77,6 +88,7 @@ export class DoctorController {
       .addSelect('bs.bang_cap', 'bangCap')
       .addSelect('bs.so_chung_chi_hanh_nghe', 'maBacSi')
       .addSelect('bs.gioi_tinh', 'gioiTinh')
+      .addSelect('bs.nhan_bhyt', 'nhanBhyt')
       .addSelect('ck.id_chuyen_khoa', 'chuyenKhoaId')
       .addSelect('ck.ten_chuyen_khoa', 'chuyenKhoa')
       .orderBy('bs.ho_ten', 'ASC');
@@ -84,6 +96,7 @@ export class DoctorController {
     if (filter.chuyenKhoaId) query.andWhere('ck.id_chuyen_khoa = :chuyenKhoaId', { chuyenKhoaId: filter.chuyenKhoaId });
     if (filter.ids?.length) query.andWhere('bs.id_bac_si IN (:...ids)', { ids: filter.ids });
     if (filter.accountId) query.andWhere('bs.id_tai_khoan = :accountId', { accountId: filter.accountId });
+    if (filter.nhanBhyt !== undefined) query.andWhere('bs.nhan_bhyt = :nhanBhyt', { nhanBhyt: filter.nhanBhyt });
     if (filter.bookable) {
       query.andWhere(
         `EXISTS (
@@ -104,6 +117,7 @@ export class DoctorController {
       bangCap: string | null;
       maBacSi: string | null;
       gioiTinh: string | null;
+      nhanBhyt: boolean | string | null;
       chuyenKhoaId: string | null;
       chuyenKhoa: string | null;
     }>();
@@ -116,6 +130,7 @@ export class DoctorController {
       bangCap: row.bangCap,
       maBacSi: row.maBacSi,
       gioiTinh: row.gioiTinh,
+      nhanBhyt: row.nhanBhyt === true || row.nhanBhyt === 'true' || row.nhanBhyt === 't',
       chuyenKhoa: row.chuyenKhoaId ? { id: Number(row.chuyenKhoaId), ten: row.chuyenKhoa } : null,
     }));
   }

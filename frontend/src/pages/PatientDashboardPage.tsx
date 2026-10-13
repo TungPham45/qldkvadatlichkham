@@ -101,7 +101,7 @@ export function PatientDashboardPage() {
               <div className="rounded-xl bg-[#f8fbff] p-3"><span className="mb-1 block text-xs text-muted">Điện thoại</span><strong>{patient.soDienThoai || '—'}</strong></div>
               <div className="rounded-xl bg-[#f8fbff] p-3"><span className="mb-1 block text-xs text-muted">Email</span><strong>{patient.email || '—'}</strong></div>
               <div className="rounded-xl bg-[#f8fbff] p-3"><span className="mb-1 block text-xs text-muted">Địa chỉ</span><strong>{patient.diaChi || '—'}</strong></div>
-              <div className="rounded-xl bg-[#f8fbff] p-3"><span className="mb-1 block text-xs text-muted">Bảo hiểm y tế</span><strong>{patient.soBaoHiemYTe || 'Chưa có'}</strong></div>
+              <div className="rounded-xl bg-[#f8fbff] p-3"><span className="mb-1 block text-xs text-muted">Bảo hiểm y tế</span><strong>{patient.coBhyt ? (patient.soBhyt ? `Có · ${patient.soBhyt}` : 'Có') : 'Không'}</strong></div>
             </div>
           </section>
         </>

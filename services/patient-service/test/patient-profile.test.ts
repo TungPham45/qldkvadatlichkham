@@ -20,18 +20,20 @@ const otherAccountId = '8d6f5bbf-5375-4370-bc2c-97bd3f7e4713';
 
 function profile(): BenhNhan {
   return Object.assign(new BenhNhan(), {
-    idBenhNhan: 1, idTaiKhoan: accountId, hoTen: 'Nguyễn An', ngaySinh: '1990-01-01',
+    idBenhNhan: 1, hoTen: 'Nguyễn An', ngaySinh: '1990-01-01',
     gioiTinh: 'Nam', soDienThoai: '0912345678', email: 'an@example.com', diaChi: 'Địa chỉ cũ',
-    soBaoHiemYTe: 'BH123', trangThai: 'Active',
+    coBhyt: true, soBhyt: 'DN4010123456789', trangThai: 'Active',
   });
 }
 
 function fixture(initial: BenhNhan | null, options: { linked?: boolean; active?: boolean } = {}) {
   let stored = initial ? { ...initial } : null;
+  let linkOwnerId: string | null = initial ? accountId : null;
   let transactions = 0;
   let removed = false;
   const accountConditions: unknown[] = [];
   const queries: unknown[] = [];
+  const sqlCalls: string[] = [];
   const accountBuilder = {
     select() { return this; }, from() { return this; },
     where(condition: string, parameters: unknown) { accountConditions.push({ condition, parameters }); return this; },
@@ -40,10 +42,10 @@ function fixture(initial: BenhNhan | null, options: { linked?: boolean; active?:
     async getRawOne() { return options.active === false ? undefined : { id: accountId }; },
   };
   const repository = {
-    async findOne(query: { where: { idTaiKhoan?: string; soDienThoai?: string }; lock?: { mode: string } }) {
+    async findOne(query: { where: { idBenhNhan?: number; soDienThoai?: string }; lock?: { mode: string } }) {
       queries.push(query);
-      if (query.where.idTaiKhoan) {
-        return stored?.idTaiKhoan === query.where.idTaiKhoan ? { ...stored } : null;
+      if (query.where.idBenhNhan != null) {
+        return stored?.idBenhNhan === query.where.idBenhNhan ? { ...stored } : null;
       }
       return stored?.soDienThoai === query.where.soDienThoai ? { ...stored } : null;
     },
@@ -57,21 +59,52 @@ function fixture(initial: BenhNhan | null, options: { linked?: boolean; active?:
     create(value: Partial<BenhNhan>) { return Object.assign(new BenhNhan(), { idBenhNhan: 2 }, value); },
     async save(value: BenhNhan) { stored = { ...value }; return value; },
     async remove(value: BenhNhan) {
-      assert.equal(value.idTaiKhoan, accountId);
+      assert.equal(value.idBenhNhan, stored?.idBenhNhan);
       if (options.linked) throw Object.assign(new Error('foreign key'), { code: '23503' });
       stored = null;
+      linkOwnerId = null;
       removed = true;
     },
   };
   const manager = {
     createQueryBuilder: () => accountBuilder,
     getRepository(entity: unknown) { assert.equal(entity, BenhNhan); return repository; },
+    async query(sql: string, params: unknown[] = []) {
+      sqlCalls.push(sql);
+      const normalized = sql.replace(/\s+/g, ' ').trim().toLowerCase();
+      if (normalized.includes('from tai_khoan_benh_nhan') && normalized.includes('la_chu_ho_so = true') && normalized.includes('select 1')) {
+        return linkOwnerId && params[0] === linkOwnerId ? [{ ok: 1 }] : [];
+      }
+      if (normalized.includes('from tai_khoan_benh_nhan link') && normalized.includes('for update')) {
+        if (params[0] !== accountId || !stored || linkOwnerId !== accountId) return [];
+        return [{ id: stored.idBenhNhan }];
+      }
+      if (normalized.startsWith('insert into tai_khoan_benh_nhan')) {
+        linkOwnerId = String(params[0]);
+        return [];
+      }
+      if (normalized.startsWith('delete from tai_khoan_benh_nhan')) {
+        if (params[0] === linkOwnerId) linkOwnerId = null;
+        return [];
+      }
+      return [];
+    },
   } as unknown as EntityManager;
   const dataSource = {
     async transaction<T>(work: (scope: EntityManager) => Promise<T>) { transactions += 1; return work(manager); },
+    async query(sql: string, params?: unknown[]) { return manager.query(sql, params); },
   } as unknown as DataSource;
   const service = new PatientService({} as PatientRepository, dataSource);
-  return { service, queries, accountConditions, get stored() { return stored; }, get transactions() { return transactions; }, get removed() { return removed; } };
+  return {
+    service,
+    queries,
+    accountConditions,
+    sqlCalls,
+    get stored() { return stored; },
+    get linkOwnerId() { return linkOwnerId; },
+    get transactions() { return transactions; },
+    get removed() { return removed; },
+  };
 }
 
 function statusError(status: number, code: string) {
@@ -85,27 +118,29 @@ function statusError(status: number, code: string) {
 
 test('create uses authenticated account and defaults optional profile fields to null', async () => {
   const state = fixture(null);
-  const created = await state.service.createOwn(accountId, { hoTen: 'Nguyễn An', idTaiKhoan: otherAccountId, trangThai: 'Locked' } as CreateOwnPatientDto);
+  const created = await state.service.createOwn(accountId, { hoTen: 'Nguyễn An', soDienThoai: '0912345678', coBhyt: false, idTaiKhoan: otherAccountId, trangThai: 'Locked' } as CreateOwnPatientDto);
   assert.equal(created.idTaiKhoan, accountId);
   assert.equal(created.hoTen, 'Nguyễn An');
   assert.equal(created.trangThai, 'Active');
   assert.equal(created.email, null);
   assert.equal(state.transactions, 1);
+  assert.equal(state.linkOwnerId, accountId);
   assert.deepEqual(state.accountConditions[0], { condition: 'account.id_tai_khoan = :idTaiKhoan', parameters: { idTaiKhoan: accountId } });
 });
 
 test('create refuses to replace an existing profile', async () => {
   const state = fixture(profile());
-  await assert.rejects(state.service.createOwn(accountId, { hoTen: 'Tên mới' }), statusError(409, 'PATIENT_PROFILE_ALREADY_EXISTS'));
+  await assert.rejects(state.service.createOwn(accountId, { hoTen: 'Tên mới', soDienThoai: '0911111111', coBhyt: true }), statusError(409, 'PATIENT_PROFILE_ALREADY_EXISTS'));
   assert.equal(state.stored?.hoTen, 'Nguyễn An');
 });
 
 test('update preserves omitted fields, clears explicit null, and normalizes email', async () => {
   const state = fixture(profile());
-  const updated = await state.service.updateOwn(accountId, { email: 'NEW@EXAMPLE.COM', diaChi: null, soBaoHiemYTe: null });
+  const updated = await state.service.updateOwn(accountId, { email: 'NEW@EXAMPLE.COM', diaChi: null, coBhyt: false });
   assert.equal(updated.email, 'new@example.com');
   assert.equal(updated.diaChi, null);
-  assert.equal(updated.soBaoHiemYTe, null);
+  assert.equal(updated.coBhyt, false);
+  assert.equal(updated.soBhyt, null);
   assert.equal(updated.hoTen, 'Nguyễn An');
   assert.equal(updated.ngaySinh, '1990-01-01');
   assert.ok(state.queries.some((query) => (query as { lock?: { mode: string } }).lock?.mode === 'pessimistic_write'));
@@ -114,7 +149,7 @@ test('update preserves omitted fields, clears explicit null, and normalizes emai
 test('update refuses absent own profile and ignores input identity', async () => {
   const state = fixture(profile());
   await assert.rejects(state.service.updateOwn(otherAccountId, { hoTen: 'Tên mới', idTaiKhoan: accountId } as UpdateOwnPatientDto), statusError(404, 'PATIENT_NOT_FOUND'));
-  assert.equal(state.stored?.idTaiKhoan, accountId);
+  assert.equal(state.linkOwnerId, accountId);
   assert.equal(state.stored?.hoTen, 'Nguyễn An');
 });
 
@@ -135,16 +170,34 @@ test('delete keeps referenced clinical profile and returns conflict', async () =
   const state = fixture(profile(), { linked: true });
   await assert.rejects(state.service.deleteOwn(accountId), statusError(409, 'PATIENT_PROFILE_IN_USE'));
   assert.equal(state.removed, false);
-  assert.equal(state.stored?.idTaiKhoan, accountId);
+  assert.equal(state.linkOwnerId, accountId);
 });
 
 test('delete unreferenced profile then create again for same account', async () => {
   const state = fixture(profile());
   assert.deepEqual(await state.service.deleteOwn(accountId), { deleted: true });
   assert.equal(state.stored, null);
-  const created = await state.service.createOwn(accountId, { hoTen: 'Thông tin mới' });
+  const created = await state.service.createOwn(accountId, { hoTen: 'Thông tin mới', soDienThoai: '0987654321', coBhyt: true, soBhyt: 'DN4010987654321' });
   assert.equal(created.idTaiKhoan, accountId);
   assert.equal(created.hoTen, 'Thông tin mới');
+  assert.equal(created.soDienThoai, '0987654321');
+  assert.equal(created.coBhyt, true);
+  assert.equal(created.soBhyt, 'DN4010987654321');
+});
+
+test('create with coBhyt true requires soBhyt number', async () => {
+  const state = fixture(null);
+  await assert.rejects(
+    state.service.createOwn(accountId, { hoTen: 'Thiếu số BHYT', soDienThoai: '0911222333', coBhyt: true }),
+    statusError(400, 'VALIDATION_ERROR'),
+  );
+});
+
+test('update coBhyt false clears soBhyt', async () => {
+  const state = fixture(profile());
+  const updated = await state.service.updateOwn(accountId, { coBhyt: false });
+  assert.equal(updated.coBhyt, false);
+  assert.equal(updated.soBhyt, null);
 });
 
 test('DTO validates null semantics, names, dates and immutable fields', async () => {
@@ -161,7 +214,7 @@ test('DTO validates null semantics, names, dates and immutable fields', async ()
 });
 
 test('every public profile endpoint requires patient role', () => {
-  for (const action of ['me', 'createOwn', 'updateOwn', 'deleteOwn'] as const) {
+  for (const action of ['me', 'bookable', 'createOwn', 'updateOwn', 'deleteOwn'] as const) {
     assert.deepEqual(Reflect.getMetadata('roles', PatientController.prototype[action]), ['PATIENT']);
     assert.equal(Reflect.getMetadata('__guards__', PatientController.prototype[action]).length, 2);
   }

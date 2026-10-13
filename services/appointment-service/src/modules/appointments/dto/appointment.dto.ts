@@ -1,7 +1,19 @@
 import { Type } from 'class-transformer';
 import { IsDateString, IsInt, IsOptional, IsString, Matches, Max, MaxLength, Min, MinLength } from 'class-validator';
 
+export class SendBookingOtpDto {
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  benhNhanId: number;
+}
+
 export class CreateAppointmentDto {
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  benhNhanId: number;
+
   @Type(() => Number)
   @IsInt()
   bacSiId: number;
@@ -16,6 +28,9 @@ export class CreateAppointmentDto {
   @MinLength(3)
   @MaxLength(2000)
   lyDoKham: string;
+
+  @Matches(/^\d{6}$/, { message: 'Mã OTP gồm 6 chữ số.' })
+  maOtp: string;
 }
 
 export class AvailabilityQueryDto {

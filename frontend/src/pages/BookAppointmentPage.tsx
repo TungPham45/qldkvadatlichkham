@@ -2,17 +2,28 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { errorMessage, hasApiErrorCode } from '../api/client';
 import { AppointmentSlot } from '../components/AppointmentSlot';
+import { BookingOtpModal } from '../components/BookingOtpModal';
 import { Button } from '../components/Button';
-import { ConfirmDialog } from '../components/ConfirmDialog';
 import { EmptyState } from '../components/EmptyState';
 import { ErrorState } from '../components/ErrorState';
 import { LoadingState } from '../components/LoadingState';
+import { PatientPicker } from '../components/PatientPicker';
+import {
+  emptyRelativeForm,
+  RelativeProfileModal,
+  relativeFormFromPatient,
+} from '../components/RelativeProfileModal';
+import { SelectField } from '../components/SelectField';
 import { TextArea } from '../components/TextArea';
 import { appointmentApi, type AvailabilityShift, type AvailabilitySlot } from '../features/appointment/api';
 import { doctorApi } from '../features/doctor/api';
-import { patientApi } from '../features/patient/api';
-import type { DoctorProfile, PatientProfile, Specialty } from '../types';
-import { addDays, ageLabel, formatDate, formatTime, genderLabel, initials, todayIso, weekdayLabel } from '../utils/format';
+import { patientApi, type RelativeProfileInput } from '../features/patient/api';
+import type { BookablePatient, DoctorProfile, Specialty } from '../types';
+import { addDays, ageLabel, formatDate, formatTime, genderLabel, initials, relationLabel, todayIso, weekdayLabel } from '../utils/format';
+
+function isSelfPatient(item: BookablePatient) {
+  return item.laChuHoSo || item.loaiQuanHe === 'BanThan';
+}
 
 function foldName(value: string) {
   return value.normalize('NFD').replace(/\p{M}/gu, '').replace(/đ/gi, 'd').toLowerCase();
@@ -57,11 +68,20 @@ const shiftTone: Record<AvailabilityShift['code'], string> = {
   TOI: 'bg-[#eef2f7] text-navy-800',
 };
 
+function patientOptionLabel(item: BookablePatient) {
+  const relation = relationLabel(item.loaiQuanHe);
+  return item.laChuHoSo || item.loaiQuanHe === 'BanThan'
+    ? `${item.hoTen} (Bản thân)`
+    : `${item.hoTen} (${relation})`;
+}
+
 export function BookAppointmentPage() {
   const navigate = useNavigate();
-  const [patient, setPatient] = useState<PatientProfile | null>(null);
+  const [bookablePatients, setBookablePatients] = useState<BookablePatient[]>([]);
+  const [selectedPatientId, setSelectedPatientId] = useState('');
   const [specialties, setSpecialties] = useState<Specialty[]>([]);
   const [specialtyId, setSpecialtyId] = useState('');
+  const [bhytFilter, setBhytFilter] = useState<'all' | 'yes' | 'no'>('all');
   const [doctors, setDoctors] = useState<DoctorProfile[]>([]);
   const [query, setQuery] = useState('');
   const [doctor, setDoctor] = useState<DoctorProfile | null>(null);
@@ -76,31 +96,50 @@ export function BookAppointmentPage() {
   const [error, setError] = useState('');
   const [missingProfile, setMissingProfile] = useState(false);
   const [formError, setFormError] = useState('');
-  const [confirm, setConfirm] = useState(false);
+  const [otpOpen, setOtpOpen] = useState(false);
+  const [otpBusy, setOtpBusy] = useState(false);
+  const [otpError, setOtpError] = useState('');
+  const [otpMask, setOtpMask] = useState('');
+  const [otpSimCode, setOtpSimCode] = useState('');
+  const [otpMessage, setOtpMessage] = useState('');
+  const [otpCooldown, setOtpCooldown] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [relativeModal, setRelativeModal] = useState<'create' | BookablePatient | null>(null);
+  const [relativeError, setRelativeError] = useState('');
+  const [relativeBusy, setRelativeBusy] = useState(false);
 
   useEffect(() => {
-    Promise.all([patientApi.me(), doctorApi.specialties(), doctorApi.bookable()])
-      .then(([profile, specs, list]) => {
-        setPatient(profile);
+    Promise.all([patientApi.bookable(), doctorApi.specialties()])
+      .then(([patients, specs]) => {
+        if (!patients.length) {
+          setMissingProfile(true);
+          return;
+        }
+        setBookablePatients(patients);
+        const preferred = patients.find((item) => item.laChuHoSo) || patients[0];
+        setSelectedPatientId(String(preferred.id));
         setSpecialties(specs);
-        setDoctors(list);
       })
-      .catch((err) => { if (hasApiErrorCode(err, 'PATIENT_NOT_FOUND')) setMissingProfile(true); else setError(errorMessage(err)); })
+      .catch((err) => {
+        if (hasApiErrorCode(err, 'PATIENT_NOT_FOUND')) setMissingProfile(true);
+        else setError(errorMessage(err));
+      })
       .finally(() => setLoading(false));
   }, []);
 
   useEffect(() => {
-    if (loading) return;
+    if (loading || !selectedPatientId) return;
+    const selected = bookablePatients.find((item) => String(item.id) === selectedPatientId);
+    if (!selected) return;
     setDoctor(null);
     setDates([]);
     setSlots([]);
     setShifts([]);
     setSlot('');
-    doctorApi.bookable(specialtyId || undefined)
+    doctorApi.bookable(specialtyId || undefined, selected.coBhyt === true ? undefined : false)
       .then((list) => setDoctors(list))
       .catch((err) => setFormError(errorMessage(err)));
-  }, [specialtyId, loading]);
+  }, [specialtyId, loading, selectedPatientId, bookablePatients]);
 
   useEffect(() => {
     if (!doctor) return;
@@ -138,47 +177,174 @@ export function BookAppointmentPage() {
     return () => { active = false; };
   }, [doctor, date]);
 
+  const patient = useMemo(
+    () => bookablePatients.find((item) => String(item.id) === selectedPatientId) || null,
+    [bookablePatients, selectedPatientId],
+  );
+
+  useEffect(() => {
+    if (patient && !patient.coBhyt && bhytFilter === 'yes') setBhytFilter('all');
+  }, [patient, bhytFilter]);
+
   const visibleDoctors = useMemo(() => {
     const keyword = foldName(query.trim());
-    if (!keyword) return doctors;
-    return doctors.filter((item) => foldName(item.hoTen).includes(keyword));
-  }, [doctors, query]);
+    return doctors.filter((item) => {
+      if (bhytFilter === 'yes' && !item.nhanBhyt) return false;
+      if (bhytFilter === 'no' && item.nhanBhyt) return false;
+      if (keyword && !foldName(item.hoTen).includes(keyword)) return false;
+      return true;
+    });
+  }, [doctors, query, bhytFilter]);
 
   const chosenSlot = slots.find((item) => item.start === slot);
   const chosenShift = shifts.find((item) => item.slots.some((itemSlot) => itemSlot.start === slot));
+  const patientHasPhone = Boolean(patient?.soDienThoai && /^0\d{9,10}$/.test(patient.soDienThoai));
 
-  async function submit() {
-    if (!doctor || !date || !slot) return;
-    setBusy(true);
+  useEffect(() => {
+    if (otpCooldown <= 0) return;
+    const timer = window.setTimeout(() => setOtpCooldown((value) => Math.max(0, value - 1)), 1000);
+    return () => window.clearTimeout(timer);
+  }, [otpCooldown]);
+
+  async function requestOtp() {
+    if (!patient) return;
+    setOtpBusy(true);
+    setOtpError('');
     setFormError('');
     try {
-      await appointmentApi.book({ bacSiId: doctor.id, ngayHen: date, gioHen: slot, lyDoKham: reason.trim() });
-      navigate('/patient/appointments');
+      const response = await appointmentApi.sendOtp(patient.id);
+      setOtpMask(response.soDienThoaiMask);
+      setOtpSimCode(response.maOtpGiaLap);
+      setOtpMessage(response.thongBao);
+      setOtpCooldown(60);
+      setOtpOpen(true);
     } catch (err) {
       setFormError(errorMessage(err));
-      setConfirm(false);
+      setOtpError(errorMessage(err));
+    } finally {
+      setOtpBusy(false);
+    }
+  }
+
+  async function beginBooking() {
+    if (!doctor || !date || !slot || !patient) return;
+    if (!patientHasPhone) {
+      setFormError('Người tới khám chưa có SĐT hợp lệ. Hãy cập nhật số điện thoại để nhận OTP.');
+      return;
+    }
+    if (reason.trim().length < 3) return;
+    await requestOtp();
+  }
+
+  async function submitWithOtp(maOtp: string) {
+    if (!doctor || !date || !slot || !patient) return;
+    setBusy(true);
+    setOtpError('');
+    setFormError('');
+    try {
+      await appointmentApi.book({
+        benhNhanId: patient.id,
+        bacSiId: doctor.id,
+        ngayHen: date,
+        gioHen: slot,
+        lyDoKham: reason.trim(),
+        maOtp,
+      });
+      navigate('/patient/appointments');
+    } catch (err) {
+      setOtpError(errorMessage(err));
     } finally {
       setBusy(false);
     }
   }
 
+  function openRelativeForm() {
+    setRelativeError('');
+    setRelativeModal('create');
+  }
+
+  async function saveRelative(payload: RelativeProfileInput) {
+    if (relativeBusy || !relativeModal) return;
+    setRelativeBusy(true);
+    setRelativeError('');
+    try {
+      if (relativeModal === 'create') {
+        const created = await patientApi.createRelative(payload);
+        setBookablePatients((current) => [...current, created]);
+        setSelectedPatientId(String(created.id));
+      } else {
+        const updated = await patientApi.updateRelative(relativeModal.id, payload);
+        setBookablePatients((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+        setSelectedPatientId(String(updated.id));
+      }
+      setRelativeModal(null);
+    } catch (err) {
+      setRelativeError(errorMessage(err));
+    } finally {
+      setRelativeBusy(false);
+    }
+  }
+
   if (loading) return <LoadingState />;
-  if (missingProfile) return <section className="rounded-xl border border-line bg-white p-[18px] shadow-card"><h1 className="text-xl font-semibold">Thêm thông tin cá nhân để đặt khám</h1><p className="mt-2 text-muted">Vui lòng tạo lại hồ sơ của bạn trước khi chọn lịch khám.</p><Link className="mt-4 inline-block" to="/patient/profile"><Button>Thêm thông tin cá nhân</Button></Link></section>;
+  if (missingProfile) return <section className="rounded-xl border border-line bg-white p-[18px] shadow-card"><h1 className="text-xl font-semibold">Thêm thông tin cá nhân để đặt khám</h1><p className="mt-2 text-muted">Vui lòng tạo hồ sơ của bạn hoặc được liên kết với hồ sơ người thân trước khi chọn lịch khám.</p><Link className="mt-4 inline-block" to="/patient/profile"><Button>Thêm thông tin cá nhân</Button></Link></section>;
   if (error) return <ErrorState message={error} />;
 
   return (
     <div className="grid grid-cols-1 items-start gap-3.5 wide:grid-cols-[250px_minmax(0,1fr)_300px]">
       <aside className="rounded-2xl border border-line bg-white p-4 shadow-card wide:sticky wide:top-[90px]">
         <h2 className="mb-3 text-base font-semibold">Thông tin đặt khám</h2>
-        <InfoRow label="Người khám" value={patient?.hoTen || '—'} />
-        <InfoRow label="Giới tính" value={genderLabel(patient?.gioiTinh)} />
-        <InfoRow label="Tuổi" value={ageLabel(patient?.ngaySinh) || '—'} />
-        <InfoRow label="Điện thoại" value={patient?.soDienThoai || '—'} />
-        <InfoRow label="Địa chỉ" value={patient?.diaChi || '—'} />
-        <InfoRow label="Bảo hiểm y tế" value={patient?.soBaoHiemYTe ? 'Có' : 'Không'} />
-        {patient?.soBaoHiemYTe ? <InfoRow label="Số BHYT" value={patient.soBaoHiemYTe} /> : null}
-        <Link className="mt-3 inline-block font-bold text-primary-600" to="/patient/appointments">Lịch sử đặt khám</Link>
-        <div className="mt-3.5 rounded-xl bg-[#fff7eb] p-3 text-[13px] leading-snug text-[#8a5a12]">Chỉ đặt giờ trong ca đã duyệt. Ca cả ngày được tách thành ca sáng và ca chiều, nghỉ 11:30–13:30.</div>
+        <PatientPicker
+          label="Người tới khám (*)"
+          patients={bookablePatients}
+          value={selectedPatientId}
+          onChange={setSelectedPatientId}
+          onAddRelative={openRelativeForm}
+        />
+        {patient && !isSelfPatient(patient) ? (
+          <div className="mt-2 rounded-xl bg-[#f3fbf7] px-2.5 py-2 text-xs leading-snug text-success">
+            Đặt hộ · quan hệ: {relationLabel(patient.loaiQuanHe)}
+          </div>
+        ) : null}
+        <div className="mt-3">
+          <InfoRow label="Người khám" value={patient?.hoTen || '—'} />
+          <InfoRow label="Quan hệ" value={patient ? relationLabel(patient.loaiQuanHe) : '—'} />
+          <InfoRow label="Giới tính" value={genderLabel(patient?.gioiTinh)} />
+          <InfoRow label="Tuổi" value={ageLabel(patient?.ngaySinh) || '—'} />
+          <InfoRow label="Điện thoại" value={patient?.soDienThoai || '—'} />
+          <InfoRow label="Địa chỉ" value={patient?.diaChi || '—'} />
+        </div>
+        <div className={`mt-3 rounded-xl px-3 py-2.5 ${patient?.coBhyt ? 'bg-[#eef8f2]' : 'bg-[#f5f7fa]'}`}>
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-sm text-muted">Bảo hiểm y tế</span>
+            <span className={`rounded-md px-2 py-0.5 text-xs font-bold ${patient?.coBhyt ? 'bg-[#d8f0e3] text-success' : 'bg-[#e8edf3] text-muted'}`}>
+              {patient?.coBhyt ? 'Có BHYT' : 'Không BHYT'}
+            </span>
+          </div>
+          {patient?.coBhyt && patient.soBhyt ? (
+            <div className="mt-2 flex items-baseline justify-between gap-3 border-t border-[#d7ebe0] pt-2">
+              <span className="text-xs text-muted">Số thẻ</span>
+              <code className="font-mono text-sm font-semibold tracking-wide text-navy-900">{patient.soBhyt}</code>
+            </div>
+          ) : null}
+          <p className="mt-2 text-xs leading-snug text-muted">
+            {patient?.coBhyt
+              ? 'Có thể chọn bác sĩ nhận BHYT hoặc khám ngoài BHYT.'
+              : 'Chỉ chọn được bác sĩ khám ngoài BHYT (thu phí).'}
+          </p>
+        </div>
+        {patient && !isSelfPatient(patient) ? (
+          <button
+            type="button"
+            className="mt-3 w-full cursor-pointer rounded-xl border border-line bg-white px-3 py-2 text-sm font-semibold text-primary-700 hover:bg-primary-50"
+            onClick={() => { setRelativeError(''); setRelativeModal(patient); }}
+          >
+            Sửa thông tin người khám
+          </button>
+        ) : (
+          <Link className="mt-3 inline-block font-bold text-primary-600" to="/patient/profile">Sửa thông tin cá nhân</Link>
+        )}
+        <Link className="mt-2 inline-block font-bold text-primary-600" to="/patient/appointments">Lịch sử đặt khám</Link>
+        <div className="mt-3.5 rounded-xl bg-[#fff7eb] p-3 text-[13px] leading-snug text-[#8a5a12]">Chỉ đặt giờ trong ca đã duyệt. Ca cả ngày được tách thành ca sáng và ca chiều, nghỉ 11:30–13:30. Có thể chọn người thân trong danh sách để đặt hộ.</div>
       </aside>
 
       <section className="flex flex-col gap-3 rounded-2xl border border-line bg-white p-4 shadow-card">
@@ -186,26 +352,43 @@ export function BookAppointmentPage() {
           <h2 className="text-base font-semibold">Chọn bác sĩ và giờ khám</h2>
           <p className="mt-1 text-sm text-muted">{visibleDoctors.length} bác sĩ đang nhận lịch trong 3 tuần tới.</p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <button type="button" className={`cursor-pointer rounded-full border px-3 py-1.5 font-semibold ${specialtyId === '' ? 'border-primary-600 bg-primary-600 text-white' : 'border-line bg-white'}`} onClick={() => setSpecialtyId('')}>Tất cả</button>
-          {specialties.map((item) => (
-            <button key={item.id} type="button" className={`cursor-pointer rounded-full border px-3 py-1.5 font-semibold ${specialtyId === String(item.id) ? 'border-primary-600 bg-primary-600 text-white' : 'border-line bg-white'}`} onClick={() => setSpecialtyId(String(item.id))}>{item.ten}</button>
-          ))}
+        <div className="grid gap-3 desk:grid-cols-3">
+          <SelectField
+            label="Chuyên khoa"
+            value={specialtyId}
+            onChange={(event) => setSpecialtyId(event.target.value)}
+            aria-label="Lọc theo chuyên khoa"
+          >
+            <option value="">Tất cả chuyên khoa</option>
+            {specialties.map((item) => (
+              <option key={item.id} value={String(item.id)}>{item.ten}</option>
+            ))}
+          </SelectField>
+          <SelectField
+            label="BHYT"
+            value={bhytFilter}
+            onChange={(event) => setBhytFilter(event.target.value as 'all' | 'yes' | 'no')}
+            aria-label="Lọc theo nhận BHYT"
+          >
+            <option value="all">Tất cả</option>
+            <option value="yes" disabled={!patient?.coBhyt}>Nhận BHYT</option>
+            <option value="no">Không BHYT</option>
+          </SelectField>
+          <label className="flex flex-col gap-1.5 text-[13px] font-semibold">
+            <span>Tìm bác sĩ theo tên</span>
+            <span className="flex items-center gap-2 rounded-2xl border border-line bg-white px-3 focus-within:border-primary-600 focus-within:shadow-[0_0_0_3px_rgba(29,106,223,.12)]">
+              <span className="text-muted" aria-hidden="true">⌕</span>
+              <input
+                className="w-full border-0 bg-transparent py-2.5 text-sm font-normal text-ink outline-none"
+                value={query}
+                placeholder="Nhập tên bác sĩ"
+                aria-label="Tìm bác sĩ theo tên"
+                onChange={(event) => setQuery(event.target.value)}
+              />
+              {query ? <button className="cursor-pointer border-0 bg-transparent px-1 text-xs font-semibold text-muted" type="button" onClick={() => setQuery('')}>Xóa</button> : null}
+            </span>
+          </label>
         </div>
-        <label className="flex flex-col gap-1.5">
-          <span className="text-sm font-semibold">Tìm bác sĩ theo tên</span>
-          <span className="flex items-center gap-2 rounded-[10px] border border-line bg-[#f7faff] px-3 focus-within:border-primary-600 focus-within:bg-white">
-            <span className="text-muted" aria-hidden="true">⌕</span>
-            <input
-              className="w-full border-0 bg-transparent py-2.5 text-sm text-ink outline-none"
-              value={query}
-              placeholder="Nhập tên bác sĩ"
-              aria-label="Tìm bác sĩ theo tên"
-              onChange={(event) => setQuery(event.target.value)}
-            />
-            {query ? <button className="cursor-pointer border-0 bg-transparent px-1 text-xs font-semibold text-muted" type="button" onClick={() => setQuery('')}>Xóa</button> : null}
-          </span>
-        </label>
         {visibleDoctors.length === 0 ? <EmptyState title={query.trim() ? 'Không thấy bác sĩ theo tên này' : 'Chưa có bác sĩ nhận lịch'} description={query.trim() ? 'Thử tên khác hoặc bỏ bớt ký tự. Có thể gõ không dấu.' : 'Chưa có ca làm việc đã duyệt phù hợp bộ lọc này.'} /> : null}
         {visibleDoctors.map((item) => {
           const open = doctor?.id === item.id;
@@ -218,6 +401,9 @@ export function BookAppointmentPage() {
                     <div className="flex flex-wrap items-center gap-1.5">
                       <strong className="text-[15px]">{item.hoTen}</strong>
                       {item.bangCap ? <span className="rounded-full bg-primary-50 px-2 py-0.5 text-[11px] font-bold text-primary-700">{item.bangCap}</span> : null}
+                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${item.nhanBhyt ? 'bg-[#e7f7ef] text-success' : 'bg-[#eef2f7] text-muted'}`}>
+                        {item.nhanBhyt ? 'Nhận BHYT' : 'Không BHYT'}
+                      </span>
                     </div>
                     <div className="mt-0.5 text-[13px] font-semibold text-primary-700">Chuyên khoa: {item.chuyenKhoa?.ten || 'Chưa gán chuyên khoa'}</div>
                     <div className="mt-1 text-xs leading-relaxed text-muted">
@@ -291,9 +477,10 @@ export function BookAppointmentPage() {
       <aside className="rounded-2xl border border-line bg-white p-4 shadow-card wide:sticky wide:top-[90px]">
         <h2 className="mb-3 text-base font-semibold">Tóm tắt lịch khám</h2>
         <ol className="mb-4 flex flex-col gap-3">
-          <SummaryStep index={1} done={Boolean(doctor)} title="Chọn bác sĩ" detail={doctor ? `${doctor.hoTen}${doctor.bangCap ? ` · ${doctor.bangCap}` : ''}` : 'Chưa chọn'} />
-          <SummaryStep index={2} done={Boolean(chosenSlot)} title="Chọn ngày và ca" detail={chosenSlot && date ? `${chosenShift?.label || 'Khung giờ'} · ${weekdayLabel(date)} ${formatDate(date)} · ${formatTime(chosenSlot.start)}–${formatTime(chosenSlot.end)}` : 'Chưa chọn giờ'} />
-          <SummaryStep index={3} done={reason.trim().length >= 3 && Boolean(chosenSlot)} title="Xác nhận lý do khám" detail={reason.trim().length >= 3 ? 'Đã nhập lý do' : 'Cần ít nhất 3 ký tự'} />
+          <SummaryStep index={1} done={Boolean(patient)} title="Chọn người tới khám" detail={patient ? patientOptionLabel(patient) : 'Chưa chọn'} />
+          <SummaryStep index={2} done={Boolean(doctor)} title="Chọn bác sĩ" detail={doctor ? `${doctor.hoTen}${doctor.bangCap ? ` · ${doctor.bangCap}` : ''}` : 'Chưa chọn'} />
+          <SummaryStep index={3} done={Boolean(chosenSlot)} title="Chọn ngày và ca" detail={chosenSlot && date ? `${chosenShift?.label || 'Khung giờ'} · ${weekdayLabel(date)} ${formatDate(date)} · ${formatTime(chosenSlot.start)}–{formatTime(chosenSlot.end)}` : 'Chưa chọn giờ'} />
+          <SummaryStep index={4} done={reason.trim().length >= 3 && Boolean(chosenSlot)} title="Xác nhận lý do khám" detail={reason.trim().length >= 3 ? 'Đã nhập lý do' : 'Cần ít nhất 3 ký tự'} />
         </ol>
         {doctor ? (
           <div className="mb-3 rounded-xl bg-[#f7faff] p-3 text-sm">
@@ -313,26 +500,55 @@ export function BookAppointmentPage() {
             <div className="mb-3 rounded-xl bg-[#f7faff] p-3 text-sm">
               <span className="text-[13px] text-muted">Người khám</span>
               <strong className="mt-0.5 block">{patient?.hoTen}</strong>
-              <span className="mt-1 block text-[13px] text-muted">{genderLabel(patient?.gioiTinh)} · {ageLabel(patient?.ngaySinh) || 'Chưa có tuổi'} · BHYT {patient?.soBaoHiemYTe ? 'có' : 'không'}</span>
+              <span className="mt-1 block text-[13px] text-muted">{relationLabel(patient?.loaiQuanHe)} · {genderLabel(patient?.gioiTinh)} · {ageLabel(patient?.ngaySinh) || 'Chưa có tuổi'} · BHYT {patient?.coBhyt ? 'có' : 'không'}</span>
             </div>
             <TextArea label="Lý do khám" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Mô tả ngắn triệu chứng hoặc nhu cầu khám" />
+            {!patientHasPhone ? (
+              <p className="mt-2 rounded-xl bg-red-50 px-3 py-2 text-[13px] text-danger">
+                Người tới khám chưa có SĐT hợp lệ. Cập nhật số điện thoại để nhận OTP xác minh.
+              </p>
+            ) : (
+              <p className="mt-2 text-xs text-muted">Bước tiếp theo sẽ gửi OTP giả lập tới SĐT người tới khám để xác minh.</p>
+            )}
             <div className="mt-3">
-              <Button className="w-full" disabled={reason.trim().length < 3 || busy} onClick={() => setConfirm(true)}>Xác nhận đặt lịch</Button>
+              <Button
+                className="w-full"
+                disabled={!patient || !patientHasPhone || reason.trim().length < 3 || busy || otpBusy}
+                onClick={() => { void beginBooking(); }}
+              >
+                {otpBusy ? 'Đang gửi OTP...' : 'Xác nhận đặt lịch'}
+              </Button>
             </div>
           </>
         ) : (
-          <p className="text-sm leading-relaxed text-muted">Chọn bác sĩ, ngày và một khung giờ còn trống. Ca sáng và ca chiều được tách riêng để dễ đối chiếu giờ nghỉ.</p>
+          <p className="text-sm leading-relaxed text-muted">Chọn người tới khám, bác sĩ, ngày và một khung giờ còn trống. Ca sáng và ca chiều được tách riêng để dễ đối chiếu giờ nghỉ.</p>
         )}
       </aside>
 
-      {confirm && doctor && chosenSlot ? (
-        <ConfirmDialog
-          title="Xác nhận đặt lịch"
-          message={`${doctor.hoTen}${doctor.chuyenKhoa?.ten ? ` · ${doctor.chuyenKhoa.ten}` : ''} · ${chosenShift?.label || 'Khung giờ'} ${formatDate(date)} ${formatTime(chosenSlot.start)}–${formatTime(chosenSlot.end)}. ${reason.trim()}`}
-          confirmLabel="Đặt lịch"
-          busy={busy}
-          onConfirm={submit}
-          onClose={() => setConfirm(false)}
+      {otpOpen && doctor && chosenSlot && patient ? (
+        <BookingOtpModal
+          phoneMask={otpMask}
+          simulatedCode={otpSimCode}
+          message={`${otpMessage} Người khám: ${patient.hoTen} · ${chosenShift?.label || 'Khung giờ'} ${formatDate(date)} ${formatTime(chosenSlot.start)}–${formatTime(chosenSlot.end)}.`}
+          busy={busy || otpBusy}
+          error={otpError}
+          cooldownLeft={otpCooldown}
+          onResend={() => { void requestOtp(); }}
+          onConfirm={(maOtp) => { void submitWithOtp(maOtp); }}
+          onClose={() => { if (!busy && !otpBusy) setOtpOpen(false); }}
+        />
+      ) : null}
+
+      {relativeModal ? (
+        <RelativeProfileModal
+          key={relativeModal === 'create' ? 'create' : relativeModal.id}
+          title={relativeModal === 'create' ? 'Thêm hồ sơ người thân' : 'Sửa hồ sơ người thân'}
+          initial={relativeModal === 'create' ? emptyRelativeForm : relativeFormFromPatient(relativeModal)}
+          busy={relativeBusy}
+          error={relativeError}
+          submitLabel={relativeModal === 'create' ? 'Thêm hồ sơ' : 'Lưu thay đổi'}
+          onClose={() => { if (!relativeBusy) setRelativeModal(null); }}
+          onSubmit={saveRelative}
         />
       ) : null}
     </div>

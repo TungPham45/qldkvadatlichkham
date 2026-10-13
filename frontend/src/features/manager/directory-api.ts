@@ -19,7 +19,8 @@ export interface ManagedPatient {
   soDienThoai: string;
   email: string;
   diaChi: string;
-  soBaoHiemYTe: string | null;
+  coBhyt: boolean;
+  soBhyt: string | null;
   trangThai: ManagedStatus;
 }
 
@@ -34,6 +35,7 @@ export interface ManagedDoctor {
   email: string;
   bangCap: string;
   soChungChiHanhNghe: string;
+  nhanBhyt: boolean;
   trangThai: ManagedStatus;
   chuyenKhoaId: number | null;
   chuyenKhoa: string | null;

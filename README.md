@@ -105,10 +105,20 @@ Mật khẩu của mọi tài khoản seed: `123456`
 | Tài khoản | Màn hình sau khi đăng nhập |
 | --- | --- |
 | bn1 | Cổng bệnh nhân: đặt khám và xem lịch của mình |
-| bs1 | Bác sĩ: đăng ký ca làm việc |
+| bs1 … bs15 | Bác sĩ: đăng ký / xem ca làm việc (đã có lịch mẫu 3 tuần tới) |
 | admin | Quản lý: duyệt ca bác sĩ |
 
-Đăng ký công khai trên `/register` chỉ tạo bệnh nhân. Bác sĩ và quản lý không tự đăng ký.
+Seed có **15 bác sĩ** (bs1–bs15), **8 chuyên khoa**, xen kẽ nhận BHYT / không BHYT. Đăng ký công khai trên `/register` chỉ tạo bệnh nhân. Bác sĩ và quản lý không tự đăng ký.
+
+## Reset database (giữ dữ liệu mẫu)
+
+Seed nằm trong `database/qlphongkham.sql` và được Docker nạp tự động khi volume Postgres **trống**. Muốn khởi tạo lại DB (xóa hết rồi nạp lại seed):
+
+```bash
+npm run db:reset
+```
+
+Lệnh này chạy `docker compose down -v` rồi bật lại Postgres/Redis. Lần khởi động tiếp theo lại có đầy đủ bác sĩ, bệnh nhân và lịch mẫu.
 
 ## Cách dùng lần đầu
 

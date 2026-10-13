@@ -12,6 +12,7 @@
     "dev:infra": "docker compose stop auth-service patient-service staff-service appointment-service api-gateway frontend && docker compose up -d --wait postgres redis",
     "dev": "npm run dev:infra && npm run build:common && concurrently -n auth,patient,staff,appt,medical,notify,gateway,web -c blue,green,yellow,magenta,cyan,gray,white,blue \"npm run dev -w @qlpk/auth-service\" \"npm run dev -w @qlpk/patient-service\" \"npm run dev -w @qlpk/staff-service\" \"npm run dev -w @qlpk/appointment-service\" \"npm run dev -w @qlpk/medical-record-service\" \"npm run dev -w @qlpk/notification-service\" \"npm run dev -w @qlpk/api-gateway\" \"npm run dev -w @qlpk/frontend\"",
     "stack": "docker compose --profile app up -d --build",
+    "db:reset": "node scripts/db-reset.mjs",
     "test": "npm run build:common && node --import tsx --test packages/common/test/*.test.ts services/appointment-service/test/*.test.ts",
     "smoke": "node scripts/smoke.mjs"
   },

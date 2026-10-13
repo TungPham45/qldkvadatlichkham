@@ -6,9 +6,6 @@ export class BenhNhan {
   @Column({ name: 'id_benh_nhan', type: 'bigint', primary: true, generated: 'identity', transformer: bigintColumn })
   idBenhNhan: number;
 
-  @Column({ name: 'id_tai_khoan', type: 'uuid' })
-  idTaiKhoan: string;
-
   @Column({ name: 'ho_ten', length: 150 })
   hoTen: string;
 
@@ -27,8 +24,11 @@ export class BenhNhan {
   @Column({ name: 'dia_chi', type: 'varchar', length: 255, nullable: true })
   diaChi: string | null;
 
-  @Column({ name: 'so_bao_hiem_y_te', type: 'varchar', length: 50, nullable: true })
-  soBaoHiemYTe: string | null;
+  @Column({ name: 'co_bhyt', type: 'boolean', default: false })
+  coBhyt: boolean;
+
+  @Column({ name: 'so_bhyt', type: 'varchar', length: 20, nullable: true })
+  soBhyt: string | null;
 
   @Column({ name: 'trang_thai', length: 30, default: 'Active' })
   trangThai: string;

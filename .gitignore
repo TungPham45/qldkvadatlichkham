@@ -3,6 +3,8 @@ dist/
 .vite/
 *.tsbuildinfo
 coverage/
+database/backups/*.dump
+database/backups/*.sql
 storage/
 .env.local
 .DS_Store

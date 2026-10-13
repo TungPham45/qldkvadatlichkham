@@ -91,7 +91,18 @@ function fixture(initial: BenhNhan | null, options: { linked?: boolean; active?:
     },
   } as unknown as EntityManager;
   const dataSource = {
-    async transaction<T>(work: (scope: EntityManager) => Promise<T>) { transactions += 1; return work(manager); },
+    async transaction<T>(work: (scope: EntityManager) => Promise<T>) {
+      transactions += 1;
+      const snapshot = { stored: stored ? { ...stored } : null, linkOwnerId, removed };
+      try {
+        return await work(manager);
+      } catch (error) {
+        stored = snapshot.stored;
+        linkOwnerId = snapshot.linkOwnerId;
+        removed = snapshot.removed;
+        throw error;
+      }
+    },
     async query(sql: string, params?: unknown[]) { return manager.query(sql, params); },
   } as unknown as DataSource;
   const service = new PatientService({} as PatientRepository, dataSource);

@@ -4,5 +4,6 @@
 **/.vite
 **/*.tsbuildinfo
 coverage
+database/backups
 /.env
 *.md

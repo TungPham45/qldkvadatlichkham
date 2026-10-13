@@ -17,7 +17,12 @@ export class AccountsService {
     const builder = this.dataSource.getRepository(TaiKhoan).createQueryBuilder('account')
       .leftJoin('quan_ly', 'manager', 'manager.id_tai_khoan = account.id_tai_khoan')
       .leftJoin('bac_si', 'doctor', 'doctor.id_tai_khoan = account.id_tai_khoan')
-      .leftJoin('benh_nhan', 'patient', 'patient.id_tai_khoan = account.id_tai_khoan');
+      .leftJoin(
+        'tai_khoan_benh_nhan',
+        'patient_link',
+        'patient_link.id_tai_khoan = account.id_tai_khoan AND patient_link.la_chu_ho_so = TRUE',
+      )
+      .leftJoin('benh_nhan', 'patient', 'patient.id_benh_nhan = patient_link.id_benh_nhan');
     if (query.vaiTro) builder.andWhere('account.vai_tro = :vaiTro', { vaiTro: query.vaiTro });
     if (query.trangThai) builder.andWhere('account.trang_thai = :trangThai', { trangThai: query.trangThai });
     if (query.q?.trim()) {
@@ -221,7 +226,15 @@ export class AccountsService {
 
   async removeProfile(actorId: string, table: 'benh_nhan' | 'bac_si', idColumn: 'id_benh_nhan' | 'id_bac_si', id: number) {
     await this.requireManager(actorId);
-    const rows = await this.dataSource.query(`SELECT id_tai_khoan FROM ${table} WHERE ${idColumn}=$1`, [id]);
+    const rows = table === 'benh_nhan'
+      ? await this.dataSource.query(
+        `SELECT link.id_tai_khoan
+         FROM tai_khoan_benh_nhan link
+         WHERE link.id_benh_nhan = $1 AND link.la_chu_ho_so = TRUE
+         LIMIT 1`,
+        [id],
+      )
+      : await this.dataSource.query(`SELECT id_tai_khoan FROM ${table} WHERE ${idColumn}=$1`, [id]);
     if (!rows.length) throw new AppException(404, 'PROFILE_NOT_FOUND', 'Không tìm thấy hồ sơ cần xóa.');
     return this.remove(actorId, rows[0].id_tai_khoan);
   }
@@ -334,6 +347,7 @@ export class AccountsService {
     const conflict = isDbConflict(error);
     if (conflict?.constraint.includes('ten_dang_nhap')) throw new AppException(409, ErrorCode.USERNAME_ALREADY_EXISTS, 'Tên đăng nhập đã tồn tại.');
     if (conflict?.constraint.includes('email')) throw new AppException(409, ErrorCode.EMAIL_ALREADY_EXISTS, 'Email đã được sử dụng.');
+    if (conflict?.constraint.includes('so_dien_thoai')) throw new AppException(409, ErrorCode.PHONE_ALREADY_EXISTS, 'Số điện thoại đã được sử dụng.');
     if (conflict?.constraint.includes('so_chung_chi')) throw new AppException(409, 'LICENSE_ALREADY_EXISTS', 'Số chứng chỉ hành nghề đã tồn tại.');
     throw error;
   }
@@ -378,11 +392,10 @@ export class AccountsService {
       if (schedules.length) throw new AppException(409, 'ACCOUNT_HAS_RELATED_DATA', linkedDataMessage);
       await manager.query('DELETE FROM bac_si WHERE id_tai_khoan = $1', [account.idTaiKhoan]);
     } else if (account.vaiTro === 'NguoiDung') {
-      const profiles = await manager.query('SELECT id_benh_nhan FROM benh_nhan WHERE id_tai_khoan = $1 FOR UPDATE', [account.idTaiKhoan]);
-      if (!profiles.length) return;
-      const history = await manager.query('SELECT 1 FROM tien_su_benh WHERE id_benh_nhan = $1 LIMIT 1', [profiles[0].id_benh_nhan]);
-      if (history.length) throw new AppException(409, 'ACCOUNT_HAS_RELATED_DATA', linkedDataMessage);
-      await manager.query('DELETE FROM benh_nhan WHERE id_tai_khoan = $1', [account.idTaiKhoan]);
+      // benh_nhan is an independent clinical record. Deleting the login account
+      // only removes tai_khoan_benh_nhan through its FK cascade; the patient and
+      // all medical history remain intact.
+      return;
     }
   }
 }

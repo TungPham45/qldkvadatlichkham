@@ -10,7 +10,18 @@ export interface MedicalRecord {
   prescription:null|{id:number;date:string;status:string;note:string|null;items:Array<{drug:string;strength:string|null;quantity:number;dosage:string|null;frequency:string|null;days:number|null;route:string|null;instructions:string|null}>};
   invoice:null|{id:string;date:string;examFee:string;medicineAmount:string;total:string;status:string;payments:Array<{amount:string;method:string;status:string;paidAt:string}>};
 }
-export interface ReceptionItem { appointmentId:number;date:string;time:string;status:string;checkedInAt:string|null;patient:{id:number;code:string;name:string;phone:string};doctor:{id:number;name:string};reception:null|ReceptionInput&{id:number;recordedAt:string} }
+export interface ReceptionItem {
+  appointmentId:number;
+  code:string;
+  date:string;
+  time:string;
+  reason:string|null;
+  status:string;
+  checkedInAt:string|null;
+  patient:{id:number;code:string;name:string;phone:string|null};
+  doctor:{id:number;code:string|null;name:string;specialty:{id:number;name:string|null}|null};
+  reception:null|ReceptionInput&{id:number;recordedAt:string};
+}
 export interface ReceptionInput { appointmentId:number;weight?:number;height?:number;temperature?:number;systolicBloodPressure?:number;diastolicBloodPressure?:number;heartRate?:number;spo2?:number;initialSymptoms?:string;notes?:string }
 export interface AppNotification { id:number;appointmentId:number|null;type:string;channel:string;title:string;content:string;status:string;readAt:string|null;createdAt:string }
 
@@ -21,6 +32,7 @@ export const clinicalApi={
   createDisease:(body:DiseaseInput)=>api.post<Disease>('/diseases',body).then(r=>r.data),
   updateDisease:(id:number,body:DiseaseInput)=>api.put<Disease>(`/diseases/${id}`,body).then(r=>r.data),
   receptions:(params:Record<string,unknown>)=>api.get<PageResult<ReceptionItem>>('/reception',{params}).then(r=>r.data),
+  confirmAppointment:(id:number)=>api.patch(`/reception/${id}/confirm`).then(r=>r.data),
   createReception:(body:ReceptionInput)=>api.post('/reception',body).then(r=>r.data),
   updateReception:(id:number,body:ReceptionInput)=>api.put(`/reception/${id}`,body).then(r=>r.data),
 };

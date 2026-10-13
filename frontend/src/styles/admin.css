@@ -169,6 +169,8 @@
 .manager-table__description { min-width: 260px; max-width: 430px; }
 .manager-row-actions { display: flex; gap: 6px; }
 .manager-row-actions button { padding: 6px 9px; border: 1px solid #dbe3eb; border-radius: 6px; background: #fff; color: #265da8; cursor: pointer; font-size: 10px; font-weight: 700; }
+.manager-row-actions button.is-primary { border-color: #2160b9; background: #2464c1; color: #fff; }
+.manager-row-actions button:disabled { cursor: not-allowed; opacity: .58; }
 .manager-row-actions button.is-danger { color: #bd333a; }
 .manager-alert { margin: 16px 24px 0; padding: 11px 13px; border-radius: 8px; background: #fff0f0; color: #b02f36; font-size: 12px; }
 .manager-pager { display: flex; min-height: 64px; padding: 12px 24px; align-items: center; justify-content: space-between; gap: 16px; border-top: 1px solid #e5eaee; color: #6f7885; font-size: 11px; }
@@ -199,6 +201,12 @@
 .manager-form__error { margin: 0; color: #bd3238; font-size: 12px; }
 .manager-form__actions { display: flex; padding-top: 4px; justify-content: flex-end; gap: 9px; }
 .manager-form__actions button { min-height: 40px; padding: 0 16px; border: 1px solid #d8e1e8; border-radius: 8px; background: #fff; cursor: pointer; font-size: 12px; font-weight: 700; }
+.reception-table { min-width: 1120px; }
+.reception-detail { display: grid; margin: 0 0 4px; padding: 14px; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px 20px; border: 1px solid #dfe7ee; border-radius: 10px; background: #f8fafc; }
+.reception-detail div { min-width: 0; }
+.reception-detail dt { color: #778395; font-size: 10px; font-weight: 700; text-transform: uppercase; }
+.reception-detail dd { margin: 4px 0 0; color: #243247; font-size: 12px; font-weight: 650; overflow-wrap: anywhere; }
+.manager-form :disabled { background: #f2f5f7; color: #687587; }
 
 .manager-notice__backdrop { position: fixed; inset: 0; z-index: 100; display: grid; padding: 20px; place-items: center; background: rgba(7,28,50,.58); }
 .manager-notice { width: min(100%, 420px); padding: 28px; border-radius: 15px; background: #fff; box-shadow: 0 24px 70px rgba(7,28,50,.3); text-align: center; }
@@ -386,4 +394,5 @@
   .manager-form label.is-wide, .manager-form .is-wide { grid-column: auto; }
   .suggestion-editor__header, .suggestion-editor__footer, .suggestion-add { flex-direction: column; align-items: stretch; }
   .suggestion-medicine-dropdown { left: 16px; right: 16px; }
+  .reception-detail { grid-template-columns: 1fr; }
 }

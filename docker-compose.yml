@@ -1,9 +1,10 @@
+x-node-build: &node-build
+  context: .
+  dockerfile: Dockerfile
+  target: runtime
+
 x-node: &node
   image: qlpk-services:local
-  build:
-    context: .
-    dockerfile: Dockerfile
-    target: runtime
   env_file: .env
   restart: unless-stopped
   environment: &service-env
@@ -16,10 +17,14 @@ x-node: &node
     PATIENT_SERVICE_URL: http://patient-service:3002
     STAFF_SERVICE_URL: http://staff-service:3003
     APPOINTMENT_SERVICE_URL: http://appointment-service:3004
+    MEDICAL_RECORD_SERVICE_URL: http://medical-record-service:3010
+    NOTIFICATION_SERVICE_URL: http://notification-service:3013
     AUTH_PORT: "3001"
     PATIENT_PORT: "3002"
     STAFF_PORT: "3003"
     APPOINTMENT_PORT: "3004"
+    MEDICAL_RECORD_PORT: "3010"
+    NOTIFICATION_PORT: "3013"
     GATEWAY_PORT: "3000"
 
 services:
@@ -27,9 +32,9 @@ services:
     image: postgres:15
     container_name: qlpk-postgres
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: qlphongkham
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-qlphongkham}
       TZ: Asia/Ho_Chi_Minh
       PGTZ: Asia/Ho_Chi_Minh
     ports:
@@ -37,10 +42,8 @@ services:
     volumes:
       - qlpk_pg:/var/lib/postgresql/data
       - ./database/qlphongkham.sql:/docker-entrypoint-initdb.d/01-qlphongkham.sql
-      - ./database/migrations/001_schedule_workflow.sql:/docker-entrypoint-initdb.d/02-schedule-workflow.sql
-      - ./database/migrations/002_medicine_catalog.sql:/docker-entrypoint-initdb.d/03-medicine-catalog.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d qlphongkham"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-qlphongkham}"]
       interval: 5s
       timeout: 5s
       retries: 30
@@ -56,8 +59,28 @@ services:
       timeout: 3s
       retries: 20
 
+  db-migrate:
+    image: postgres:15
+    profiles: ["app", "migration"]
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: ${DB_USER:-postgres}
+      PGPASSWORD: ${DB_PASSWORD:-postgres}
+      PGDATABASE: ${DB_NAME:-qlphongkham}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./database/migrations:/migrations:ro
+      - ./database/run-migrations.sh:/usr/local/bin/run-migrations.sh:ro
+      - ./database/backups:/backups
+    entrypoint: ["bash", "/usr/local/bin/run-migrations.sh"]
+    restart: "no"
+
   auth-service:
     <<: *node
+    build: *node-build
     profiles: ["app"]
     container_name: qlpk-auth
     command: ["node", "services/auth-service/dist/main.js"]
@@ -66,6 +89,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
     healthcheck: &node-health
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:'+process.env.AUTH_PORT+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 5s
@@ -83,6 +108,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
     healthcheck:
       <<: *node-health
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:'+process.env.PATIENT_PORT+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
@@ -97,6 +124,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
     healthcheck:
       <<: *node-health
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:'+process.env.STAFF_PORT+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
@@ -111,11 +140,45 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
     healthcheck:
       <<: *node-health
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:'+process.env.APPOINTMENT_PORT+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+
+  medical-record-service:
+    <<: *node
+    profiles: ["app"]
+    container_name: qlpk-medical-record
+    command: ["node", "services/medical-record-service/dist/main.js"]
+    ports:
+      - "3010:3010"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      <<: *node-health
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:'+process.env.MEDICAL_RECORD_PORT+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+
+  notification-service:
+    <<: *node
+    profiles: ["app"]
+    container_name: qlpk-notification
+    command: ["node", "services/notification-service/dist/main.js"]
+    ports:
+      - "3013:3013"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      <<: *node-health
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:'+process.env.NOTIFICATION_PORT+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
 
   api-gateway:
     <<: *node
@@ -132,6 +195,10 @@ services:
       staff-service:
         condition: service_healthy
       appointment-service:
+        condition: service_healthy
+      medical-record-service:
+        condition: service_healthy
+      notification-service:
         condition: service_healthy
     healthcheck:
       <<: *node-health

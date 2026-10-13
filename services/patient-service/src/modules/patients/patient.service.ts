@@ -322,6 +322,9 @@ export class PatientService {
       if (conflict?.constraint.includes('email')) {
         throw new AppException(409, ErrorCode.EMAIL_ALREADY_EXISTS, 'Email đã được sử dụng.');
       }
+      if (conflict?.constraint.includes('so_dien_thoai')) {
+        throw new AppException(409, ErrorCode.PHONE_ALREADY_EXISTS, 'Số điện thoại đã được sử dụng.');
+      }
       const raced = await this.patients.findByAccount(dto.idTaiKhoan);
       if (raced) return this.toView(raced, dto.idTaiKhoan);
       throw error;

@@ -544,6 +544,8 @@ CREATE INDEX idx_benh_nhan_ho_ten ON benh_nhan(ho_ten);
 CREATE INDEX idx_benh_nhan_so_dien_thoai ON benh_nhan(so_dien_thoai);
 CREATE INDEX idx_benh_nhan_co_bhyt ON benh_nhan(co_bhyt);
 CREATE UNIQUE INDEX uq_benh_nhan_so_bhyt ON benh_nhan (upper(so_bhyt)) WHERE so_bhyt IS NOT NULL;
+CREATE UNIQUE INDEX uq_benh_nhan_email ON benh_nhan (lower(btrim(email))) WHERE email IS NOT NULL AND btrim(email) <> '';
+CREATE UNIQUE INDEX uq_benh_nhan_so_dien_thoai ON benh_nhan (btrim(so_dien_thoai)) WHERE so_dien_thoai IS NOT NULL AND btrim(so_dien_thoai) <> '';
 CREATE INDEX idx_benh_nhan_ngay_sinh ON benh_nhan(ngay_sinh);
 CREATE INDEX idx_tkbn_tai_khoan ON tai_khoan_benh_nhan(id_tai_khoan);
 CREATE INDEX idx_tkbn_benh_nhan ON tai_khoan_benh_nhan(id_benh_nhan);
@@ -552,6 +554,10 @@ CREATE INDEX idx_thuoc_ten_thuoc ON thuoc(ten_thuoc);
 CREATE INDEX idx_thuoc_nhom_thuoc ON thuoc(nhom_thuoc);
 CREATE INDEX idx_lich_hen_trang_thai ON lich_hen(trang_thai);
 CREATE INDEX idx_thong_bao_lich_hen ON thong_bao(id_lich_hen);
+CREATE UNIQUE INDEX uq_bac_si_email ON bac_si (lower(btrim(email))) WHERE email IS NOT NULL AND btrim(email) <> '';
+CREATE UNIQUE INDEX uq_bac_si_so_dien_thoai ON bac_si (btrim(so_dien_thoai)) WHERE so_dien_thoai IS NOT NULL AND btrim(so_dien_thoai) <> '';
+CREATE UNIQUE INDEX uq_bac_si_so_chung_chi_ci ON bac_si (lower(btrim(so_chung_chi_hanh_nghe))) WHERE so_chung_chi_hanh_nghe IS NOT NULL AND btrim(so_chung_chi_hanh_nghe) <> '';
+CREATE INDEX idx_thong_bao_tai_khoan_chua_doc ON thong_bao (id_tai_khoan, ngay_tao DESC) WHERE thoi_gian_doc IS NULL;
 
 -- Chi mot chuyen khoa chinh cho moi bac si.
 CREATE UNIQUE INDEX uq_bac_si_chuyen_khoa_chinh

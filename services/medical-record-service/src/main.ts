@@ -1,13 +1,14 @@
 import './load-env';
 import 'reflect-metadata';
-import { Body, Controller, Get, Inject, Injectable, Module, Param, ParseIntPipe, Post, Put, Query, UseGuards, ValidationPipe } from '@nestjs/common';
+import { Body, Controller, Get, Inject, Injectable, Module, Param, ParseIntPipe, Patch, Post, Put, Query, UseGuards, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { AccessTokenPayload, AllExceptionsFilter, AppException, AppRole, CurrentUser, ErrorCode, JwtAuthGuard, Roles, RolesGuard, isDbConflict } from '@qlpk/common';
+import { AccessTokenPayload, AllExceptionsFilter, AppException, AppRole, AppointmentStatus, CurrentUser, ErrorCode, JwtAuthGuard, Roles, RolesGuard, isDbConflict } from '@qlpk/common';
 import { Type } from 'class-transformer';
-import { IsDateString, IsInt, IsNumber, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
+import { IsDateString, IsIn, IsInt, IsNumber, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
 import { DataSource } from 'typeorm';
+import { ReceptionPayload, ReceptionService } from './reception.service';
 
 class PageQuery {
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) page = 1;
@@ -33,10 +34,10 @@ class DiseaseDto {
 class ReceptionQuery extends PageQuery {
   @IsOptional() @Type(() => Number) @IsInt() appointmentId?: number;
   @IsOptional() @IsDateString() date?: string;
-  @IsOptional() @IsString() status?: string;
+  @IsOptional() @IsString() @IsIn(Object.values(AppointmentStatus)) status?: string;
 }
 
-class ReceptionDto {
+class ReceptionDto implements ReceptionPayload {
   @Type(() => Number) @IsInt() @Min(1) appointmentId!: number;
   @IsOptional() @Type(() => Number) @IsNumber() @Min(0.01) weight?: number;
   @IsOptional() @Type(() => Number) @IsNumber() @Min(0.01) height?: number;
@@ -58,7 +59,15 @@ class MedicalService {
   async history(user: AccessTokenPayload, q: PageQuery) {
     const where: string[] = []; const values: unknown[] = [];
     const add = (sql: string, value: unknown) => { values.push(value); where.push(sql.replace('?', `$${values.length}`)); };
-    if (user.role === AppRole.PATIENT) add('bn.id_tai_khoan = ?', user.sub);
+    if (user.role === AppRole.PATIENT) {
+      add(`EXISTS (
+        SELECT 1
+        FROM tai_khoan_benh_nhan patient_link
+        WHERE patient_link.id_benh_nhan = bn.id_benh_nhan
+          AND patient_link.id_tai_khoan = ?
+          AND patient_link.trang_thai = 'Active'
+      )`, user.sub);
+    }
     else if (user.role === AppRole.DOCTOR) add('bs.id_tai_khoan = ?', user.sub);
     else if (q.patientId) add('pk.id_benh_nhan = ?', q.patientId);
     if (user.role === AppRole.MANAGER && q.doctorId) add('pk.id_bac_si = ?', q.doctorId);
@@ -99,22 +108,30 @@ class MedicalService {
 }
 
 @Controller()
-@UseGuards(JwtAuthGuard, RolesGuard)
-class HealthController {
-  constructor(@Inject(MedicalService) private readonly service:MedicalService){}
+class SystemHealthController {
   @Get('health') health(){return{status:'ok',service:'medical-record-service'}}
+}
+
+@Controller()
+@UseGuards(JwtAuthGuard, RolesGuard)
+class MedicalController {
+  constructor(
+    @Inject(MedicalService) private readonly service:MedicalService,
+    @Inject(ReceptionService) private readonly receptionService:ReceptionService,
+  ){}
   @Get('medical-records/history') @Roles(AppRole.PATIENT,AppRole.DOCTOR,AppRole.MANAGER) history(@CurrentUser()u:AccessTokenPayload,@Query()q:PageQuery){return this.service.history(u,q)}
   @Get('diseases') @Roles(AppRole.DOCTOR,AppRole.MANAGER) diseases(@Query()q:DiseaseQuery){return this.service.diseases(q)}
   @Get('diseases/:id') @Roles(AppRole.DOCTOR,AppRole.MANAGER) disease(@Param('id',ParseIntPipe)id:number){return this.service.disease(id)}
   @Post('diseases') @Roles(AppRole.MANAGER) createDisease(@Body()d:DiseaseDto){return this.service.saveDisease(null,d)}
   @Put('diseases/:id') @Roles(AppRole.MANAGER) updateDisease(@Param('id',ParseIntPipe)id:number,@Body()d:DiseaseDto){return this.service.saveDisease(id,d)}
-  @Get('reception') @Roles(AppRole.DOCTOR,AppRole.MANAGER) receptions(@CurrentUser()u:AccessTokenPayload,@Query()q:ReceptionQuery){return this.service.receptions(u,q)}
+  @Get('reception') @Roles(AppRole.DOCTOR,AppRole.MANAGER) receptions(@CurrentUser()u:AccessTokenPayload,@Query()q:ReceptionQuery){return this.receptionService.list(u,q)}
+  @Patch('reception/:appointmentId/confirm') @Roles(AppRole.DOCTOR,AppRole.MANAGER) confirmAppointment(@CurrentUser()u:AccessTokenPayload,@Param('appointmentId',ParseIntPipe)id:number){return this.receptionService.confirm(u,id)}
   @Get('reception/:appointmentId') @Roles(AppRole.DOCTOR,AppRole.MANAGER) async reception(@CurrentUser()u:AccessTokenPayload,@Param('appointmentId',ParseIntPipe)id:number){const result=await this.service.receptions(u,Object.assign(new ReceptionQuery(),{page:1,limit:1,appointmentId:id}));if(!result.items.length)throw new AppException(404,'RECEPTION_NOT_FOUND','Không tìm thấy lịch hẹn phù hợp.');return result.items[0]}
-  @Post('reception') @Roles(AppRole.DOCTOR,AppRole.MANAGER) createReception(@CurrentUser()u:AccessTokenPayload,@Body()d:ReceptionDto){return this.service.saveReception(u,d.appointmentId,d,false)}
-  @Put('reception/:appointmentId') @Roles(AppRole.DOCTOR,AppRole.MANAGER) updateReception(@CurrentUser()u:AccessTokenPayload,@Param('appointmentId',ParseIntPipe)id:number,@Body()d:ReceptionDto){return this.service.saveReception(u,id,d,true)}
+  @Post('reception') @Roles(AppRole.DOCTOR,AppRole.MANAGER) createReception(@CurrentUser()u:AccessTokenPayload,@Body()d:ReceptionDto){return this.receptionService.save(u,d.appointmentId,d,false)}
+  @Put('reception/:appointmentId') @Roles(AppRole.DOCTOR,AppRole.MANAGER) updateReception(@CurrentUser()u:AccessTokenPayload,@Param('appointmentId',ParseIntPipe)id:number,@Body()d:ReceptionDto){return this.receptionService.save(u,id,d,true)}
 }
 
-@Module({imports:[TypeOrmModule.forRoot({type:'postgres',host:process.env.DB_HOST||'localhost',port:Number(process.env.DB_PORT||5433),username:process.env.DB_USER||'postgres',password:process.env.DB_PASSWORD||'postgres',database:process.env.DB_NAME||'qlphongkham',synchronize:false}),JwtModule.register({secret:process.env.JWT_ACCESS_SECRET})],controllers:[HealthController],providers:[MedicalService]})
+@Module({imports:[TypeOrmModule.forRoot({type:'postgres',host:process.env.DB_HOST||'localhost',port:Number(process.env.DB_PORT||5433),username:process.env.DB_USER||'postgres',password:process.env.DB_PASSWORD||'postgres',database:process.env.DB_NAME||'qlphongkham',synchronize:false}),JwtModule.register({secret:process.env.JWT_ACCESS_SECRET})],controllers:[SystemHealthController,MedicalController],providers:[MedicalService,ReceptionService]})
 class AppModule {}
 
 async function bootstrap() {

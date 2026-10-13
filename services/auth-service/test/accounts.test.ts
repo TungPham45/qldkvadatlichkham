@@ -97,15 +97,16 @@ test('doctor account with schedules is retained without cascading schedule delet
   assert.equal(result.mutations().deleted, 0);
 });
 
-test('patient account with medical history is retained', async () => {
+test('patient account can be removed without deleting its independent clinical record', async () => {
   const result = fixture(account('patient', 'NguoiDung'), { related: true });
-  await assert.rejects(result.service.remove('actor', 'patient'), rejectsWith('ACCOUNT_HAS_RELATED_DATA'));
+  assert.deepEqual(await result.service.remove('actor', 'patient'), { success: true });
   assert.equal(result.sql.some((statement) => statement.startsWith('DELETE')), false);
+  assert.equal(result.mutations().deleted, 1);
 });
 
 test('clinical foreign key conflicts produce a Vietnamese retention explanation', async () => {
-  const result = fixture(account('patient', 'NguoiDung'), { foreignKey: true });
-  await assert.rejects(result.service.remove('actor', 'patient'), (error) => {
+  const result = fixture(account('doctor', 'BacSi'), { foreignKey: true });
+  await assert.rejects(result.service.remove('actor', 'doctor'), (error) => {
     assert.ok(rejectsWith('ACCOUNT_HAS_RELATED_DATA')(error));
     assert.match((error as AppException).message, /khóa hoặc ngừng hoạt động/);
     return true;
@@ -113,9 +114,9 @@ test('clinical foreign key conflicts produce a Vietnamese retention explanation'
   assert.equal(result.mutations().deleted, 0);
 });
 
-test('an unused patient profile and its account can be removed', async () => {
+test('removing an unused patient account preserves the patient profile', async () => {
   const result = fixture(account('patient', 'NguoiDung'));
   assert.deepEqual(await result.service.remove('actor', 'patient'), { success: true });
-  assert.ok(result.sql.some((statement) => statement.startsWith('DELETE FROM benh_nhan')));
+  assert.equal(result.sql.some((statement) => statement.startsWith('DELETE FROM benh_nhan')), false);
   assert.equal(result.mutations().deleted, 1);
 });

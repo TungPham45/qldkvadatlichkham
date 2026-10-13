@@ -37,9 +37,14 @@ class NotificationService {
   async remove(id:number){const r=await this.db.query(`DELETE FROM thong_bao WHERE id_thong_bao=$1 RETURNING id_thong_bao`,[id]);if(!r.length)throw new AppException(404,'NOTIFICATION_NOT_FOUND','Không tìm thấy thông báo.');return{success:true}}
 }
 
+@Controller()
+class SystemHealthController {
+  @Get('health') health(){return{status:'ok',service:'notification-service'}}
+}
+
 @Controller('notifications')
 @UseGuards(JwtAuthGuard,RolesGuard)
-class HealthController {
+class NotificationsController {
   constructor(@Inject(NotificationService) private readonly service:NotificationService){}
   @Get() list(@CurrentUser()u:AccessTokenPayload,@Query()q:NotificationQuery){return this.service.list(u.sub,q)}
   @Get('unread-count') count(@CurrentUser()u:AccessTokenPayload){return this.service.count(u.sub)}
@@ -51,7 +56,7 @@ class HealthController {
   @Delete(':id') @Roles(AppRole.MANAGER) remove(@Param('id',ParseIntPipe)id:number){return this.service.remove(id)}
 }
 
-@Module({imports:[TypeOrmModule.forRoot({type:'postgres',host:process.env.DB_HOST||'localhost',port:Number(process.env.DB_PORT||5433),username:process.env.DB_USER||'postgres',password:process.env.DB_PASSWORD||'postgres',database:process.env.DB_NAME||'qlphongkham',synchronize:false}),JwtModule.register({secret:process.env.JWT_ACCESS_SECRET})],controllers:[HealthController],providers:[NotificationService]})
+@Module({imports:[TypeOrmModule.forRoot({type:'postgres',host:process.env.DB_HOST||'localhost',port:Number(process.env.DB_PORT||5433),username:process.env.DB_USER||'postgres',password:process.env.DB_PASSWORD||'postgres',database:process.env.DB_NAME||'qlphongkham',synchronize:false}),JwtModule.register({secret:process.env.JWT_ACCESS_SECRET})],controllers:[SystemHealthController,NotificationsController],providers:[NotificationService]})
 class AppModule {}
 
 async function bootstrap() {

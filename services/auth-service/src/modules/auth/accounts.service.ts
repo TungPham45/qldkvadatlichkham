@@ -50,11 +50,30 @@ export class AccountsService {
         .addSelect('COALESCE(manager.ho_ten, doctor.ho_ten, patient.ho_ten)', 'hoTen')
         .addSelect('COALESCE(manager.email, doctor.email, patient.email)', 'email')
         .addSelect('COALESCE(manager.so_dien_thoai, doctor.so_dien_thoai, patient.so_dien_thoai)', 'soDienThoai')
+        .addSelect('COALESCE(manager.quyen_thanh_toan, FALSE)', 'canManagePayments')
         .orderBy('account.ten_dang_nhap', 'ASC').addOrderBy('account.id_tai_khoan', 'ASC')
         .offset((page - 1) * pageSize).limit(pageSize).getRawMany(),
       builder.clone().getCount(),
     ]);
     return { items: items.map((item) => ({ ...item, role: vaiTroToRole(item.vaiTro) })), total, page, pageSize };
+  }
+
+  async updatePaymentPermission(actorId: string, accountId: string, enabled: boolean) {
+    await this.requireManager(actorId);
+    const rows = await this.dataSource.query(
+      `UPDATE quan_ly manager
+       SET quyen_thanh_toan = $2
+       FROM tai_khoan account
+       WHERE manager.id_tai_khoan = $1
+         AND account.id_tai_khoan = manager.id_tai_khoan
+         AND account.vai_tro = 'Admin'
+       RETURNING manager.id_tai_khoan id, manager.quyen_thanh_toan "canManagePayments"`,
+      [accountId, enabled],
+    );
+    if (!rows.length) {
+      throw new AppException(404, 'MANAGER_ACCOUNT_NOT_FOUND', 'Không tìm thấy tài khoản quản trị để cấp quyền thanh toán.');
+    }
+    return rows[0];
   }
 
   async listPatients(actorId: string, query: ProfilesQueryDto) {

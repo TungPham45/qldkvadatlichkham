@@ -18,12 +18,16 @@ x-node: &node
     STAFF_SERVICE_URL: http://staff-service:3003
     APPOINTMENT_SERVICE_URL: http://appointment-service:3004
     MEDICAL_RECORD_SERVICE_URL: http://medical-record-service:3010
+    PHARMACY_SERVICE_URL: http://pharmacy-service:3011
+    BILLING_SERVICE_URL: http://billing-service:3012
     NOTIFICATION_SERVICE_URL: http://notification-service:3013
     AUTH_PORT: "3001"
     PATIENT_PORT: "3002"
     STAFF_PORT: "3003"
     APPOINTMENT_PORT: "3004"
     MEDICAL_RECORD_PORT: "3010"
+    PHARMACY_PORT: "3011"
+    BILLING_PORT: "3012"
     NOTIFICATION_PORT: "3013"
     GATEWAY_PORT: "3000"
 
@@ -164,6 +168,38 @@ services:
       <<: *node-health
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:'+process.env.MEDICAL_RECORD_PORT+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
 
+  billing-service:
+    <<: *node
+    profiles: ["app"]
+    container_name: qlpk-billing
+    command: ["node", "services/billing-service/dist/main.js"]
+    ports:
+      - "3012:3012"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      <<: *node-health
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:'+process.env.BILLING_PORT+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+
+  pharmacy-service:
+    <<: *node
+    profiles: ["app"]
+    container_name: qlpk-pharmacy
+    command: ["node", "services/pharmacy-service/dist/main.js"]
+    ports:
+      - "3011:3011"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      <<: *node-health
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:'+process.env.PHARMACY_PORT+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+
   notification-service:
     <<: *node
     profiles: ["app"]
@@ -197,6 +233,10 @@ services:
       appointment-service:
         condition: service_healthy
       medical-record-service:
+        condition: service_healthy
+      billing-service:
+        condition: service_healthy
+      pharmacy-service:
         condition: service_healthy
       notification-service:
         condition: service_healthy

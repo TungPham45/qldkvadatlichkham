@@ -6,6 +6,7 @@ export interface AuthUser {
   role: AppRole;
   vaiTro: string;
   trangThai: string;
+  canManagePayments?: boolean;
 }
 
 export interface AuthResponse {

@@ -294,8 +294,8 @@ export class AuthService {
     }
   }
 
-  private issueTokens(account: TaiKhoan) {
-    const user = this.toPublicUser(account);
+  private async issueTokens(account: TaiKhoan) {
+    const user = await this.toPublicUser(account);
     const accessPayload: AccessTokenPayload = { ...user, sub: account.idTaiKhoan, type: 'access' };
     const refreshPayload: AccessTokenPayload = { ...user, sub: account.idTaiKhoan, type: 'refresh' };
     const accessToken = this.jwt.sign(accessPayload, {
@@ -309,13 +309,14 @@ export class AuthService {
     return { accessToken, refreshToken, user };
   }
 
-  private toPublicUser(account: TaiKhoan) {
+  private async toPublicUser(account: TaiKhoan) {
     return {
       id: account.idTaiKhoan,
       username: account.tenDangNhap,
       vaiTro: account.vaiTro as VaiTroValue,
       role: vaiTroToRole(account.vaiTro),
       trangThai: account.trangThai,
+      canManagePayments: await this.accounts.hasPaymentPermission(account.idTaiKhoan),
     };
   }
 }

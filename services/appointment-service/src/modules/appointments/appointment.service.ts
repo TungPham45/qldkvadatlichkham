@@ -184,7 +184,7 @@ export class AppointmentService {
         }
         // Use the same doctor lock as schedule management, then validate the current approved slots.
         const doctors = await manager.query(
-          'SELECT id_bac_si FROM bac_si WHERE id_bac_si = $1 AND trang_thai = $2 FOR UPDATE',
+          'SELECT id_bac_si, id_tai_khoan FROM bac_si WHERE id_bac_si = $1 AND trang_thai = $2 FOR UPDATE',
           [dto.bacSiId, 'Active'],
         );
         if (!doctors.length) {
@@ -253,10 +253,20 @@ export class AppointmentService {
         );
         await manager.query(
           `INSERT INTO thong_bao
-             (id_tai_khoan, id_lich_hen, loai, kenh, tieu_de, noi_dung, trang_thai, thoi_gian_gui)
-           VALUES ($1, $2, 'Dat lich', 'Ung dung', 'Đặt lịch khám thành công', $3, 'Chua doc', CURRENT_TIMESTAMP)`,
-          [accountId, saved.idLichHen, `Lịch khám cho ${patient.hoTen} ngày ${date} lúc ${start} đã được ghi nhận.`],
+             (id_tai_khoan, id_lich_hen, loai, kenh, tieu_de, noi_dung, trang_thai, thoi_gian_gui, duong_dan, ma_su_kien)
+           VALUES ($1, $2, 'Dat lich', 'Ung dung', 'Đặt lịch khám thành công', $3, 'Chua doc', CURRENT_TIMESTAMP, '/patient/appointments', $4)
+           ON CONFLICT (ma_su_kien) DO NOTHING`,
+          [accountId, saved.idLichHen, `Lịch khám cho ${patient.hoTen} ngày ${date} lúc ${start} đã được ghi nhận.`, `appointment-booked-patient:${saved.idLichHen}`],
         );
+        if (doctors[0].id_tai_khoan) {
+          await manager.query(
+            `INSERT INTO thong_bao
+               (id_tai_khoan, id_lich_hen, loai, kenh, tieu_de, noi_dung, trang_thai, thoi_gian_gui, duong_dan, ma_su_kien)
+             VALUES ($1, $2, 'Lich hen moi', 'Ung dung', 'Có lịch hẹn mới chờ xác nhận', $3, 'Chua doc', CURRENT_TIMESTAMP, '/doctor/appointments/confirmation', $4)
+             ON CONFLICT (ma_su_kien) DO NOTHING`,
+            [doctors[0].id_tai_khoan, saved.idLichHen, `${patient.hoTen} đặt lịch ngày ${date} lúc ${start}.`, `appointment-booked-doctor:${saved.idLichHen}`],
+          );
+        }
         return { saved, endTime: matched.slot.end };
       });
       await this.redis.client.del(this.otpKey(accountId, dto.benhNhanId));
@@ -291,6 +301,50 @@ export class AppointmentService {
       total: result.total,
       items: result.items.map((item) => this.toView(item, doctors.get(item.idBacSi))),
     };
+  }
+
+  async cancel(accountId: string, appointmentId: number, reason: string) {
+    const result = await this.dataSource.transaction(async (manager) => {
+      const rows = await manager.query(
+        `SELECT lh.id_lich_hen::int id, lh.id_bac_si::int "doctorId", lh.ngay_hen::text date,
+                lh.gio_hen::text time, lh.trang_thai status, bn.ho_ten "patientName",
+                bs.id_tai_khoan "doctorAccountId"
+         FROM lich_hen lh
+         JOIN benh_nhan bn ON bn.id_benh_nhan = lh.id_benh_nhan
+         JOIN bac_si bs ON bs.id_bac_si = lh.id_bac_si
+         WHERE lh.id_lich_hen = $1 AND lh.id_tai_khoan_dat = $2
+         FOR UPDATE OF lh`,
+        [appointmentId, accountId],
+      ) as Array<{id:number;doctorId:number;date:string;time:string;status:string;patientName:string;doctorAccountId:string|null}>;
+      if (!rows.length) throw new AppException(404, 'APPOINTMENT_NOT_FOUND', 'Không tìm thấy lịch hẹn thuộc tài khoản của bạn.');
+      const appointment = rows[0];
+      if (appointment.status !== AppointmentStatus.PENDING && appointment.status !== AppointmentStatus.CONFIRMED) {
+        throw new AppException(409, 'APPOINTMENT_STATUS_INVALID', 'Chỉ có thể hủy lịch đang chờ xác nhận hoặc đã xác nhận và chưa check-in.');
+      }
+      const cancellationReason = reason.trim();
+      await manager.query(
+        `UPDATE lich_hen SET trang_thai=$2, ly_do_huy=$3, thoi_gian_huy=CURRENT_TIMESTAMP, ngay_cap_nhat=CURRENT_TIMESTAMP
+         WHERE id_lich_hen=$1`,
+        [appointmentId, AppointmentStatus.CANCELLED, cancellationReason],
+      );
+      await manager.query(
+        `INSERT INTO lich_su_lich_hen(id_lich_hen,trang_thai_cu,trang_thai_moi,loai_thay_doi,nguoi_thay_doi,ly_do)
+         VALUES($1,$2,$3,'Benh nhan huy lich',$4,$5)`,
+        [appointmentId, appointment.status, AppointmentStatus.CANCELLED, accountId, cancellationReason],
+      );
+      if (appointment.doctorAccountId) {
+        await manager.query(
+          `INSERT INTO thong_bao
+             (id_tai_khoan,id_lich_hen,loai,kenh,tieu_de,noi_dung,trang_thai,thoi_gian_gui,duong_dan,ma_su_kien)
+           VALUES($1,$2,'Benh nhan huy lich','Ung dung','Bệnh nhân đã hủy lịch',$3,'Chua doc',CURRENT_TIMESTAMP,'/doctor/appointments/confirmation',$4)
+           ON CONFLICT (ma_su_kien) DO NOTHING`,
+          [appointment.doctorAccountId, appointmentId, `${appointment.patientName} đã hủy lịch ngày ${appointment.date} lúc ${appointment.time.slice(0,5)}. Lý do: ${cancellationReason}.`, `appointment-cancelled-doctor:${appointmentId}`],
+        );
+      }
+      return appointment;
+    });
+    await this.invalidate(result.doctorId, result.date);
+    return { id: result.id, status: AppointmentStatus.CANCELLED };
   }
 
   stats() {

@@ -1,7 +1,7 @@
-import { Body, Controller, Delete, Get, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { AccessTokenPayload, AppRole, CurrentUser, InternalGuard, JwtAuthGuard, Roles, RolesGuard } from '@qlpk/common';
 import { AppointmentService } from './appointment.service';
-import { AvailabilityQueryDto, CreateAppointmentDto, MyAppointmentsQueryDto, SendBookingOtpDto } from './dto/appointment.dto';
+import { AvailabilityQueryDto, CancelAppointmentDto, CreateAppointmentDto, MyAppointmentsQueryDto, SendBookingOtpDto } from './dto/appointment.dto';
 
 @Controller('appointments')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -30,6 +30,12 @@ export class AppointmentController {
   @Roles(AppRole.PATIENT)
   mine(@CurrentUser() user: AccessTokenPayload, @Query() query: MyAppointmentsQueryDto) {
     return this.appointments.mine(user.sub, query.page ?? 1, query.pageSize ?? 10, query.upcoming === 'true');
+  }
+
+  @Patch(':id/cancel')
+  @Roles(AppRole.PATIENT)
+  cancel(@CurrentUser() user: AccessTokenPayload, @Param('id', ParseIntPipe) id: number, @Body() dto: CancelAppointmentDto) {
+    return this.appointments.cancel(user.sub, id, dto.reason);
   }
 }
 

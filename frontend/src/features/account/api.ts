@@ -15,6 +15,7 @@ export interface ManagedAccount {
   soDienThoai: string | null;
   ngayTao: string;
   ngayCapNhat: string;
+  canManagePayments: boolean;
 }
 
 export const accountApi = {
@@ -23,5 +24,7 @@ export const accountApi = {
       .then((response) => response.data),
   updateStatus: (id: string, trangThai: AccountStatus) =>
     api.patch(`/auth/accounts/${id}/status`, { trangThai }).then((response) => response.data),
+  setPaymentPermission: (id: string, enabled: boolean) =>
+    api.patch(`/auth/accounts/${id}/payment-permission`, { enabled }).then((response) => response.data),
   remove: (id: string) => api.delete(`/auth/accounts/${id}`).then((response) => response.data),
 };

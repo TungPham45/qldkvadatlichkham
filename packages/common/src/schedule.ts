@@ -23,8 +23,26 @@ export const AppointmentStatus = {
   CONFIRMED: 'Da xac nhan',
   CHECKED_IN: 'Da check-in',
   IN_PROGRESS: 'Dang kham',
+  EXAM_COMPLETED: 'Da kham xong',
   COMPLETED: 'Hoan thanh',
   CANCELLED: 'Huy',
+} as const;
+
+export const PaymentStatus = {
+  UNPAID: 'Chua thanh toan',
+  PARTIALLY_PAID: 'Thanh toan mot phan',
+  PAID: 'Da thanh toan',
+} as const;
+
+export const PaymentMethod = {
+  CASH: 'Tien mat',
+  BANK_TRANSFER: 'Chuyen khoan',
+} as const;
+
+export const PaymentTransactionStatus = {
+  SUCCESS: 'Thanh cong',
+  FAILED: 'That bai',
+  REFUNDED: 'Hoan tien',
 } as const;
 
 export const SHIFTS = [

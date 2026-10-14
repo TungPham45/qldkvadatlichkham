@@ -1,12 +1,12 @@
 # Quản lý đặt lịch phòng khám
 
-Hệ thống phase 1 gồm cổng bệnh nhân, đăng ký ca của bác sĩ, duyệt ca và đặt khám. Trình duyệt chỉ gọi API Gateway. Redis chỉ dùng trong appointment-service để khóa slot và nhớ tạm khung giờ trống.
+Hệ thống gồm cổng bệnh nhân, lịch hẹn, tiếp nhận, hồ sơ khám, dược và thanh toán viện phí. Trình duyệt chỉ gọi API Gateway. Redis dùng trong appointment-service để khóa slot và nhớ tạm khung giờ trống.
 
 ## Máy cần có gì
 
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) đang chạy
 - Node.js khi sửa code hoặc chạy `npm test`
-- Cổng trống: `5173`, `3000`–`3004`, `3010`, `3013`, `5433`, `6379`
+- Cổng trống: `5173`, `3000`–`3004`, `3010`–`3013`, `5433`, `6379`
 
 Copy cả thư mục project sang máy mới. Không cần tạo database bằng tay. Máy mới thiếu `.env` thì copy `.env.example` thành `.env`.
 
@@ -18,7 +18,7 @@ Mở terminal tại thư mục gốc của project, không phải thư mục `fr
 npm run dev
 ```
 
-Lệnh này tắt các container app (auth, patient, staff, appointment, medical-record, notification, gateway, frontend) nếu chúng đang chiếm cổng, bật PostgreSQL và Redis, chạy migration có kiểm tra, rồi chạy app trên máy host với watch:
+Lệnh này tắt các container app nếu chúng đang chiếm cổng, bật PostgreSQL và Redis, chạy migration có kiểm tra, rồi chạy app trên máy host với watch:
 
 | Process | Cổng |
 | --- | --- |
@@ -27,6 +27,8 @@ Lệnh này tắt các container app (auth, patient, staff, appointment, medical
 | staff-service | 3003 |
 | appointment-service | 3004 |
 | medical-record-service | 3010 |
+| pharmacy-service | 3011 |
+| billing-service | 3012 |
 | notification-service | 3013 |
 | API Gateway | 3000 |
 | frontend (Vite) | 5173 |
@@ -51,7 +53,7 @@ Dùng khi không sửa code. Dừng `npm run dev` trước, vì hai cách cùng 
 npm run stack
 ```
 
-Lệnh này là `docker compose --profile app up -d --build`. Profile `app` bật auth-service, patient-service, staff-service, appointment-service, medical-record-service, notification-service, API Gateway và giao diện nginx, cùng Postgres và Redis. Migration có backup chạy xong trước khi các service kết nối database. Các service trong container nối Postgres qua host `postgres` cổng `5432` và Redis qua host `redis`.
+Lệnh này là `docker compose --profile app up -d --build`. Profile `app` bật auth-service, patient-service, staff-service, appointment-service, medical-record-service, pharmacy-service, billing-service, notification-service, API Gateway và giao diện nginx, cùng Postgres và Redis. Migration có backup chạy xong trước khi các service kết nối database. Các service trong container nối Postgres qua host `postgres` cổng `5432` và Redis qua host `redis`.
 
 Đợi container khỏe:
 
@@ -92,6 +94,8 @@ docker compose --profile app up -d --build frontend
 | staff-service | http://localhost:3003 |
 | appointment-service | http://localhost:3004 |
 | medical-record-service | http://localhost:3010 |
+| pharmacy-service | http://localhost:3011 |
+| billing-service | http://localhost:3012 |
 | notification-service | http://localhost:3013 |
 | PostgreSQL | localhost:5433, database `qlphongkham`, user/password `postgres` / `postgres` |
 | Redis | localhost:6379 |

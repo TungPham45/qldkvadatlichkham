@@ -274,7 +274,9 @@ export class DoctorScheduleService {
       this.assertNotPast(row);
       await this.assertNoOverlap(manager, row.idBacSi, row.ngayLamViec, row.gioBatDau, row.gioKetThuc, id);
       row.trangThai = ScheduleStatus.APPROVED;
-      return manager.getRepository(LichLamViec).save(row);
+      const result = await manager.getRepository(LichLamViec).save(row);
+      await this.notifyScheduleDecision(manager, result, true);
+      return result;
     });
     await this.invalidateAvailability(saved.idBacSi, saved.ngayLamViec);
     return toScheduleView(saved);
@@ -290,7 +292,9 @@ export class DoctorScheduleService {
       await this.assertNoAppointments(manager, row);
       row.trangThai = ScheduleStatus.REJECTED;
       row.ghiChu = dto.lyDo.trim();
-      return manager.getRepository(LichLamViec).save(row);
+      const result = await manager.getRepository(LichLamViec).save(row);
+      await this.notifyScheduleDecision(manager, result, false, row.ghiChu);
+      return result;
     });
     await this.invalidateAvailability(saved.idBacSi, saved.ngayLamViec);
     return toScheduleView(saved);
@@ -330,7 +334,9 @@ export class DoctorScheduleService {
         this.assertNotPast(row);
         await this.assertNoOverlap(manager, row.idBacSi, row.ngayLamViec, row.gioBatDau, row.gioKetThuc, row.idLichLamViec);
         row.trangThai = ScheduleStatus.APPROVED;
-        approved.push(await repository.save(row));
+        const result = await repository.save(row);
+        await this.notifyScheduleDecision(manager, result, true);
+        approved.push(result);
       }
       return approved;
     });
@@ -368,7 +374,9 @@ export class DoctorScheduleService {
       for (const row of rows) {
         row.trangThai = dto.decision === 'APPROVED' ? ScheduleStatus.APPROVED : ScheduleStatus.REJECTED;
         if (dto.note !== undefined) row.ghiChu = note || null;
-        saved.push(await repository.save(row));
+        const result = await repository.save(row);
+        await this.notifyScheduleDecision(manager, result, dto.decision === 'APPROVED', note);
+        saved.push(result);
       }
       return saved;
     });
@@ -577,6 +585,23 @@ export class DoctorScheduleService {
       statusCode: null as 'PENDING' | 'APPROVED' | 'REJECTED' | null,
       schedules: [] as Array<ReturnType<typeof toScheduleView>>,
     };
+  }
+
+  private async notifyScheduleDecision(manager: EntityManager, row: LichLamViec, approved: boolean, reason?: string | null) {
+    const doctors = await manager.query(`SELECT id_tai_khoan FROM bac_si WHERE id_bac_si=$1`, [row.idBacSi]);
+    const accountId = doctors[0]?.id_tai_khoan as string | undefined;
+    if (!accountId) return;
+    const time = `${normalizeTime(row.gioBatDau).slice(0, 5)}–${normalizeTime(row.gioKetThuc).slice(0, 5)}`;
+    const title = approved ? 'Ca làm việc đã được duyệt' : 'Ca làm việc bị từ chối';
+    const content = approved
+      ? `Ca ngày ${row.ngayLamViec}, ${time} đã được duyệt.`
+      : `Ca ngày ${row.ngayLamViec}, ${time} bị từ chối. Lý do: ${reason || 'Không ghi nhận'}.`;
+    await manager.query(
+      `INSERT INTO thong_bao(id_tai_khoan,loai,kenh,tieu_de,noi_dung,trang_thai,thoi_gian_gui,duong_dan,ma_su_kien)
+       VALUES($1,'Thay doi lich lam viec','Ung dung',$2,$3,'Chua doc',CURRENT_TIMESTAMP,'/doctor/schedule',$4)
+       ON CONFLICT(ma_su_kien) DO NOTHING`,
+      [accountId, title, content, `doctor-schedule:${row.idLichLamViec}:${approved ? 'approved' : 'rejected'}`],
+    );
   }
 
   private async invalidateAvailability(doctorId: number, date: string) {

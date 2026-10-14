@@ -48,6 +48,9 @@ export class LichHen {
   @Column({ name: 'thoi_gian_ket_thuc_kham', type: 'timestamptz', nullable: true })
   thoiGianKetThucKham: Date | null;
 
+  @Column({ name: 'thoi_gian_hoan_tat_luot_kham', type: 'timestamptz', nullable: true })
+  thoiGianHoanTatLuotKham: Date | null;
+
   @CreateDateColumn({ name: 'ngay_tao', type: 'timestamptz' })
   ngayTao: Date;
 

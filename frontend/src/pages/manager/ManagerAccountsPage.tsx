@@ -95,6 +95,25 @@ export function ManagerAccountsPage() {
     }
   }
 
+  async function togglePaymentPermission(account: ManagedAccount) {
+    setBusy(true);
+    setSuccess('');
+    setError('');
+    try {
+      await accountApi.setPaymentPermission(account.id, !account.canManagePayments);
+      if (account.id === user?.id) {
+        window.location.reload();
+        return;
+      }
+      setSuccess(account.canManagePayments ? 'Đã thu hồi quyền thanh toán.' : 'Đã cấp quyền thanh toán rõ ràng cho tài khoản.');
+      await latestLoad.current();
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <PageContainer>
       <PageHeader crumbs={['Admin', 'Tài khoản']} title="Quản lý tài khoản" description="Tìm kiếm và quản lý trạng thái tài khoản admin, bác sĩ và bệnh nhân." />
@@ -114,11 +133,12 @@ export function ManagerAccountsPage() {
             { key: 'role', header: 'Vai trò', render: (row) => roleLabels[row.vaiTro] },
             { key: 'contact', header: 'Liên hệ', render: (row) => <div><div>{row.email || '—'}</div><div className="text-xs text-muted">{row.soDienThoai || '—'}</div></div> },
             { key: 'status', header: 'Trạng thái', render: (row) => <StatusBadge status={row.trangThai} label={statusLabels[row.trangThai]} /> },
+            { key: 'payment', header: 'Quyền thanh toán', render: (row) => row.vaiTro === 'Admin' ? <StatusBadge status={row.canManagePayments ? 'Active' : 'Inactive'} label={row.canManagePayments ? 'Được phép' : 'Không'} /> : '—' },
             { key: 'created', header: 'Ngày tạo', render: (row) => formatDate(row.ngayTao) },
-            { key: 'actions', header: 'Thao tác', render: (row) => <div className="flex gap-2"><Button variant="ghost" disabled={row.id === user?.id || busy} onClick={() => openAction('status', row)}>Sửa trạng thái</Button><Button variant="danger" disabled={row.id === user?.id || busy} onClick={() => openAction('delete', row)}>Xóa</Button></div> },
+            { key: 'actions', header: 'Thao tác', render: (row) => <div className="flex flex-wrap gap-2">{row.vaiTro === 'Admin' ? <Button variant="ghost" disabled={busy} onClick={() => void togglePaymentPermission(row)}>{row.canManagePayments ? 'Thu hồi quyền thu tiền' : 'Cấp quyền thu tiền'}</Button> : null}<Button variant="ghost" disabled={row.id === user?.id || busy} onClick={() => openAction('status', row)}>Sửa trạng thái</Button><Button variant="danger" disabled={row.id === user?.id || busy} onClick={() => openAction('delete', row)}>Xóa</Button></div> },
           ]} />
           <Pagination page={page} pageSize={pageSize} total={total} onPage={setPage} />
-          <p className="text-xs text-muted">Tài khoản đang đăng nhập được bảo vệ khỏi thao tác khóa và xóa.</p>
+          <p className="text-xs text-muted">Quyền thanh toán không được gán mặc định cho Admin; chỉ tài khoản được cấp rõ ràng mới có thể lập hóa đơn và ghi nhận thu tiền.</p>
         </section>
       )}
       {action ? (

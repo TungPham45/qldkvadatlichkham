@@ -2,7 +2,7 @@ import { Body, Controller, Delete, Get, Param, ParseIntPipe, ParseUUIDPipe, Patc
 import { FileInterceptor } from '@nestjs/platform-express';
 import { AccessTokenPayload, AppRole, CurrentUser, JwtAuthGuard, Roles, RolesGuard } from '@qlpk/common';
 import { AccountsService } from './accounts.service';
-import { AccountsQueryDto, AccountStatusDto } from './dto/accounts.dto';
+import { AccountsQueryDto, AccountStatusDto, PaymentPermissionDto } from './dto/accounts.dto';
 import { CreateDoctorByManagerDto, CreatePatientByManagerDto, PatientProfilesQueryDto, ProfilesQueryDto, UpdateDoctorByManagerDto, UpdatePatientByManagerDto } from './dto/manager-profiles.dto';
 import { DoctorPhotoService, type DoctorPhotoUpload } from './doctor-photo.service';
 
@@ -83,6 +83,15 @@ export class AccountsController {
     @Body() dto: AccountStatusDto,
   ) {
     return this.accounts.updateStatus(user.sub, id, dto.trangThai);
+  }
+
+  @Patch(':id/payment-permission')
+  updatePaymentPermission(
+    @CurrentUser() user: AccessTokenPayload,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: PaymentPermissionDto,
+  ) {
+    return this.accounts.updatePaymentPermission(user.sub, id, dto.enabled);
   }
 
   @Delete(':id')

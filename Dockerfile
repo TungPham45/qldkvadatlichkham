@@ -23,6 +23,8 @@ COPY services/patient-service services/patient-service
 COPY services/staff-service services/staff-service
 COPY services/appointment-service services/appointment-service
 COPY services/medical-record-service services/medical-record-service
+COPY services/billing-service services/billing-service
+COPY services/pharmacy-service services/pharmacy-service
 COPY services/notification-service services/notification-service
 RUN npm run build -w @qlpk/common \
  && npm run build -w @qlpk/auth-service \
@@ -30,6 +32,8 @@ RUN npm run build -w @qlpk/common \
  && npm run build -w @qlpk/staff-service \
  && npm run build -w @qlpk/appointment-service \
  && npm run build -w @qlpk/medical-record-service \
+ && npm run build -w @qlpk/billing-service \
+ && npm run build -w @qlpk/pharmacy-service \
  && npm run build -w @qlpk/notification-service \
  && npm run build -w @qlpk/api-gateway
 
@@ -44,6 +48,8 @@ COPY --from=services /app/services/patient-service/dist ./services/patient-servi
 COPY --from=services /app/services/staff-service/dist ./services/staff-service/dist
 COPY --from=services /app/services/appointment-service/dist ./services/appointment-service/dist
 COPY --from=services /app/services/medical-record-service/dist ./services/medical-record-service/dist
+COPY --from=services /app/services/billing-service/dist ./services/billing-service/dist
+COPY --from=services /app/services/pharmacy-service/dist ./services/pharmacy-service/dist
 COPY --from=services /app/services/notification-service/dist ./services/notification-service/dist
 COPY --from=services /app/services/api-gateway/dist ./services/api-gateway/dist
 

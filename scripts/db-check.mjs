@@ -19,13 +19,17 @@ const requiredColumns = {
   benh_nhan: ['id_benh_nhan', 'co_bhyt', 'so_bhyt', 'trang_thai'],
   tai_khoan_benh_nhan: ['id_tai_khoan', 'id_benh_nhan', 'la_chu_ho_so', 'duoc_dat_lich_ho', 'trang_thai'],
   lich_lam_viec: ['id_bac_si', 'ngay_lam_viec', 'gio_bat_dau', 'gio_ket_thuc', 'thoi_luong_moi_ca', 'trang_thai'],
-  lich_hen: ['id_benh_nhan', 'id_bac_si', 'id_tai_khoan_dat', 'ngay_hen', 'gio_hen', 'trang_thai'],
+  lich_hen: ['id_benh_nhan', 'id_bac_si', 'id_tai_khoan_dat', 'ngay_hen', 'gio_hen', 'trang_thai', 'thoi_gian_hoan_tat_luot_kham'],
+  tiep_nhan_benh_nhan: ['id_lich_hen', 'id_nguoi_tiep_nhan', 'thoi_gian_ghi_nhan'],
+  hoa_don: ['id_phieu_kham', 'phi_kham', 'tien_dich_vu', 'tien_thuoc', 'giam_tru', 'tong_tien', 'trang_thai_thanh_toan'],
+  thanh_toan: ['id_hoa_don', 'so_tien', 'ma_giao_dich', 'id_nguoi_xac_nhan', 'trang_thai'],
   thong_bao: ['id_tai_khoan', 'id_lich_hen', 'thoi_gian_doc'],
 };
 
 const requiredRelations = [
   'fk_tkbn_tai_khoan', 'fk_tkbn_benh_nhan', 'fk_lich_hen_benh_nhan',
   'fk_lich_hen_bac_si', 'fk_lich_hen_tai_khoan_dat',
+  'fk_tiep_nhan_nguoi_tiep_nhan', 'fk_thanh_toan_nguoi_xac_nhan',
 ];
 
 const requiredIndexes = [

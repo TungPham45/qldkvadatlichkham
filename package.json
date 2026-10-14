@@ -8,16 +8,16 @@
   ],
   "scripts": {
     "build:common": "npm run build -w @qlpk/common",
-    "build": "npm run build:common && npm run build -w @qlpk/auth-service && npm run build -w @qlpk/patient-service && npm run build -w @qlpk/staff-service && npm run build -w @qlpk/appointment-service && npm run build -w @qlpk/medical-record-service && npm run build -w @qlpk/pharmacy-service && npm run build -w @qlpk/notification-service && npm run build -w @qlpk/api-gateway && npm run build -w @qlpk/frontend",
-    "dev:infra": "docker compose stop auth-service patient-service staff-service appointment-service medical-record-service notification-service api-gateway frontend && docker compose up -d --wait postgres redis && npm run db:migrate",
+    "build": "npm run build:common && npm run build -w @qlpk/auth-service && npm run build -w @qlpk/patient-service && npm run build -w @qlpk/staff-service && npm run build -w @qlpk/appointment-service && npm run build -w @qlpk/medical-record-service && npm run build -w @qlpk/billing-service && npm run build -w @qlpk/pharmacy-service && npm run build -w @qlpk/notification-service && npm run build -w @qlpk/api-gateway && npm run build -w @qlpk/frontend",
+    "dev:infra": "docker compose stop auth-service patient-service staff-service appointment-service medical-record-service pharmacy-service billing-service notification-service api-gateway frontend && docker compose up -d --wait postgres redis && npm run db:migrate",
     "free:ports": "node scripts/free-ports.mjs",
-    "dev": "npm run free:ports && npm run dev:infra && npm run build:common && concurrently -n auth,patient,staff,appt,medical,pharmacy,notify,gateway,web -c blue,green,yellow,magenta,cyan,red,gray,white,blue \"npm run dev -w @qlpk/auth-service\" \"npm run dev -w @qlpk/patient-service\" \"npm run dev -w @qlpk/staff-service\" \"npm run dev -w @qlpk/appointment-service\" \"npm run dev -w @qlpk/medical-record-service\" \"npm run dev -w @qlpk/pharmacy-service\" \"npm run dev -w @qlpk/notification-service\" \"npm run dev -w @qlpk/api-gateway\" \"npm run dev -w @qlpk/frontend\"",
+    "dev": "npm run free:ports && npm run dev:infra && npm run build:common && concurrently -n auth,patient,staff,appt,medical,billing,pharmacy,notify,gateway,web -c blue,green,yellow,magenta,cyan,green,red,gray,white,blue \"npm run dev -w @qlpk/auth-service\" \"npm run dev -w @qlpk/patient-service\" \"npm run dev -w @qlpk/staff-service\" \"npm run dev -w @qlpk/appointment-service\" \"npm run dev -w @qlpk/medical-record-service\" \"npm run dev -w @qlpk/billing-service\" \"npm run dev -w @qlpk/pharmacy-service\" \"npm run dev -w @qlpk/notification-service\" \"npm run dev -w @qlpk/api-gateway\" \"npm run dev -w @qlpk/frontend\"",
     "stack": "docker compose --profile app up -d --build",
     "db:reset": "node scripts/db-reset.mjs",
     "db:migrate": "docker compose --profile migration run --rm db-migrate",
     "db:migrate:status": "docker compose --profile migration run --rm -e MIGRATION_DRY_RUN=1 db-migrate",
     "db:check": "node scripts/db-check.mjs",
-    "test": "npm run build:common && node --import tsx --test packages/common/test/*.test.ts services/appointment-service/test/*.test.ts services/appointment-service/test/*.test.mjs services/medical-record-service/test/*.test.ts",
+    "test": "npm run build:common && node --import tsx --test packages/common/test/*.test.ts services/appointment-service/test/*.test.ts services/appointment-service/test/*.test.mjs services/medical-record-service/test/*.test.ts services/billing-service/test/*.test.ts",
     "smoke": "node scripts/smoke.mjs"
   },
   "devDependencies": {

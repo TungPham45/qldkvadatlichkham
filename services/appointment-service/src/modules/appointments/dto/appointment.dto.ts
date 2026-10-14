@@ -60,3 +60,10 @@ export class MyAppointmentsQueryDto {
   @IsString()
   upcoming?: string;
 }
+
+export class CancelAppointmentDto {
+  @IsString()
+  @MinLength(3)
+  @MaxLength(1000)
+  reason!: string;
+}

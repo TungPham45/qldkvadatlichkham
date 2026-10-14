@@ -1,10 +1,32 @@
 import assert from 'node:assert/strict';
+import { createConnection } from 'node:net';
 import test from 'node:test';
 import { DistributedLockService, RedisService } from '../src/redis/redis.module';
 
-test('redis lock is exclusive and only the owner releases it', async () => {
-  process.env.REDIS_HOST = process.env.REDIS_HOST || 'localhost';
-  process.env.REDIS_PORT = process.env.REDIS_PORT || '6379';
+function redisAvailable(host: string, port: number) {
+  return new Promise<boolean>((resolve) => {
+    const socket = createConnection({ host, port });
+    const finish = (available: boolean) => {
+      socket.removeAllListeners();
+      socket.destroy();
+      resolve(available);
+    };
+    socket.setTimeout(500);
+    socket.once('connect', () => finish(true));
+    socket.once('timeout', () => finish(false));
+    socket.once('error', () => finish(false));
+  });
+}
+
+test('redis lock is exclusive and only the owner releases it', async (context) => {
+  const host = process.env.REDIS_HOST || 'localhost';
+  const port = Number(process.env.REDIS_PORT || 6379);
+  if (!await redisAvailable(host, port)) {
+    context.skip(`Redis integration unavailable at ${host}:${port}`);
+    return;
+  }
+  process.env.REDIS_HOST = host;
+  process.env.REDIS_PORT = String(port);
   const redis = new RedisService();
   const lock = new DistributedLockService(redis);
   const key = `appointment:lock:test:${Date.now()}`;

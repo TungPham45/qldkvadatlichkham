@@ -54,12 +54,12 @@ export function PatientPortalLayout() {
   return (
     <div className="min-h-screen bg-portal">
       <header className="sticky top-0 z-[8] border-b border-line bg-white shadow-[0_1px_0_rgba(16,42,78,.03)]">
-        <div className="relative mx-auto flex min-h-[72px] max-w-[1180px] items-center gap-[22px] px-5 py-2.5">
-          <NavLink to="/" className="flex min-w-0 items-center gap-2.5 desk:min-w-[220px]" onClick={() => setMenu(false)}>
+        <div className="relative mx-auto flex min-h-[72px] max-w-[1180px] items-center gap-2 px-3 py-2.5 desk:gap-[22px] desk:px-5">
+          <NavLink to="/" className="flex min-w-0 flex-1 items-center gap-2.5 desk:min-w-[220px] desk:flex-none" onClick={() => setMenu(false)}>
             <span className="grid size-10 place-items-center rounded-[10px] bg-primary-600 font-bold text-white">+</span>
-            <span>
-              <strong className="block text-sm text-navy-900">{hospitalName}</strong>
-              <em className="block text-xs font-normal text-muted not-italic">{hospitalSubtitle}</em>
+            <span className="min-w-0">
+              <strong className="block truncate text-sm text-navy-900">{hospitalName}</strong>
+              <em className="hidden text-xs font-normal text-muted not-italic min-[480px]:block">{hospitalSubtitle}</em>
             </span>
           </NavLink>
           <button className="ml-auto grid size-[38px] cursor-pointer place-items-center rounded-[10px] border border-transparent bg-surface text-navy-900 desk:hidden" type="button" aria-label="Mở menu" onClick={() => { setProfileMenu(false); setMenu((open) => !open); }}>☰</button>
@@ -67,9 +67,10 @@ export function PatientPortalLayout() {
             <NavLink end to="/" onClick={() => setMenu(false)} className={({ isActive }) => `rounded-full px-3 py-2 text-sm font-semibold ${isActive ? 'bg-primary-50 text-primary-700' : 'text-[#3d4d63] hover:bg-primary-50 hover:text-primary-700'}`}>Trang chủ</NavLink>
             <NavLink to="/patient/appointments/book" onClick={() => setMenu(false)} className={({ isActive }) => `rounded-full px-3 py-2 text-sm font-semibold ${isActive ? 'bg-primary-50 text-primary-700' : 'text-[#3d4d63] hover:bg-primary-50 hover:text-primary-700'}`}>Đặt khám</NavLink>
             <NavLink end to="/patient/appointments" onClick={() => setMenu(false)} className={({ isActive }) => `rounded-full px-3 py-2 text-sm font-semibold ${isActive ? 'bg-primary-50 text-primary-700' : 'text-[#3d4d63] hover:bg-primary-50 hover:text-primary-700'}`}>Lịch khám</NavLink>
+            <NavLink to="/patient/invoices" onClick={() => setMenu(false)} className={({ isActive }) => `rounded-full px-3 py-2 text-sm font-semibold ${isActive ? 'bg-primary-50 text-primary-700' : 'text-[#3d4d63] hover:bg-primary-50 hover:text-primary-700'}`}>Hóa đơn</NavLink>
             <NavLink to="/my-records" onClick={() => setMenu(false)} className={({ isActive }) => `rounded-full px-3 py-2 text-sm font-semibold ${isActive ? 'bg-primary-50 text-primary-700' : 'text-[#3d4d63] hover:bg-primary-50 hover:text-primary-700'}`}>Lịch sử khám</NavLink>
           </nav>
-          {hospitalHotline ? <a className="text-sm font-bold whitespace-nowrap text-primary-700" href={`tel:${hospitalHotline.replace(/\s/g, '')}`}>Hotline {hospitalHotline}</a> : null}
+          {hospitalHotline ? <a className="hidden text-sm font-bold whitespace-nowrap text-primary-700 wide:inline" href={`tel:${hospitalHotline.replace(/\s/g, '')}`}>Hotline {hospitalHotline}</a> : null}
           <NotificationBell /><div className="relative flex items-center gap-2.5" ref={profileMenuRef}>
             <button ref={avatarRef} className="grid size-[42px] shrink-0 cursor-pointer place-items-center rounded-full bg-primary-50 font-bold text-primary-700 focus-visible:outline-2 focus-visible:outline-primary-600" type="button" aria-label="Mở menu tài khoản" aria-expanded={profileMenu} aria-controls="patient-account-menu" onClick={() => { setMenu(false); setProfileMenu((open) => !open); }}>{initials(name)}</button>
             <span className="hidden desk:block">
@@ -79,6 +80,7 @@ export function PatientPortalLayout() {
             {profileMenu ? (
               <div id="patient-account-menu" className="absolute top-full right-0 z-30 mt-3 min-w-[210px] rounded-xl border border-line bg-white p-2 shadow-card">
                 <Link className="block rounded-lg px-3 py-2.5 text-sm font-semibold text-navy-900 hover:bg-primary-50" to="/patient/profile" onClick={() => setProfileMenu(false)}>Thông tin cá nhân</Link>
+                <Link className="block rounded-lg px-3 py-2.5 text-sm font-semibold text-navy-900 hover:bg-primary-50" to="/patient/invoices" onClick={() => setProfileMenu(false)}>Hóa đơn của tôi</Link>
                 <button className="block w-full cursor-pointer rounded-lg px-3 py-2.5 text-left text-sm font-semibold text-danger hover:bg-primary-50" type="button" onClick={() => { setProfileMenu(false); void logout(); }}>Đăng xuất</button>
               </div>
             ) : null}

@@ -32,7 +32,7 @@ export class AppointmentRepository {
     if (upcoming) {
       query
         .andWhere('a.ngayHen >= :today', { today: todayInVietnam() })
-        .andWhere('a.trangThai NOT IN (:...done)', { done: [AppointmentStatus.CANCELLED, AppointmentStatus.COMPLETED] });
+        .andWhere('a.trangThai NOT IN (:...done)', { done: [AppointmentStatus.CANCELLED, AppointmentStatus.EXAM_COMPLETED, AppointmentStatus.COMPLETED] });
     }
     const [items, total] = await query.getManyAndCount();
     return { items, total };

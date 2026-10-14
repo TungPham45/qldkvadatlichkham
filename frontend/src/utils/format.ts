@@ -94,7 +94,8 @@ export function appointmentLabel(status: string) {
     'Da xac nhan': 'Đã xác nhận',
     'Da check-in': 'Đã check-in',
     'Dang kham': 'Đang khám',
-    'Hoan thanh': 'Hoàn thành',
+    'Da kham xong': 'Đã khám xong – Chờ thanh toán',
+    'Hoan thanh': 'Hoàn tất lượt khám',
     Huy: 'Đã hủy',
   };
   return map[status] || status;

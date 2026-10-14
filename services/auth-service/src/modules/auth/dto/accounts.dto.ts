@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 
 export const accountStatuses = ['Active', 'Inactive', 'Locked'] as const;
 export type AccountStatus = (typeof accountStatuses)[number];
@@ -35,4 +35,9 @@ export class AccountsQueryDto {
 export class AccountStatusDto {
   @IsIn(accountStatuses, { message: 'Trạng thái tài khoản không hợp lệ.' })
   trangThai: AccountStatus;
+}
+
+export class PaymentPermissionDto {
+  @IsBoolean()
+  enabled: boolean;
 }

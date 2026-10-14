@@ -33,6 +33,8 @@ function serviceFor(url: string) {
   if (path.startsWith('/medical-records') || path.startsWith('/diseases') || path.startsWith('/reception')) {
     return process.env.MEDICAL_RECORD_SERVICE_URL || 'http://localhost:3010';
   }
+  if (path.startsWith('/clinical-visits') || path.startsWith('/clinical-services') || path.startsWith('/clinical-service-orders')) return process.env.MEDICAL_RECORD_SERVICE_URL || 'http://localhost:3010';
+  if (path.startsWith('/billing')) return process.env.BILLING_SERVICE_URL || 'http://localhost:3012';
   if (path.startsWith('/medicines') || path.startsWith('/pharmacy') || path.startsWith('/medicine-suggestions')) {
     return process.env.PHARMACY_SERVICE_URL || 'http://localhost:3011';
   }

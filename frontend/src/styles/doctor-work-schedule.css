@@ -126,3 +126,36 @@
   .doctor-work-schedule__footer-actions { width: 100%; }
   .doctor-work-schedule__footer-actions .doctor-work-schedule__button { flex: 1; }
 }
+
+/* Clinical schedule readability */
+.doctor-work-schedule__heading h1 { font-size: var(--clinic-text-page-title); }
+.doctor-work-schedule__heading p { font-size: 14px; line-height: 1.6; }
+.doctor-work-schedule__status,
+.doctor-work-schedule__week-picker > span,
+.doctor-work-schedule__button,
+.doctor-work-schedule__notice { font-size: 13px; }
+.doctor-work-schedule__legend,
+.doctor-work-schedule__table thead th,
+.doctor-work-schedule__table thead th.doctor-work-schedule__shift-heading { font-size: 12px; }
+.doctor-work-schedule__today-tag,
+.doctor-work-schedule__shift small,
+.doctor-work-schedule__shift-card > span:not(.doctor-work-schedule__card-status),
+.doctor-work-schedule__shift-card small,
+.doctor-work-schedule__empty small,
+.doctor-work-schedule__other-status { font-size: 11px; }
+.doctor-work-schedule__shift strong,
+.doctor-work-schedule__shift-card > strong,
+.doctor-work-schedule__card-status,
+.doctor-work-schedule__empty strong,
+.doctor-work-schedule__other h2 { font-size: 13px; }
+.doctor-work-schedule__shift-card,
+.doctor-work-schedule__empty,
+.doctor-work-schedule__summary p,
+.doctor-work-schedule__other li,
+.doctor-work-schedule__other li > p { font-size: 12px; line-height: 1.55; }
+
+@media (max-width: 680px) {
+  .doctor-work-schedule__heading h1 { font-size: 22px; }
+  .doctor-work-schedule__week-picker > span,
+  .doctor-work-schedule__summary p { font-size: 12px; }
+}

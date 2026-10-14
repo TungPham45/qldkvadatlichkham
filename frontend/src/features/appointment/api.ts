@@ -37,4 +37,5 @@ export const appointmentApi = {
     }>('/appointments/otp/send', { benhNhanId }).then((response) => response.data),
   book: (body: { benhNhanId: number; bacSiId: number; ngayHen: string; gioHen: string; lyDoKham: string; maOtp: string }) =>
     api.post('/appointments', body).then((response) => response.data),
+  cancel: (id: number, reason: string) => api.patch(`/appointments/${id}/cancel`, { reason }).then((response) => response.data),
 };

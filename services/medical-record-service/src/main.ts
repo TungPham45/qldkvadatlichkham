@@ -1,13 +1,15 @@
 import './load-env';
 import 'reflect-metadata';
-import { Body, Controller, Get, Inject, Injectable, Module, Param, ParseIntPipe, Patch, Post, Put, Query, UseGuards, ValidationPipe } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Inject, Injectable, Module, Param, ParseIntPipe, Patch, Post, Put, Query, UseGuards, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { AccessTokenPayload, AllExceptionsFilter, AppException, AppRole, AppointmentStatus, CurrentUser, ErrorCode, JwtAuthGuard, Roles, RolesGuard, isDbConflict } from '@qlpk/common';
+import { AccessTokenPayload, AllExceptionsFilter, AppException, AppRole, AppointmentStatus, CurrentUser, ErrorCode, InternalGuard, JwtAuthGuard, PaymentStatus, Roles, RolesGuard, isDbConflict } from '@qlpk/common';
 import { Type } from 'class-transformer';
-import { IsDateString, IsIn, IsInt, IsNumber, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsBoolean, IsDateString, IsIn, IsInt, IsNumber, IsOptional, IsString, Max, MaxLength, Min, MinLength, ValidateIf, ValidateNested } from 'class-validator';
 import { DataSource } from 'typeorm';
+import { ClinicalVisitService, MedicalRecordPayload } from './clinical-visit.service';
+import { ClinicalCatalogPayload, ClinicalResultPayload, ClinicalServiceService, CreateClinicalOrderPayload } from './clinical-service.service';
 import { ReceptionPayload, ReceptionService } from './reception.service';
 
 class PageQuery {
@@ -35,6 +37,20 @@ class ReceptionQuery extends PageQuery {
   @IsOptional() @Type(() => Number) @IsInt() appointmentId?: number;
   @IsOptional() @IsDateString() date?: string;
   @IsOptional() @IsString() @IsIn(Object.values(AppointmentStatus)) status?: string;
+  @IsOptional() @IsString() @IsIn([
+    'CONFIRMATION_PENDING',
+    'CONFIRMATION_CONFIRMED',
+    'CONFIRMATION_REJECTED',
+    'EXAM_SCHEDULED',
+    'EXAM_WAITING',
+    'EXAM_IN_PROGRESS',
+    'EXAM_COMPLETED',
+  ]) stage?: string;
+  @IsOptional() @IsString() @IsIn([...Object.values(PaymentStatus), 'NOT_INVOICED']) paymentStatus?: string;
+}
+
+class RejectAppointmentDto {
+  @IsString() @MinLength(3) @MaxLength(1000) reason!: string;
 }
 
 class ReceptionDto implements ReceptionPayload {
@@ -48,6 +64,73 @@ class ReceptionDto implements ReceptionPayload {
   @IsOptional() @Type(() => Number) @IsNumber() @Min(0) @Max(100) spo2?: number;
   @IsOptional() @IsString() initialSymptoms?: string;
   @IsOptional() @IsString() notes?: string;
+}
+
+class PrescriptionItemDto {
+  @Type(() => Number) @IsInt() @Min(1) medicineId!: number;
+  @Type(() => Number) @IsInt() @Min(1) quantity!: number;
+  @IsOptional() @IsString() dosage?: string;
+  @IsOptional() @IsString() frequency?: string;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) days?: number;
+  @IsOptional() @IsString() route?: string;
+  @IsOptional() @IsString() instructions?: string;
+}
+
+class MedicalRecordDto implements MedicalRecordPayload {
+  @IsOptional() @IsString() @MaxLength(5000) symptoms?: string;
+  @IsOptional() @IsString() @MaxLength(1000) onset?: string;
+  @IsOptional() @IsString() @MaxLength(5000) diseaseProgress?: string;
+  @IsOptional() @IsString() @MaxLength(5000) postTreatmentProgress?: string;
+  @IsOptional() @IsString() @MaxLength(10000) examResult?: string;
+  @IsOptional() @IsString() @MaxLength(5000) conclusion?: string;
+  @IsOptional() @IsString() @MaxLength(5000) treatment?: string;
+  @IsOptional() @IsString() @MaxLength(5000) doctorNotes?: string;
+  @ValidateIf((_object, value) => value !== undefined && value !== '') @IsDateString() followUpDate?: string;
+  @IsOptional() @IsString() @MaxLength(5000) careAdvice?: string;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) diseaseId?: number;
+  @IsOptional() @IsArray() @ArrayMaxSize(20) @Type(() => Number) @IsInt({each:true}) secondaryDiseaseIds?: number[];
+  @IsOptional() @IsString() @MaxLength(2000) diagnosisNote?: string;
+  @IsOptional() @Type(() => Boolean) @IsBoolean() noClinicalServices?: boolean;
+  @IsOptional() @Type(() => Boolean) @IsBoolean() noPrescription?: boolean;
+  @IsOptional() @Type(() => Boolean) @IsBoolean() prescriptionLocked?: boolean;
+  @IsOptional() @IsString() @MaxLength(2000) prescriptionNote?: string;
+  @IsOptional() @IsArray() @ArrayMaxSize(30) @ValidateNested({ each: true }) @Type(() => PrescriptionItemDto)
+  prescriptionItems?: PrescriptionItemDto[];
+}
+
+class ClinicalCatalogQuery {
+  @IsOptional() @IsString() search?: string;
+  @IsOptional() @IsString() group?: string;
+  @IsOptional() @IsString() active?: string;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) page?: number;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) limit?: number;
+}
+
+class CreateClinicalOrderDto implements CreateClinicalOrderPayload {
+  @Type(() => Number) @IsInt() @Min(1) serviceId!: number;
+  @IsString() @MinLength(1) @MaxLength(2000) purpose!: string;
+  @IsOptional() @IsString() @IsIn(['Thuong', 'Khan']) priority?: 'Thuong' | 'Khan';
+}
+
+class UpdateClinicalOrderDto {
+  @IsString() @MinLength(1) @MaxLength(2000) purpose!: string;
+  @IsString() @IsIn(['Thuong', 'Khan']) priority!: 'Thuong' | 'Khan';
+}
+
+class ClinicalCatalogDto implements ClinicalCatalogPayload {
+  @IsString() @MinLength(1) @MaxLength(50) code!: string;
+  @IsString() @MinLength(1) @MaxLength(255) name!: string;
+  @IsOptional() @IsString() @MaxLength(100) group?: string;
+  @IsOptional() @IsString() @MaxLength(255) performingUnit?: string;
+  @Type(() => Number) @IsNumber({maxDecimalPlaces:2}) @Min(0) unitPrice!: number;
+  @IsOptional() @Type(() => Boolean) @IsBoolean() active?: boolean;
+}
+
+class ClinicalResultDto implements ClinicalResultPayload {
+  @IsString() @MinLength(1) result!: string;
+  @IsOptional() @IsString() conclusion?: string;
+  @IsOptional() @IsString() @MaxLength(2000) attachment?: string;
+  @IsOptional() @IsString() performedBy?: string;
 }
 
 function clean(value?: string) { return value?.trim() || null; }
@@ -64,8 +147,10 @@ export class MedicalService {
       WHERE owner.id_benh_nhan = bn.id_benh_nhan AND owner.id_tai_khoan = ?
         AND owner.la_chu_ho_so = TRUE AND owner.trang_thai = 'Active'
     )`, user.sub);
-    else if (user.role === AppRole.DOCTOR) add('bs.id_tai_khoan = ?', user.sub);
-    else if (q.patientId) add('pk.id_benh_nhan = ?', q.patientId);
+    else if (user.role === AppRole.DOCTOR) {
+      add('bs.id_tai_khoan = ?', user.sub);
+      if (q.patientId) add('pk.id_benh_nhan = ?', q.patientId);
+    } else if (q.patientId) add('pk.id_benh_nhan = ?', q.patientId);
     if (user.role === AppRole.MANAGER && q.doctorId) add('pk.id_bac_si = ?', q.doctorId);
     if (q.from) add('pk.ngay_kham >= ?', q.from.slice(0, 10));
     if (q.to) add('pk.ngay_kham <= ?', q.to.slice(0, 10));
@@ -114,20 +199,43 @@ class MedicalController {
   constructor(
     @Inject(MedicalService) private readonly service:MedicalService,
     @Inject(ReceptionService) private readonly receptionService:ReceptionService,
+    @Inject(ClinicalVisitService) private readonly clinicalVisitService:ClinicalVisitService,
+    @Inject(ClinicalServiceService) private readonly clinicalServiceService:ClinicalServiceService,
   ){}
   @Get('medical-records/history') @Roles(AppRole.PATIENT,AppRole.DOCTOR,AppRole.MANAGER) history(@CurrentUser()u:AccessTokenPayload,@Query()q:PageQuery){return this.service.history(u,q)}
   @Get('diseases') @Roles(AppRole.DOCTOR,AppRole.MANAGER) diseases(@Query()q:DiseaseQuery){return this.service.diseases(q)}
   @Get('diseases/:id') @Roles(AppRole.DOCTOR,AppRole.MANAGER) disease(@Param('id',ParseIntPipe)id:number){return this.service.disease(id)}
   @Post('diseases') @Roles(AppRole.MANAGER) createDisease(@Body()d:DiseaseDto){return this.service.saveDisease(null,d)}
   @Put('diseases/:id') @Roles(AppRole.MANAGER) updateDisease(@Param('id',ParseIntPipe)id:number,@Body()d:DiseaseDto){return this.service.saveDisease(id,d)}
-  @Get('reception') @Roles(AppRole.DOCTOR,AppRole.MANAGER) receptions(@CurrentUser()u:AccessTokenPayload,@Query()q:ReceptionQuery){return this.receptionService.list(u,q)}
-  @Patch('reception/:appointmentId/confirm') @Roles(AppRole.DOCTOR,AppRole.MANAGER) confirmAppointment(@CurrentUser()u:AccessTokenPayload,@Param('appointmentId',ParseIntPipe)id:number){return this.receptionService.confirm(u,id)}
-  @Get('reception/:appointmentId') @Roles(AppRole.DOCTOR,AppRole.MANAGER) async reception(@CurrentUser()u:AccessTokenPayload,@Param('appointmentId',ParseIntPipe)id:number){const result=await this.service.receptions(u,Object.assign(new ReceptionQuery(),{page:1,limit:1,appointmentId:id}));if(!result.items.length)throw new AppException(404,'RECEPTION_NOT_FOUND','Không tìm thấy lịch hẹn phù hợp.');return result.items[0]}
-  @Post('reception') @Roles(AppRole.DOCTOR,AppRole.MANAGER) createReception(@CurrentUser()u:AccessTokenPayload,@Body()d:ReceptionDto){return this.receptionService.save(u,d.appointmentId,d,false)}
-  @Put('reception/:appointmentId') @Roles(AppRole.DOCTOR,AppRole.MANAGER) updateReception(@CurrentUser()u:AccessTokenPayload,@Param('appointmentId',ParseIntPipe)id:number,@Body()d:ReceptionDto){return this.receptionService.save(u,id,d,true)}
+  @Get('reception') @Roles(AppRole.PATIENT,AppRole.DOCTOR,AppRole.MANAGER) receptions(@CurrentUser()u:AccessTokenPayload,@Query()q:ReceptionQuery){return this.receptionService.list(u,q)}
+  @Patch('reception/:appointmentId/confirm') @Roles(AppRole.DOCTOR) confirmAppointment(@CurrentUser()u:AccessTokenPayload,@Param('appointmentId',ParseIntPipe)id:number){return this.receptionService.confirm(u,id)}
+  @Patch('reception/:appointmentId/reject') @Roles(AppRole.DOCTOR) rejectAppointment(@CurrentUser()u:AccessTokenPayload,@Param('appointmentId',ParseIntPipe)id:number,@Body()d:RejectAppointmentDto){return this.receptionService.reject(u,id,d.reason)}
+  @Get('reception/:appointmentId') @Roles(AppRole.PATIENT,AppRole.DOCTOR,AppRole.MANAGER) reception(@CurrentUser()u:AccessTokenPayload,@Param('appointmentId',ParseIntPipe)id:number){return this.receptionService.detail(u,id)}
+  @Post('reception') @Roles(AppRole.DOCTOR) createReception(@CurrentUser()u:AccessTokenPayload,@Body()d:ReceptionDto){return this.receptionService.save(u,d.appointmentId,d,false)}
+  @Put('reception/:appointmentId') @Roles(AppRole.DOCTOR) updateReception(@CurrentUser()u:AccessTokenPayload,@Param('appointmentId',ParseIntPipe)id:number,@Body()d:ReceptionDto){return this.receptionService.save(u,id,d,true)}
+  @Post('clinical-visits/:appointmentId/start') @Roles(AppRole.DOCTOR) startVisit(@CurrentUser()u:AccessTokenPayload,@Param('appointmentId',ParseIntPipe)id:number){return this.clinicalVisitService.start(u,id)}
+  @Get('clinical-services/catalog') @Roles(AppRole.DOCTOR,AppRole.MANAGER) clinicalCatalog(@Query()q:ClinicalCatalogQuery){return this.clinicalServiceService.catalog(q)}
+  @Post('clinical-services/catalog') @Roles(AppRole.MANAGER) createClinicalCatalog(@Body()d:ClinicalCatalogDto){return this.clinicalServiceService.saveCatalog(null,d)}
+  @Put('clinical-services/catalog/:id') @Roles(AppRole.MANAGER) updateClinicalCatalog(@Param('id',ParseIntPipe)id:number,@Body()d:ClinicalCatalogDto){return this.clinicalServiceService.saveCatalog(id,d)}
+  @Delete('clinical-services/catalog/:id') @Roles(AppRole.MANAGER) deleteClinicalCatalog(@Param('id',ParseIntPipe)id:number){return this.clinicalServiceService.deleteCatalog(id)}
+  @Put('clinical-service-orders/:orderId/result') @Roles(AppRole.MANAGER) saveOrderResult(@Param('orderId',ParseIntPipe)id:number,@Body()d:ClinicalResultDto,@CurrentUser()u:AccessTokenPayload){return this.clinicalServiceService.saveResult(id,d,u)}
+  @Get('clinical-visits/:appointmentId/service-orders') @Roles(AppRole.DOCTOR) clinicalOrders(@CurrentUser()u:AccessTokenPayload,@Param('appointmentId',ParseIntPipe)id:number){return this.clinicalServiceService.orders(u,id)}
+  @Post('clinical-visits/:appointmentId/service-orders') @Roles(AppRole.DOCTOR) createClinicalOrder(@CurrentUser()u:AccessTokenPayload,@Param('appointmentId',ParseIntPipe)id:number,@Body()d:CreateClinicalOrderDto){return this.clinicalServiceService.createOrder(u,id,d)}
+  @Patch('clinical-service-orders/:orderId') @Roles(AppRole.DOCTOR) updateClinicalOrder(@CurrentUser()u:AccessTokenPayload,@Param('orderId',ParseIntPipe)id:number,@Body()d:UpdateClinicalOrderDto){return this.clinicalServiceService.updateOrder(u,id,d)}
+  @Patch('clinical-service-orders/:orderId/cancel') @Roles(AppRole.DOCTOR) cancelClinicalOrder(@CurrentUser()u:AccessTokenPayload,@Param('orderId',ParseIntPipe)id:number){return this.clinicalServiceService.cancelOrder(u,id)}
+  @Patch('clinical-service-orders/:orderId/review') @Roles(AppRole.DOCTOR) reviewClinicalResult(@CurrentUser()u:AccessTokenPayload,@Param('orderId',ParseIntPipe)id:number){return this.clinicalServiceService.review(u,id)}
+  @Put('medical-records/appointments/:appointmentId') @Roles(AppRole.DOCTOR) saveMedicalRecord(@CurrentUser()u:AccessTokenPayload,@Param('appointmentId',ParseIntPipe)id:number,@Body()d:MedicalRecordDto){return this.clinicalVisitService.saveRecord(u,id,d)}
+  @Post('clinical-visits/:appointmentId/complete') @Roles(AppRole.DOCTOR) completeVisit(@CurrentUser()u:AccessTokenPayload,@Param('appointmentId',ParseIntPipe)id:number){return this.clinicalVisitService.complete(u,id)}
 }
 
-@Module({imports:[TypeOrmModule.forRoot({type:'postgres',host:process.env.DB_HOST||'localhost',port:Number(process.env.DB_PORT||5433),username:process.env.DB_USER||'postgres',password:process.env.DB_PASSWORD||'postgres',database:process.env.DB_NAME||'qlphongkham',synchronize:false}),JwtModule.register({secret:process.env.JWT_ACCESS_SECRET})],controllers:[SystemHealthController,MedicalController],providers:[MedicalService,ReceptionService]})
+@Controller('internal/clinical-service-orders')
+@UseGuards(InternalGuard)
+class InternalClinicalServiceController {
+  constructor(@Inject(ClinicalServiceService) private readonly service:ClinicalServiceService){}
+  @Put(':orderId/result') saveResult(@Param('orderId',ParseIntPipe)id:number,@Body()d:ClinicalResultDto){return this.service.saveResult(id,d)}
+}
+
+@Module({imports:[TypeOrmModule.forRoot({type:'postgres',host:process.env.DB_HOST||'localhost',port:Number(process.env.DB_PORT||5433),username:process.env.DB_USER||'postgres',password:process.env.DB_PASSWORD||'postgres',database:process.env.DB_NAME||'qlphongkham',synchronize:false}),JwtModule.register({secret:process.env.JWT_ACCESS_SECRET})],controllers:[SystemHealthController,MedicalController,InternalClinicalServiceController],providers:[MedicalService,ReceptionService,ClinicalVisitService,ClinicalServiceService]})
 class AppModule {}
 
 async function bootstrap() {

@@ -182,3 +182,55 @@
 .schedule-approval .approval-queue-card footer .approval-icon { width:14px; height:14px; flex-basis:14px; }
 .schedule-approval .approval-queue__bulk .approval-icon { width:18px; height:18px; flex-basis:18px; }
 .schedule-approval .approval-no-results > span .approval-icon { width:33px; height:33px; }
+
+/* Manager approval screens use the shared clinic typography scale. */
+.approval-heading h1 { font-size: var(--clinic-text-page-title); }
+.approval-heading p,
+.approval-stat p { font-size: 14px; }
+.approval-stat strong { font-size: 28px; line-height: 1.2; }
+.approval-stat small,
+.approval-stat span:not(.approval-stat__icon),
+.approval-doctor__identity p,
+.approval-doctor__summary small,
+.approval-status,
+.approval-legend,
+.approval-grid thead small,
+.approval-grid tbody th small,
+.approval-grid tbody th b,
+.approval-review__selection > span,
+.approval-review__hint,
+.approval-queue > header > span,
+.approval-queue > select,
+.approval-queue-card small,
+.approval-queue-card > div > b,
+.approval-queue-card footer > strong,
+.approval-queue__bulk small,
+.approval-queue__empty,
+.approval-progress header > strong,
+.approval-progress p { font-size: 11px; line-height: 1.5; }
+.approval-button,
+.approval-filter-row label,
+.approval-filter-row select,
+.approval-queue > select,
+.approval-search input,
+.approval-feedback,
+.approval-review > label,
+.approval-review textarea,
+.approval-review__actions .approval-button,
+.approval-no-results p { font-size: 13px; line-height: 1.5; }
+.approval-doctor__name > span,
+.approval-shift > strong,
+.approval-shift > small,
+.approval-shift > p,
+.approval-shift__check { font-size: 11px; line-height: 1.5; }
+.approval-grid thead th,
+.approval-grid tbody th strong,
+.approval-shift > b,
+.approval-system-check p,
+.approval-queue-card strong,
+.approval-queue-card footer > span { font-size: 12px; line-height: 1.5; }
+
+@media (max-width: 640px) {
+  .approval-heading h1 { font-size: 22px; }
+  .approval-heading p { font-size: 13px; }
+}

@@ -122,3 +122,26 @@
   .schedule-shell .schedule-header__crumbs > b { display: none; }
   .schedule-shell .schedule-header__crumbs strong { max-width: 160px; font-size: 11px; }
 }
+
+/* Readable schedule shell typography shared by manager and doctor views. */
+.schedule-shell .schedule-sidebar__brand strong,
+.schedule-shell--doctor .schedule-sidebar__brand strong { font-size: 14px; font-weight: var(--clinic-weight-semibold); line-height: 1.35; }
+.schedule-shell .schedule-sidebar__brand small,
+.schedule-shell--doctor .schedule-sidebar__brand small { font-size: 11px; line-height: 1.45; }
+.schedule-shell .schedule-sidebar__profile strong { font-size: 14px; font-weight: var(--clinic-weight-semibold); }
+.schedule-shell .schedule-sidebar__profile small { font-size: 12px; }
+.schedule-shell .schedule-sidebar nav a,
+.schedule-shell--doctor .schedule-sidebar nav a { min-height: 44px; font-size: 14px; font-weight: var(--clinic-weight-medium); line-height: 1.4; }
+.schedule-shell .schedule-sidebar__status { font-size: 12px; }
+.schedule-shell .schedule-header__crumbs,
+.schedule-shell--doctor .schedule-header__crumbs { font-size: 14px; }
+.schedule-shell .schedule-header__badge,
+.schedule-shell--doctor .schedule-header__badge { font-size: 12px; }
+.schedule-shell .schedule-header__identity strong,
+.schedule-shell--doctor .schedule-header__identity strong { font-size: 14px; font-weight: var(--clinic-weight-semibold); }
+.schedule-shell .schedule-header__identity small,
+.schedule-shell--doctor .schedule-header__identity small { font-size: 12px; }
+
+@media (max-width: 460px) {
+  .schedule-shell .schedule-header__crumbs strong { max-width: 180px; font-size: 12px; }
+}

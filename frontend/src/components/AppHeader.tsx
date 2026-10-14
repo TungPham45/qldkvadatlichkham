@@ -4,7 +4,6 @@ import { doctorApi } from '../features/doctor/api';
 import { initials, roleLabel } from '../utils/format';
 import { useAuth } from '../stores/auth-store';
 import { NotificationBell } from './NotificationBell';
-import { ScheduleShellIcon } from './ScheduleShellIcon';
 
 export function AppHeader({ onMenu }: { onMenu: () => void }) {
   const { user, logout } = useAuth();
@@ -40,7 +39,7 @@ export function AppHeader({ onMenu }: { onMenu: () => void }) {
       if (event.target instanceof Node && !menuRef.current?.contains(event.target)) setOpen(false);
     }
     function closeOnEscape(event: KeyboardEvent) {
-      if (event.key === 'Escape' && (user?.role === 'DOCTOR' || pathname === '/manager/doctor-schedules')) {
+      if (event.key === 'Escape') {
         setOpen(false);
         avatarRef.current?.focus();
       }
@@ -53,45 +52,11 @@ export function AppHeader({ onMenu }: { onMenu: () => void }) {
     };
   }, [open, user?.role, pathname]);
 
-  if (user && ((user.role === 'MANAGER' && pathname === '/manager/doctor-schedules') || (user.role === 'DOCTOR' && pathname === '/doctor/schedule'))) {
-    const isDoctor = user.role === 'DOCTOR';
-    const name = isDoctor ? doctorName || user.username : user.username;
-    return (
-      <header className="schedule-header">
-        <div className="schedule-header__crumbs">
-          <button className="schedule-header__menu" type="button" onClick={() => { setOpen(false); onMenu(); }} aria-label="Mở menu">☰</button>
-          <span>{isDoctor ? 'Bác sĩ' : 'Admin'}</span><b aria-hidden="true">›</b>
-          <strong>{isDoctor ? 'Đăng ký lịch làm việc' : 'Duyệt lịch làm việc bác sĩ'}</strong>
-        </div>
-        <div className="schedule-header__tools">
-          <span className="schedule-header__badge" title={isDoctor ? 'Tuần hiện tại' : 'Thời gian làm việc ban ngày'}>
-            <ScheduleShellIcon name={isDoctor ? 'calendar' : 'clock'} />
-            {isDoctor ? 'Tuần hiện tại' : 'Ca trực ban ngày: 07:30 - 17:30'}
-          </span>
-          <NotificationBell />
-          <div className="schedule-header__account" ref={menuRef}>
-            <button ref={avatarRef} className="schedule-header__account-trigger" type="button" aria-label="Mở menu tài khoản" aria-expanded={open} aria-controls="schedule-account-menu" onClick={() => setOpen((value) => !value)}>
-              <span className="schedule-header__avatar">{initials(name)}</span>
-              <span className="schedule-header__identity"><strong>{name}</strong><small>{isDoctor ? doctorSpecialty || 'Bác sĩ' : 'Quản trị viên'}</small></span>
-              <span className="schedule-header__chevron" aria-hidden="true">⌄</span>
-            </button>
-            {open ? (
-              <div id="schedule-account-menu" className="schedule-header__account-menu">
-                <button type="button" onClick={() => { setOpen(false); void logout().then(() => navigate('/', { replace: true })); }}>Đăng xuất</button>
-              </div>
-            ) : null}
-          </div>
-        </div>
-      </header>
-    );
-  }
-
   if (user?.role === 'MANAGER') {
     const title = pathname.includes('diseases') ? 'Danh mục tên bệnh'
       : pathname.includes('medicines') ? 'Quản lý Thuốc'
       : pathname.includes('medical-history') ? 'Lịch sử khám'
-      : pathname.includes('reception') ? 'Tiếp nhận bệnh nhân'
-      : pathname.includes('notifications') ? 'Thông báo'
+      : pathname.includes('reception') ? 'Giám sát quá trình khám'
       : pathname.includes('doctor-schedules')
       ? 'Duyệt lịch làm việc'
       : pathname.includes('accounts')
@@ -124,11 +89,16 @@ export function AppHeader({ onMenu }: { onMenu: () => void }) {
   }
   if (user?.role === 'DOCTOR') {
     const name = doctorName || user.username;
+    const doctorTitle = pathname.includes('confirmation') ? 'Xác nhận lịch hẹn'
+      : pathname.includes('examinations') ? 'Khám bệnh'
+      : pathname.includes('schedule') ? 'Đăng ký lịch làm việc'
+      : pathname.includes('history') ? 'Lịch sử khám'
+      : 'Tổng quan';
     return (
       <header className="sticky top-0 z-[5] flex min-h-[68px] items-center justify-between gap-4 border-b border-line bg-white px-5 py-2.5 desk:px-6">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5 text-sm text-[#5d6672]">
           <button className="grid size-[38px] cursor-pointer place-items-center rounded-[10px] border border-transparent bg-surface text-navy-900 desk:hidden" type="button" aria-label="Mở menu" onClick={() => { setOpen(false); onMenu(); }}>☰</button>
-          <strong className="text-navy-900">Bác sĩ</strong>
+          <span>Bác sĩ</span><b aria-hidden="true" className="text-muted">/</b><strong className="text-primary-700 font-semibold">{doctorTitle}</strong>
         </div>
         <div className="ml-auto flex items-center gap-3">
           <NotificationBell />
@@ -145,7 +115,7 @@ export function AppHeader({ onMenu }: { onMenu: () => void }) {
               <span className="grid size-[42px] shrink-0 place-items-center rounded-full bg-primary-50 font-bold text-primary-700">{initials(name)}</span>
               <span className="hidden desk:block">
                 <strong className="block text-sm text-navy-900">{name}</strong>
-                <span className="block text-xs text-muted">Bác sĩ</span>
+                <span className="block text-xs text-muted">{doctorSpecialty || 'Bác sĩ'}</span>
               </span>
               <span className="text-muted" aria-hidden="true">⌄</span>
             </button>

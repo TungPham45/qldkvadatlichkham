@@ -7,10 +7,10 @@ const tone: Record<string, string> = {
 };
 
 export function statusTone(status: string) {
-  if (['APPROVED', 'Da duyet', 'Active', 'Da xac nhan', 'Hoan thanh'].includes(status)) return 'success';
+  if (['APPROVED', 'Da duyet', 'Active', 'Da xac nhan', 'Hoan thanh', 'Da thanh toan'].includes(status)) return 'success';
   if (['PENDING', 'Cho duyet', 'Cho xac nhan', 'SELECTED'].includes(status)) return 'warning';
   if (['REJECTED', 'Tu choi', 'Huy'].includes(status)) return 'danger';
-  if (['Da check-in', 'Dang kham'].includes(status)) return 'info';
+  if (['Da check-in', 'Dang kham', 'Da kham xong'].includes(status)) return 'info';
   return 'neutral';
 }
 

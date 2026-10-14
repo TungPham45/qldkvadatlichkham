@@ -15,6 +15,19 @@ export class AuthRepository {
     return this.accounts.findOne({ where: { idTaiKhoan: id } });
   }
 
+  async hasPaymentPermission(id: string) {
+    try {
+      const rows = await this.accounts.manager.query(
+        'SELECT quyen_thanh_toan FROM quan_ly WHERE id_tai_khoan = $1',
+        [id],
+      );
+      return rows[0]?.quyen_thanh_toan === true;
+    } catch (error) {
+      if ((error as { code?: string })?.code === '42703') return false;
+      throw error;
+    }
+  }
+
   createPatientAccount(username: string, passwordHash: string) {
     return this.accounts.save(
       this.accounts.create({

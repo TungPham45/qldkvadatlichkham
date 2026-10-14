@@ -31,5 +31,6 @@ export interface AccessTokenPayload {
   username: string;
   vaiTro: VaiTroValue;
   role: AppRoleValue;
+  canManagePayments?: boolean;
   type: 'access' | 'refresh';
 }

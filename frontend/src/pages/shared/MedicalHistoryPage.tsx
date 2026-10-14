@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { errorMessage } from '../../api/client';
 import { AdminModal } from '../../components/AdminModal';
 import { EmptyState } from '../../components/EmptyState';
@@ -13,6 +14,7 @@ const limit = 10;
 
 export function MedicalHistoryPage() {
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
   const [items, setItems] = useState<MedicalRecord[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -20,7 +22,7 @@ export function MedicalHistoryPage() {
   const search = useDebouncedValue(query);
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
-  const [patientId, setPatientId] = useState('');
+  const [patientId, setPatientId] = useState(searchParams.get('patientId') || '');
   const [doctorId, setDoctorId] = useState('');
   const [detail, setDetail] = useState<MedicalRecord | null>(null);
   const [error, setError] = useState('');

@@ -1,294 +1,617 @@
 import { useEffect, useRef, useState } from 'react';
 import { errorMessage } from '../../api/client';
 import { doctorApi } from '../../features/doctor/api';
-import { managerApi, type ManagerDoctorGroup, type ManagerScheduleInput } from '../../features/manager/api';
-import type { ManagedDoctor } from '../../features/manager/directory-api';
-import { Button } from '../../components/Button';
-import { EmptyState } from '../../components/EmptyState';
+import { managerApi, type ManagerDoctorGroup } from '../../features/manager/api';
+import { directoryApi, type ManagedDoctor } from '../../features/manager/directory-api';
 import { ErrorState } from '../../components/ErrorState';
-import { FilterSelect } from '../../components/FilterSelect';
 import { LoadingState } from '../../components/LoadingState';
-import { Modal } from '../../components/Modal';
-import { PageContainer } from '../../components/PageContainer';
-import { PageHeader } from '../../components/PageHeader';
-import { SearchInput } from '../../components/SearchInput';
-import { SelectField } from '../../components/SelectField';
-import { StatCard } from '../../components/StatCard';
-import { TextArea } from '../../components/TextArea';
-import { TextField } from '../../components/TextField';
-import { AdminScheduleLegend, AdminWeeklyScheduleGrid } from '../../components/schedule/AdminWeeklyScheduleGrid';
-import { WeekPicker } from '../../components/schedule/WeekPicker';
+import { ScheduleApprovalIcon } from '../../components/ScheduleApprovalIcon';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
-import type { ScheduleCode, ScheduleItem, ShiftCode, Specialty } from '../../types';
-import { addDays, formatDate, formatTime, initials, startOfWeek, todayIso } from '../../utils/format';
+import { useAuth } from '../../stores/auth-store';
+import type { ScheduleItem, Specialty } from '../../types';
+import { addDays, formatDate, formatTime, initials, scheduleLabel, startOfWeek, todayIso, weekdayLabel } from '../../utils/format';
+import { exportCsv } from '../../utils/export-csv';
+import '../../styles/schedule-approval.css';
 
-interface ScheduleForm {
-  doctorId: string;
-  ngayLamViec: string;
-  gioBatDau: string;
-  gioKetThuc: string;
-  thoiLuongMoiCa: string;
-  statusCode: ScheduleCode;
-  ghiChu: string;
+const shifts = [
+  { code: 'SANG', label: 'Ca Sáng', start: '07:30', end: '11:30' },
+  { code: 'CHIEU', label: 'Ca Chiều', start: '13:30', end: '17:30' },
+];
+
+function approvalIssue(item: ScheduleItem, group: ManagerDoctorGroup, doctor?: ManagedDoctor) {
+  if (!doctor || doctor.trangThai !== 'Active') return 'Bác sĩ chưa có hồ sơ đang hoạt động';
+  if (item.date.slice(0, 10) < todayIso()) return 'Ca đã qua ngày làm việc';
+  if (group.schedules.some((other) => other.id !== item.id && other.statusCode !== 'REJECTED' && other.date.slice(0, 10) === item.date.slice(0, 10) && other.startTime.slice(0, 5) < item.endTime.slice(0, 5) && other.endTime.slice(0, 5) > item.startTime.slice(0, 5))) return 'Trùng giờ với ca khác';
+  return '';
 }
 
-function emptyForm(date: string, doctorId = '', shift: ShiftCode | 'KHAC' = 'SANG'): ScheduleForm {
-  const times = shift === 'CHIEU' ? ['13:30', '17:30'] : shift === 'KHAC' ? ['18:00', '20:00'] : ['07:30', '11:30'];
-  return { doctorId, ngayLamViec: date, gioBatDau: times[0], gioKetThuc: times[1], thoiLuongMoiCa: '30', statusCode: 'APPROVED', ghiChu: '' };
+function DoctorAvatar({ id, name }: { id: number; name: string }) {
+  const [url, setUrl] = useState('');
+  useEffect(() => {
+    let active = true;
+    let objectUrl = '';
+    directoryApi.doctorPhoto(id).then((blob) => {
+      if (!active || !blob.type.startsWith('image/')) return;
+      objectUrl = URL.createObjectURL(blob);
+      setUrl(objectUrl);
+    }).catch(() => {});
+    return () => { active = false; if (objectUrl) URL.revokeObjectURL(objectUrl); };
+  }, [id]);
+  return <span className="approval-avatar">{url ? <img src={url} alt={name} /> : initials(name)}</span>;
+}
+
+function sentAt(items: ScheduleItem[]) {
+  const times = items.map((item) => item.createdAt).filter((value): value is string => Boolean(value));
+  const timestamp = times.sort()[times.length - 1];
+  if (!timestamp) return '';
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return '';
+  return new Intl.DateTimeFormat('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' }).format(date);
 }
 
 export function ManagerSchedulesPage() {
+  const { user } = useAuth();
   const [week, setWeek] = useState(startOfWeek(todayIso()));
-  const [specialties, setSpecialties] = useState<Specialty[]>([]);
-  const [directory, setDirectory] = useState<ManagedDoctor[]>([]);
-  const [optionsLoading, setOptionsLoading] = useState(true);
-  const [optionsError, setOptionsError] = useState('');
-  const [specialtyId, setSpecialtyId] = useState('');
-  const [status, setStatus] = useState('');
-  const [date, setDate] = useState('');
-  const [shift, setShift] = useState('');
-  const [q, setQ] = useState('');
-  const debouncedQ = useDebouncedValue(q);
-  const [summary, setSummary] = useState({ total: 0, pending: 0, approved: 0, rejected: 0 });
   const [groups, setGroups] = useState<ManagerDoctorGroup[]>([]);
+  const [directory, setDirectory] = useState<ManagedDoctor[]>([]);
+  const [specialties, setSpecialties] = useState<Specialty[]>([]);
+  const [specialtyId, setSpecialtyId] = useState('');
+  const [q, setQ] = useState('');
+  const query = useDebouncedValue(q).trim().toLocaleLowerCase('vi-VN');
+  const [queueFilter, setQueueFilter] = useState('PENDING');
   const [selectedDoctorId, setSelectedDoctorId] = useState<number | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [note, setNote] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [actionError, setActionError] = useState('');
   const [notice, setNotice] = useState('');
-  const [rejectId, setRejectId] = useState<number | null>(null);
-  const [deleteItem, setDeleteItem] = useState<ScheduleItem | null>(null);
-  const [reason, setReason] = useState('');
+  const [actionError, setActionError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [form, setForm] = useState<ScheduleForm | null>(null);
-  const [editId, setEditId] = useState<number | null>(null);
   const requestId = useRef(0);
-  const selectedDoctor = directory.find((doctor) => doctor.id === selectedDoctorId) || null;
-  const availableDoctors = directory.filter((doctor) => doctor.trangThai === 'Active');
-  const days = Array.from({ length: 7 }, (_, index) => addDays(startOfWeek(week), index));
-  const schedulesFor = (doctorId: number) => groups.find((group) => group.id === doctorId)?.schedules || [];
-  const search = debouncedQ.trim().toLocaleLowerCase('vi-VN');
-
-  function matchesDoctor(doctor: ManagedDoctor) {
-    return [doctor.hoTen, doctor.soChungChiHanhNghe, doctor.chuyenKhoa].some((value) => value?.toLocaleLowerCase('vi-VN').includes(search));
-  }
-
-  function matchesSchedule(doctor: ManagedDoctor, item: ScheduleItem) {
-    if (date && item.date.slice(0, 10) !== date) return false;
-    if (status && item.statusCode !== status) return false;
-    if (shift) {
-      const start = shift === 'SANG' ? '07:30' : '13:30';
-      const end = shift === 'SANG' ? '11:30' : '17:30';
-      if (item.startTime.slice(0, 5) >= end || item.endTime.slice(0, 5) <= start) return false;
-    }
-    return !search || matchesDoctor(doctor) || [item.note, item.date].some((value) => value?.toLocaleLowerCase('vi-VN').includes(search));
-  }
-
-  const doctors = directory.map((doctor) => {
-    const schedules = schedulesFor(doctor.id);
-    const visible = schedules.filter((item) => matchesSchedule(doctor, item));
-    return { ...doctor, schedules, visible, totalHours: Math.round(schedules.reduce((sum, item) => sum + item.hours, 0) * 10) / 10 };
+  const actionLock = useRef(false);
+  const mounted = useRef(true);
+  const loadedDraftKey = useRef('');
+  const days = Array.from({ length: 7 }, (_, index) => addDays(week, index));
+  const doctorFor = (id: number) => directory.find((doctor) => doctor.id === id);
+  const filteredGroups = groups.filter((group) => {
+    const doctor = doctorFor(group.id);
+    if (specialtyId && (group.chuyenKhoaId ?? doctor?.chuyenKhoaId) !== Number(specialtyId)) return false;
+    return !query || [group.hoTen, group.maBacSi, String(group.id), group.chuyenKhoa].some((value) => value?.toLocaleLowerCase('vi-VN').includes(query));
   });
-  const filteredDoctors = doctors.filter((doctor) => {
-    if (specialtyId && doctor.chuyenKhoaId !== Number(specialtyId)) return false;
-    if (search && !matchesDoctor(doctor) && !doctor.visible.length) return false;
-    return !(date || status || shift) || doctor.visible.length > 0;
-  });
-  const selectedSchedules = selectedDoctor ? schedulesFor(selectedDoctor.id) : [];
-  const displayedSummary = selectedDoctor ? {
-    total: selectedSchedules.length,
-    pending: selectedSchedules.filter((item) => item.statusCode === 'PENDING').length,
-    approved: selectedSchedules.filter((item) => item.statusCode === 'APPROVED').length,
-    rejected: selectedSchedules.filter((item) => item.statusCode === 'REJECTED').length,
-  } : summary;
-  const visibleSchedules = selectedDoctor ? selectedSchedules.filter((item) =>
-    (!specialtyId || selectedDoctor.chuyenKhoaId === Number(specialtyId)) && matchesSchedule(selectedDoctor, item),
-  ) : [];
-  const pending = selectedDoctor
-    ? visibleSchedules.filter((item) => item.statusCode === 'PENDING')
-    : filteredDoctors.flatMap((doctor) => doctor.visible).filter((item) => item.statusCode === 'PENDING');
+  const queue = filteredGroups.filter((group) => !queueFilter || group.schedules.some((item) => item.statusCode === queueFilter));
+  const selectedGroup = queue.find((group) => group.id === selectedDoctorId) || queue[0] || null;
+  const selectedDoctor = selectedGroup ? doctorFor(selectedGroup.id) : undefined;
+  const pendingItems = selectedGroup?.schedules.filter((item) => item.statusCode === 'PENDING') || [];
+  const selectedItems = pendingItems.filter((item) => selectedIds.has(item.id));
+  const invalidSelected = selectedGroup ? selectedItems.filter((item) => approvalIssue(item, selectedGroup, selectedDoctor)) : [];
+  const eligibleGroups = filteredGroups.map((group) => ({ group, items: group.schedules.filter((item) => item.statusCode === 'PENDING' && !approvalIssue(item, group, doctorFor(group.id))) })).filter(({ items }) => items.length > 0);
+  const pendingDoctors = groups.filter((group) => group.schedules.some((item) => item.statusCode === 'PENDING')).length;
+  const approvedDoctors = groups.filter((group) => group.statusCode === 'APPROVED').length;
+  const totalPending = groups.flatMap((group) => group.schedules).filter((item) => item.statusCode === 'PENDING').length;
+  const draftKey = `qlpk:approval-draft:${user?.id}:${week}:${selectedGroup?.id}`;
 
   async function load() {
-    const currentRequest = ++requestId.current;
+    const current = ++requestId.current;
     setLoading(true);
     try {
-      // Retain the full week so filters never make an occupied cell appear empty.
-      const response = await managerApi.schedules({ week });
-      if (currentRequest !== requestId.current) return;
-      setSummary(response.summary);
+      const [response, doctors, options] = await Promise.all([managerApi.schedules({ week }), managerApi.doctorDirectory(), doctorApi.specialties()]);
+      if (!mounted.current || current !== requestId.current) return;
       setGroups(response.doctors);
+      setDirectory(doctors);
+      setSpecialties(options);
       setError('');
     } catch (err) {
-      if (currentRequest === requestId.current) setError(errorMessage(err));
+      if (mounted.current && current === requestId.current) setError(errorMessage(err));
     } finally {
-      if (currentRequest === requestId.current) setLoading(false);
+      if (mounted.current && current === requestId.current) setLoading(false);
     }
   }
 
-  async function loadOptions() {
-    setOptionsLoading(true);
-    setOptionsError('');
-    const [specialtyOptions, doctorOptions] = await Promise.allSettled([doctorApi.specialties(), managerApi.doctorDirectory()]);
-    const errors: string[] = [];
-    if (specialtyOptions.status === 'fulfilled') setSpecialties(specialtyOptions.value);
-    else errors.push('Chuyên khoa: ' + errorMessage(specialtyOptions.reason));
-    if (doctorOptions.status === 'fulfilled') {
-      setDirectory(doctorOptions.value);
-      setSelectedDoctorId((current) => current && doctorOptions.value.some((doctor) => doctor.id === current) ? current : null);
-    } else errors.push('Bác sĩ: ' + errorMessage(doctorOptions.reason));
-    setOptionsError(errors.join(' '));
-    setOptionsLoading(false);
-  }
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; requestId.current++; }; }, []);
+  useEffect(() => { void load(); return () => { requestId.current++; }; }, [week]);
+  useEffect(() => {
+    const pending = selectedGroup?.schedules.filter((item) => item.statusCode === 'PENDING') || [];
+    if (loadedDraftKey.current === draftKey) {
+      setSelectedIds((current) => new Set(pending.filter((item) => current.has(item.id)).map((item) => item.id)));
+      return;
+    }
+    loadedDraftKey.current = draftKey;
+    setSelectedIds(new Set(pending.filter((item) => selectedGroup && !approvalIssue(item, selectedGroup, doctorFor(selectedGroup.id))).map((item) => item.id)));
+    setNote('');
+    try {
+      const raw = localStorage.getItem(draftKey);
+      if (raw) {
+        const draft = JSON.parse(raw) as { ids?: unknown; note?: unknown };
+        if (Array.isArray(draft.ids)) {
+          const savedIds = draft.ids;
+          setSelectedIds(new Set(pending.filter((item) => savedIds.includes(item.id)).map((item) => item.id)));
+        }
+        if (typeof draft.note === 'string') setNote(draft.note.slice(0, 500));
+      }
+    } catch { /* A damaged local draft does not prevent reviewing. */ }
+  }, [draftKey, groups, directory]);
 
-  const latestLoad = useRef(load);
-  latestLoad.current = load;
-  useEffect(() => { void loadOptions(); }, []);
-  useEffect(() => { void load(); }, [week]);
-
-  function beginCreate(doctorId?: number, day?: string, selectedShift: ShiftCode | 'KHAC' = 'SANG') {
-    setEditId(null);
+  function changeWeek(value: string) {
+    if (actionLock.current) return;
+    const next = startOfWeek(value);
+    if (next === week) return;
+    requestId.current++;
+    setSelectedDoctorId(null);
+    setGroups([]);
+    setSelectedIds(new Set());
+    setNotice('');
     setActionError('');
-    setForm(emptyForm(day || date || week, String(doctorId || selectedDoctor?.id || availableDoctors[0]?.id || ''), selectedShift));
+    setLoading(true);
+    setWeek(next);
   }
 
-  function beginEdit(item: ScheduleItem) {
-    setEditId(item.id);
-    setActionError('');
-    setForm({ doctorId: String(item.doctorId), ngayLamViec: item.date.slice(0, 10), gioBatDau: item.startTime.slice(0, 5), gioKetThuc: item.endTime.slice(0, 5), thoiLuongMoiCa: String(item.slotMinutes), statusCode: item.statusCode, ghiChu: item.note || '' });
+  function toggle(id: number) {
+    if (actionLock.current) return;
+    setSelectedIds((current) => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next; });
   }
 
-  function closeDialog() {
-    if (busy) return;
-    setForm(null);
-    setRejectId(null);
-    setDeleteItem(null);
-    setActionError('');
-    setReason('');
+  function saveDraft() {
+    try {
+      localStorage.setItem(draftKey, JSON.stringify({ ids: [...selectedIds], note }));
+      setNotice('Đã lưu tạm lựa chọn và phản hồi trên thiết bị này.');
+      setActionError('');
+    } catch { setActionError('Không thể lưu tạm trên trình duyệt này.'); }
   }
 
-  function clearFilters() {
-    setSpecialtyId('');
-    setStatus('');
-    setDate('');
-    setShift('');
-    setQ('');
-  }
-
-  async function runAction(action: () => Promise<unknown>, success: string) {
-    if (busy) return;
+  async function review(decision: 'APPROVED' | 'REJECTED') {
+    if (actionLock.current || loading || error || !selectedGroup || !selectedItems.length) return;
+    if (decision === 'REJECTED' && note.trim().length < 3) { setActionError('Nhập lý do từ chối ít nhất 3 ký tự trong ô phản hồi cho bác sĩ.'); return; }
+    if (decision === 'APPROVED' && invalidSelected.length) { setActionError('Bỏ chọn các ca chưa hợp lệ trước khi phê duyệt.'); return; }
+    actionLock.current = true;
     setBusy(true);
     setActionError('');
     setNotice('');
     try {
-      await action();
-      setForm(null);
-      setRejectId(null);
-      setDeleteItem(null);
-      setReason('');
-      setNotice(success);
-      await latestLoad.current();
+      const result = await managerApi.reviewSchedules({ doctorId: selectedGroup.id, week, scheduleIds: selectedItems.map((item) => item.id), decision, note: note.trim() || undefined });
+      try { localStorage.removeItem(draftKey); } catch { /* Review has already succeeded. */ }
+      if (!mounted.current) return;
+      setNote('');
+      setNotice(decision === 'APPROVED' ? `Đã phê duyệt ${result.approved} ca làm việc.` : `Đã từ chối ${result.rejected} ca và lưu phản hồi cho bác sĩ.`);
+      await load();
     } catch (err) {
-      setActionError(errorMessage(err));
-      await latestLoad.current();
-    } finally {
-      setBusy(false);
-    }
+      if (mounted.current) { setActionError(errorMessage(err)); await load(); }
+    } finally { actionLock.current = false; if (mounted.current) setBusy(false); }
   }
 
-  async function save(event: React.FormEvent) {
-    event.preventDefault();
-    if (!form || busy) return;
-    const duration = Number(form.thoiLuongMoiCa);
-    const minutes = (time: string) => { const [hour, minute] = time.split(':').map(Number); return hour * 60 + minute; };
-    if (form.gioKetThuc <= form.gioBatDau || duration > minutes(form.gioKetThuc) - minutes(form.gioBatDau)) {
-      setActionError('Giờ kết thúc phải sau giờ bắt đầu và đủ thời lượng một lượt khám.');
-      return;
-    }
-    const body: ManagerScheduleInput = { ...form, doctorId: Number(form.doctorId), thoiLuongMoiCa: duration, ghiChu: form.ghiChu.trim() };
-    const id = editId;
-    await runAction(() => id ? managerApi.updateSchedule(id, body) : managerApi.createSchedule(body), id ? 'Đã cập nhật lịch làm việc.' : 'Đã thêm lịch làm việc.');
+  async function bulkApprove() {
+    if (actionLock.current || loading || error || !eligibleGroups.length) return;
+    actionLock.current = true;
+    setBusy(true);
+    setNotice('');
+    setActionError('');
+    let approved = 0;
+    const failures: string[] = [];
+    try {
+      for (const { group, items } of eligibleGroups) {
+        try {
+          const result = await managerApi.reviewSchedules({ doctorId: group.id, week, scheduleIds: items.map((item) => item.id), decision: 'APPROVED' });
+          approved += result.approved;
+          try { localStorage.removeItem(`qlpk:approval-draft:${user?.id}:${week}:${group.id}`); } catch { /* Keep the completed review. */ }
+        } catch (err) { failures.push(`${group.hoTen}: ${errorMessage(err)}`); }
+      }
+      if (!mounted.current) return;
+      if (approved) setNotice(`Đã phê duyệt hàng loạt ${approved} ca hợp lệ.`);
+      if (failures.length) setActionError(failures.join(' '));
+      await load();
+    } finally { actionLock.current = false; if (mounted.current) setBusy(false); }
   }
 
-  const actionErrorView = actionError ? <p className="text-sm text-danger" role="alert">{actionError}</p> : null;
-  const doctorOptions = [...availableDoctors];
-  if (form && !doctorOptions.some((item) => String(item.id) === form.doctorId)) {
-    const current = directory.find((item) => String(item.id) === form.doctorId);
-    if (current) doctorOptions.push(current);
+  function exportWeek() {
+    exportCsv(`lich-khoa-${week}.csv`, ['Bác sĩ', 'Mã bác sĩ', 'Chuyên khoa', 'Ngày', 'Bắt đầu', 'Kết thúc', 'Số giờ', 'Trạng thái', 'Ghi chú'], filteredGroups.flatMap((group) => group.schedules.map((item) => [group.hoTen, group.maBacSi, group.chuyenKhoa, formatDate(item.date), formatTime(item.startTime), formatTime(item.endTime), item.hours, scheduleLabel(item.statusCode), item.note])));
+    setNotice('Đã xuất lịch làm việc của tuần theo bộ lọc hiện tại.');
   }
-  const hasFilters = Boolean(search || specialtyId || date || status || shift);
-  const canCreate = selectedDoctor ? selectedDoctor.trangThai === 'Active' : availableDoctors.length > 0;
-  const hasInactivePending = selectedDoctor
-    ? selectedDoctor.trangThai !== 'Active' && pending.length > 0
-    : filteredDoctors.some((doctor) => doctor.trangThai !== 'Active' && doctor.visible.some((item) => item.statusCode === 'PENDING'));
+
+  const activeItems = selectedGroup?.schedules.filter((item) => item.statusCode !== 'REJECTED') || [];
+  const morning = activeItems.filter((item) => item.shift === 'SANG').length;
+  const afternoon = activeItems.filter((item) => item.shift === 'CHIEU').length;
+  const otherCount = activeItems.filter((item) => !item.shift).length;
+  const hours = activeItems.reduce((sum, item) => sum + item.hours, 0);
+  const reviewTime = selectedGroup ? sentAt(selectedGroup.schedules) : '';
+  const hasOther = selectedGroup?.schedules.some((item) => !item.shift);
+  const rows = hasOther ? [...shifts, { code: 'KHAC', label: 'Ca khác', start: '', end: '' }] : shifts;
+  const progress = specialties.map((specialty) => {
+    const schedules = groups.filter((group) => (group.chuyenKhoaId ?? doctorFor(group.id)?.chuyenKhoaId) === specialty.id).flatMap((group) => group.schedules);
+    return { ...specialty, total: schedules.length, approved: schedules.filter((item) => item.statusCode === 'APPROVED').length };
+  }).filter((specialty) => specialty.total > 0);
+  const allSchedules = groups.flatMap((group) => group.schedules);
+  const percent = allSchedules.length ? Math.round(allSchedules.filter((item) => item.statusCode === 'APPROVED').length * 100 / allSchedules.length) : 0;
 
   return (
-    <PageContainer>
-      <PageHeader crumbs={['Admin', 'Lịch làm việc', ...(selectedDoctor ? [selectedDoctor.hoTen] : [])]} title={selectedDoctor ? 'Lịch làm việc · ' + selectedDoctor.hoTen : 'Quản lý lịch làm việc bác sĩ'} description={selectedDoctor ? (selectedDoctor.chuyenKhoa || 'Chưa phân khoa') + (selectedDoctor.soChungChiHanhNghe ? ' · ' + selectedDoctor.soChungChiHanhNghe : '') : 'Chọn một bác sĩ để xem và quản lý lịch làm việc theo tuần.'} actions={<div className="flex flex-wrap gap-2">{selectedDoctor ? <Button variant="ghost" disabled={busy} onClick={() => { setSelectedDoctorId(null); setActionError(''); }}>← Danh sách bác sĩ</Button> : null}<Button disabled={busy || optionsLoading || !canCreate} onClick={() => beginCreate()}>+ Thêm lịch làm việc</Button></div>} />
-      <div className="grid grid-cols-1 gap-3.5 desk:grid-cols-2 wide:grid-cols-4">
-        <StatCard label="Tổng ca trong tuần" value={displayedSummary.total} />
-        <StatCard label="Chờ phê duyệt" value={displayedSummary.pending} />
-        <StatCard label="Đã phê duyệt" value={displayedSummary.approved} />
-        <StatCard label="Bị từ chối" value={displayedSummary.rejected} />
+    <main className="schedule-approval">
+      <div className="approval-heading">
+        <div>
+          <h1>Duyệt Đăng Ký Lịch Làm Việc Bác Sĩ</h1>
+          <p>Xem xét và phê duyệt hoặc từ chối phiếu đăng ký ca làm việc của bác sĩ các chuyên khoa.</p>
+        </div>
+        <div className="approval-heading__actions">
+          <button
+            className="approval-button"
+            type="button"
+            disabled={loading || busy || Boolean(error) || !filteredGroups.length}
+            onClick={exportWeek}
+          >
+            <ScheduleApprovalIcon name="print" />
+            Xuất lịch khoa
+          </button>
+          <button
+            className="approval-button approval-button--primary"
+            type="button"
+            disabled={loading || busy || Boolean(error) || !eligibleGroups.length}
+            onClick={() => void bulkApprove()}
+          >
+            <ScheduleApprovalIcon name="check" />
+            {busy ? 'Đang xử lý…' : 'Phê duyệt hàng loạt ca hợp lệ'}
+          </button>
+        </div>
       </div>
-      <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-line bg-white p-4 shadow-card">
-        <WeekPicker week={week} onChange={(value) => { setWeek(startOfWeek(value)); setDate(''); }} />
-        <AdminScheduleLegend />
-      </div>
-      <div className="flex flex-wrap items-end gap-2.5">
-        <SearchInput value={q} onChange={setQ} placeholder={selectedDoctor ? 'Tìm ghi chú lịch, tên hoặc mã bác sĩ' : 'Tìm bác sĩ, mã hành nghề hoặc ghi chú lịch'} />
-        <TextField label="Ngày làm việc" type="date" value={date} onChange={(event) => { setDate(event.target.value); if (event.target.value) setWeek(startOfWeek(event.target.value)); }} />
-        <FilterSelect label="Chuyên khoa" value={specialtyId} onChange={setSpecialtyId} options={[{ value: '', label: 'Tất cả' }, ...specialties.map((item) => ({ value: String(item.id), label: item.ten }))]} />
-        <FilterSelect label="Ca khám" value={shift} onChange={setShift} options={[{ value: '', label: 'Tất cả' }, { value: 'SANG', label: 'Ca sáng' }, { value: 'CHIEU', label: 'Ca chiều' }]} />
-        <FilterSelect label="Trạng thái" value={status} onChange={setStatus} options={[{ value: '', label: 'Tất cả' }, { value: 'PENDING', label: 'Chờ duyệt' }, { value: 'APPROVED', label: 'Đã duyệt' }, { value: 'REJECTED', label: 'Từ chối' }]} />
-        {hasFilters ? <Button variant="ghost" onClick={clearFilters}>Xóa bộ lọc</Button> : null}
-        <Button variant="ghost" disabled={busy || loading || !pending.length || hasInactivePending} title={hasInactivePending ? 'Bộ lọc có ca chờ của bác sĩ ngừng hoạt động hoặc đã khóa.' : undefined} onClick={() => void runAction(() => managerApi.bulkApprove(week, specialtyId || undefined, { doctorId: selectedDoctor?.id, q: debouncedQ.trim() || undefined, date: date || undefined, shift: shift || undefined }), 'Đã hoàn tất duyệt các ca chờ theo bộ lọc.')}>Duyệt các ca chờ ({pending.length})</Button>
-      </div>
-      {hasInactivePending ? <p className="text-xs text-muted" role="status">Chưa thể duyệt theo bộ lọc vì có ca chờ của bác sĩ ngừng hoạt động hoặc đã khóa. Hãy chọn bác sĩ đang hoạt động.</p> : null}
-      {notice ? <p className="text-sm text-primary-700" role="status">{notice}</p> : null}
-      {!form && !rejectId && !deleteItem ? actionErrorView : null}
-      {optionsError ? <ErrorState message={optionsError} onRetry={() => void loadOptions()} /> : null}
-      {loading || optionsLoading ? <LoadingState /> : error ? <ErrorState message={error} onRetry={() => void load()} /> : selectedDoctor ? (
-        <>
-          <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-            <p><strong>{selectedSchedules.length} ca</strong> · {Math.round(selectedSchedules.reduce((sum, item) => sum + item.hours, 0) * 10) / 10} giờ trong tuần{hasFilters ? ' · ' + visibleSchedules.length + ' ca khớp bộ lọc' : ''}</p>
-            {selectedDoctor.trangThai !== 'Active' ? <span className="text-muted">Bác sĩ {selectedDoctor.trangThai === 'Locked' ? 'đã khóa tài khoản' : 'ngừng hoạt động'}; bạn vẫn có thể sửa ghi chú hoặc xóa lịch hiện có.</span> : <span className="text-muted">Bấm ô trống để thêm lịch cho ngày và ca đó.</span>}
+
+      <div className="approval-stats">
+        <div className="approval-stat">
+          <div>
+            <p>Tổng đăng ký tuần này</p>
+            <strong>{groups.length}</strong><span> Bác sĩ</span>
+            <small>{allSchedules.length} ca làm việc đã đăng ký</small>
           </div>
-          <AdminWeeklyScheduleGrid days={days} items={selectedSchedules} visibleIds={new Set(visibleSchedules.map((item) => item.id))} busy={busy} canCreate={canCreate} onCreate={(day, selectedShift) => beginCreate(selectedDoctor.id, day, selectedShift || 'KHAC')} onEdit={beginEdit} onDelete={(item) => { setActionError(''); setDeleteItem(item); }} onApprove={(id) => void runAction(() => managerApi.approve(id), 'Đã duyệt ca làm việc.')} onReject={(id) => { setActionError(''); setReason(''); setRejectId(id); }} />
-        </>
-      ) : filteredDoctors.length ? (
-        <section className="rounded-xl border border-line bg-white p-4 shadow-card">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><h2 className="text-base font-semibold">Danh sách bác sĩ</h2><span className="text-sm text-muted">{filteredDoctors.length} / {directory.length} bác sĩ · Bấm tên hoặc dòng để mở lịch tuần</span></div>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] border-collapse text-left">
-              <thead><tr>{['Bác sĩ', 'Chuyên khoa', 'Trạng thái', 'Lịch tuần này', 'Chờ duyệt', ''].map((label, index) => <th key={index} className="border-b border-line px-3 py-3 text-xs font-semibold uppercase tracking-wide text-muted">{label}</th>)}</tr></thead>
-              <tbody>{filteredDoctors.map((doctor) => <tr key={doctor.id} className="cursor-pointer hover:bg-primary-50" onClick={() => { setSelectedDoctorId(doctor.id); setActionError(''); setNotice(''); }}>
-                <td className="border-b border-line px-3 py-4"><div className="flex items-center gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-full bg-primary-50 font-bold text-primary-700" aria-hidden="true">{initials(doctor.hoTen)}</span><div><button type="button" className="text-left text-sm font-semibold text-primary-700 hover:underline">{doctor.hoTen}</button><p className="mt-1 text-xs text-muted">{doctor.soChungChiHanhNghe || 'BS-' + String(doctor.id).padStart(4, '0')}</p></div></div></td>
-                <td className="border-b border-line px-3 py-4 text-sm">{doctor.chuyenKhoa || 'Chưa phân khoa'}</td>
-                <td className="border-b border-line px-3 py-4 text-sm"><span className={doctor.trangThai === 'Active' ? 'text-success' : 'text-muted'}>{doctor.trangThai === 'Active' ? 'Hoạt động' : doctor.trangThai === 'Locked' ? 'Đã khóa' : 'Ngừng hoạt động'}</span></td>
-                <td className="border-b border-line px-3 py-4 text-sm">{doctor.schedules.length ? <><strong>{doctor.schedules.length} ca</strong> · {doctor.totalHours} giờ{hasFilters ? <span className="mt-1 block text-xs text-muted">{doctor.visible.length} ca khớp bộ lọc</span> : null}</> : <span className="text-muted">Chưa có lịch tuần này</span>}</td>
-                <td className="border-b border-line px-3 py-4 text-sm">{doctor.schedules.filter((item) => item.statusCode === 'PENDING').length}</td>
-                <td className="border-b border-line px-3 py-4 text-right"><span className="whitespace-nowrap text-sm font-semibold text-primary-700">Xem lịch →</span></td>
-              </tr>)}</tbody>
-            </table>
+          <span className="approval-stat__icon"><ScheduleApprovalIcon name="calendar" /></span>
+        </div>
+        <div className="approval-stat approval-stat--pending">
+          <div>
+            <p>Chờ phê duyệt</p>
+            <strong>{pendingDoctors}</strong><span> Phiếu đăng ký</span>
+            <small><ScheduleApprovalIcon name="pending" /> {totalPending} ca đang chờ xem xét</small>
           </div>
-        </section>
-      ) : !optionsError ? <EmptyState title={directory.length ? 'Không tìm thấy bác sĩ phù hợp' : 'Chưa có bác sĩ'} description={directory.length ? 'Thử thay đổi từ khóa hoặc xóa bộ lọc để xem toàn bộ bác sĩ.' : 'Danh sách bác sĩ sẽ xuất hiện sau khi thêm hồ sơ bác sĩ.'} /> : null}
-      {form ? (
-        <Modal title={editId ? 'Sửa lịch làm việc' : 'Thêm lịch làm việc'} onClose={closeDialog}>
-          <form className="flex flex-col gap-3" onSubmit={save}>
-            <SelectField label="Bác sĩ" required value={form.doctorId} disabled={busy} onChange={(event) => setForm({ ...form, doctorId: event.target.value })}><option value="">Chọn bác sĩ</option>{doctorOptions.map((doctor) => <option key={doctor.id} value={doctor.id}>{doctor.hoTen}{doctor.soChungChiHanhNghe ? ' · ' + doctor.soChungChiHanhNghe : ''}{doctor.trangThai !== 'Active' ? ' (ngừng hoạt động)' : ''}</option>)}</SelectField>
-            <TextField label="Ngày làm việc" type="date" required value={form.ngayLamViec} disabled={busy} onChange={(event) => setForm({ ...form, ngayLamViec: event.target.value })} />
-            <div className="grid grid-cols-2 gap-3"><TextField label="Giờ bắt đầu" type="time" required value={form.gioBatDau} disabled={busy} onChange={(event) => setForm({ ...form, gioBatDau: event.target.value })} /><TextField label="Giờ kết thúc" type="time" required value={form.gioKetThuc} disabled={busy} onChange={(event) => setForm({ ...form, gioKetThuc: event.target.value })} /></div>
-            <TextField label="Thời lượng mỗi lượt khám (phút)" type="number" min="1" max="1440" step="1" required value={form.thoiLuongMoiCa} disabled={busy} onChange={(event) => setForm({ ...form, thoiLuongMoiCa: event.target.value })} />
-            <SelectField label="Trạng thái" value={form.statusCode} disabled={busy} onChange={(event) => setForm({ ...form, statusCode: event.target.value as ScheduleCode })}><option value="APPROVED">Đã duyệt</option><option value="PENDING">Chờ duyệt</option><option value="REJECTED">Từ chối</option></SelectField>
-            <TextArea label="Ghi chú" maxLength={500} value={form.ghiChu} disabled={busy} onChange={(event) => setForm({ ...form, ghiChu: event.target.value })} />
-            {actionErrorView}
-            <div className="flex justify-end gap-3"><Button type="button" variant="ghost" disabled={busy} onClick={closeDialog}>Hủy</Button><Button type="submit" disabled={busy}>{busy ? 'Đang lưu…' : 'Lưu lịch'}</Button></div>
-          </form>
-        </Modal>
-      ) : null}
-      {rejectId ? <Modal title="Từ chối ca làm việc" onClose={closeDialog}><TextArea label="Lý do từ chối" maxLength={500} value={reason} disabled={busy} onChange={(event) => setReason(event.target.value)} />{actionErrorView}<div className="flex justify-end gap-3"><Button variant="ghost" disabled={busy} onClick={closeDialog}>Hủy</Button><Button variant="danger" disabled={busy || reason.trim().length < 3} onClick={() => void runAction(() => managerApi.reject(rejectId, reason.trim()), 'Đã từ chối ca làm việc.')}>Từ chối</Button></div></Modal> : null}
-      {deleteItem ? <Modal title="Xóa lịch làm việc" onClose={closeDialog}><p className="text-sm">Xóa ca ngày {formatDate(deleteItem.date)}, {formatTime(deleteItem.startTime)} – {formatTime(deleteItem.endTime)}? Ca đã có lịch hẹn chưa hoàn thành sẽ không thể xóa.</p>{actionErrorView}<div className="flex justify-end gap-3"><Button variant="ghost" disabled={busy} onClick={closeDialog}>Hủy</Button><Button variant="danger" disabled={busy} onClick={() => void runAction(() => managerApi.deleteSchedule(deleteItem.id), 'Đã xóa lịch làm việc.')}>Xóa lịch</Button></div></Modal> : null}
-    </PageContainer>
+          <span className="approval-stat__icon"><ScheduleApprovalIcon name="pending" /></span>
+        </div>
+        <div className="approval-stat approval-stat--approved">
+          <div>
+            <p>Đã phê duyệt</p>
+            <strong>{approvedDoctors}</strong><span> Phiếu đã duyệt</span>
+            <small><ScheduleApprovalIcon name="check" /> Lịch đã mở cho bệnh nhân đặt khám</small>
+          </div>
+          <span className="approval-stat__icon"><ScheduleApprovalIcon name="check" /></span>
+        </div>
+      </div>
+
+      <section className="approval-filters" aria-label="Bộ lọc đăng ký lịch làm việc">
+        <div className="approval-week">
+          <div>
+            <button type="button" aria-label="Tuần trước" disabled={busy} onClick={() => changeWeek(addDays(week, -7))}>
+              <ScheduleApprovalIcon name="previous" />
+            </button>
+            <ScheduleApprovalIcon name="calendar" />
+            <strong>Tuần: {formatDate(week)} - {formatDate(addDays(week, 6))}</strong>
+            <button type="button" aria-label="Tuần sau" disabled={busy} onClick={() => changeWeek(addDays(week, 7))}>
+              <ScheduleApprovalIcon name="next" />
+            </button>
+          </div>
+          <button
+            className="approval-button approval-button--soft"
+            type="button"
+            disabled={busy}
+            onClick={() => changeWeek(todayIso())}
+          >
+            Tuần này
+          </button>
+        </div>
+        <div className="approval-filter-row">
+          <label>
+            Chuyên khoa:
+            <select value={specialtyId} disabled={busy} onChange={(event) => setSpecialtyId(event.target.value)}>
+              <option value="">Tất cả chuyên khoa ({specialties.length})</option>
+              {specialties.map((item) => <option key={item.id} value={item.id}>{item.ten}</option>)}
+            </select>
+          </label>
+          <label className="approval-search">
+            <ScheduleApprovalIcon name="search" />
+            <input
+              aria-label="Tìm tên hoặc mã bác sĩ"
+              placeholder="Tìm tên hoặc mã bác sĩ…"
+              disabled={busy}
+              value={q}
+              onChange={(event) => setQ(event.target.value)}
+            />
+          </label>
+        </div>
+      </section>
+
+      {notice ? <p className="approval-feedback approval-feedback--success" role="status">{notice}</p> : null}
+      {actionError ? <p className="approval-feedback approval-feedback--error" role="alert">{actionError}</p> : null}
+      {loading ? (
+        <LoadingState />
+      ) : error ? (
+        <ErrorState message={error} onRetry={() => void load()} />
+      ) : (
+        <div className="approval-workspace">
+          {selectedGroup ? (
+            <section className="approval-detail">
+              <header className="approval-doctor">
+                <div className="approval-doctor__identity">
+                  <DoctorAvatar key={selectedGroup.id} id={selectedGroup.id} name={selectedGroup.hoTen} />
+                  <div>
+                    <div className="approval-doctor__name">
+                      <h2>{selectedGroup.hoTen}</h2>
+                      <span>Mã BS: {selectedGroup.maBacSi || `#${selectedGroup.id}`}</span>
+                    </div>
+                    <p>
+                      <b><ScheduleApprovalIcon name="hospital" /> {selectedGroup.chuyenKhoa || 'Chưa phân chuyên khoa'}</b>
+                      {reviewTime ? <span>• &nbsp; Gửi lúc: {reviewTime}</span> : null}
+                    </p>
+                  </div>
+                </div>
+                <div className="approval-doctor__summary">
+                  <div>
+                    <strong>
+                      {morning} ca sáng • {afternoon} ca chiều{otherCount ? ` • ${otherCount} ca khác` : ''}
+                    </strong>
+                    <small>Tổng {Math.round(hours * 10) / 10} giờ làm việc trong tuần</small>
+                  </div>
+                  <span className={`approval-status approval-status--${selectedGroup.statusCode?.toLowerCase() || 'pending'}`}>
+                    <ScheduleApprovalIcon name="dot" />
+                    {selectedGroup.statusCode === 'PENDING' ? 'Đang chờ duyệt' : scheduleLabel(selectedGroup.statusCode || '')}
+                  </span>
+                </div>
+              </header>
+
+              <div className="approval-grid-section">
+                <div className="approval-section-title">
+                  <h3><ScheduleApprovalIcon name="grid" /> Lưới Lịch Đăng Ký Trong Tuần</h3>
+                  <div className="approval-legend">
+                    <span><i /> Đã đăng ký</span>
+                    <span><i className="is-empty" /> Trống / Nghỉ</span>
+                  </div>
+                </div>
+                <div className="approval-grid-wrap">
+                  <table className="approval-grid">
+                    <thead>
+                      <tr>
+                        <th>Ca làm việc</th>
+                        {days.map((day) => (
+                          <th key={day} className={day === todayIso() ? 'is-today' : ''}>
+                            <small>{weekdayLabel(day)}</small>
+                            {formatDate(day).slice(0, 5)}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map((row) => (
+                        <tr key={row.code}>
+                          <th>
+                            <strong>{row.label}</strong>
+                            {row.start ? (
+                              <>
+                                <small>{row.start} - {row.end}</small>
+                                <b>4.0h</b>
+                              </>
+                            ) : <small>Giờ linh hoạt</small>}
+                          </th>
+                          {days.map((day) => {
+                            const items = selectedGroup.schedules.filter(
+                              (item) => item.date.slice(0, 10) === day && (row.code === 'KHAC' ? !item.shift : item.shift === row.code),
+                            );
+                            return (
+                              <td key={day}>
+                                {items.length ? items.map((item) => {
+                                  const issue = approvalIssue(item, selectedGroup, selectedDoctor);
+                                  return (
+                                    <div
+                                      key={item.id}
+                                      className={`approval-shift approval-shift--${item.statusCode.toLowerCase()} ${selectedIds.has(item.id) ? 'is-selected' : ''}`}
+                                    >
+                                      <strong>
+                                        {item.statusCode === 'PENDING' ? 'ĐĂNG KÝ CA' : scheduleLabel(item.statusCode).toLocaleUpperCase('vi-VN')}
+                                      </strong>
+                                      <b>{formatTime(item.startTime)} - {formatTime(item.endTime)}</b>
+                                      <small>{selectedGroup.chuyenKhoa || 'Ca làm việc'} · {item.hours}h</small>
+                                      {item.note ? <p title={item.note}>{item.note}</p> : null}
+                                      {item.statusCode === 'PENDING' ? (
+                                        <label
+                                          className={`approval-shift__check ${issue ? 'has-issue' : ''}`}
+                                          title={issue || 'Ca hợp lệ để duyệt'}
+                                        >
+                                          <span>{issue ? 'Cần kiểm tra' : 'Hợp lệ'}</span>
+                                          <input
+                                            type="checkbox"
+                                            aria-label={`Chọn ca ${formatDate(day)} ${formatTime(item.startTime)}`}
+                                            checked={selectedIds.has(item.id)}
+                                            disabled={busy}
+                                            onChange={() => toggle(item.id)}
+                                          />
+                                        </label>
+                                      ) : (
+                                        <small className="approval-shift__result">
+                                          <ScheduleApprovalIcon name={item.statusCode === 'APPROVED' ? 'check' : 'retry'} />
+                                          {item.statusCode === 'APPROVED' ? 'Đã phê duyệt' : 'Có thể đăng ký lại'}
+                                        </small>
+                                      )}
+                                    </div>
+                                  );
+                                }) : <span className="approval-empty-shift">Không đăng ký</span>}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="approval-system-check">
+                  <ScheduleApprovalIcon name="info" />
+                  <p>
+                    <strong>Kiểm tra tự động của hệ thống: </strong>
+                    {pendingItems.some((item) => approvalIssue(item, selectedGroup, selectedDoctor))
+                      ? 'Có ca đã qua ngày, trùng giờ hoặc bác sĩ chưa hoạt động. Xem các ca được đánh dấu “Cần kiểm tra” trước khi phê duyệt.'
+                      : 'Các ca chờ duyệt không trùng giờ, thuộc ngày hiện tại hoặc tương lai và bác sĩ đang hoạt động.'}
+                    {' '}Tổng đăng ký hiện tại: {Math.round(hours * 10) / 10} giờ/tuần.
+                  </p>
+                </div>
+              </div>
+
+              <div className="approval-review">
+                <label htmlFor="approval-note">
+                  <ScheduleApprovalIcon name="feedback" />
+                  Ghi chú / Phản hồi của Admin gửi Bác sĩ:
+                </label>
+                <textarea
+                  id="approval-note"
+                  maxLength={500}
+                  rows={3}
+                  disabled={busy || !pendingItems.length}
+                  value={note}
+                  onChange={(event) => setNote(event.target.value)}
+                  placeholder="Ghi chú cho bác sĩ (nếu cần điều chỉnh ca hoặc yêu cầu đăng ký lại)…"
+                />
+                <div className="approval-review__selection">
+                  <button
+                    className="approval-button"
+                    type="button"
+                    disabled={busy || !pendingItems.length}
+                    onClick={() => setSelectedIds(selectedItems.length === pendingItems.length ? new Set() : new Set(pendingItems.map((item) => item.id)))}
+                  >
+                    <ScheduleApprovalIcon name="select" />
+                    {selectedItems.length === pendingItems.length && pendingItems.length ? 'Bỏ chọn tất cả' : `Chọn tất cả ${pendingItems.length} ca`}
+                  </button>
+                  <button
+                    className="approval-button"
+                    type="button"
+                    disabled={busy || !pendingItems.length}
+                    onClick={saveDraft}
+                  >
+                    <ScheduleApprovalIcon name="save" />
+                    Lưu tạm
+                  </button>
+                  <span>Đã chọn {selectedItems.length} ca</span>
+                </div>
+                <div className="approval-review__actions">
+                  <button
+                    className="approval-button approval-button--danger"
+                    type="button"
+                    disabled={busy || !selectedItems.length}
+                    onClick={() => void review('REJECTED')}
+                  >
+                    <ScheduleApprovalIcon name="close" />
+                    Từ chối / Yêu cầu đăng ký lại
+                  </button>
+                  <button
+                    className="approval-button approval-button--primary"
+                    type="button"
+                    disabled={busy || !selectedItems.length || Boolean(invalidSelected.length)}
+                    onClick={() => void review('APPROVED')}
+                  >
+                    <ScheduleApprovalIcon name="check" />
+                    {busy ? 'Đang xử lý…' : selectedItems.length === pendingItems.length ? 'Duyệt tất cả ca làm việc' : `Duyệt ${selectedItems.length} ca đã chọn`}
+                  </button>
+                </div>
+                {invalidSelected.length ? (
+                  <p className="approval-review__hint">
+                    {invalidSelected.length} ca được chọn chưa hợp lệ để duyệt. Có thể bỏ chọn hoặc ghi lý do để từ chối.
+                  </p>
+                ) : null}
+                {!pendingItems.length ? (
+                  <p className="approval-review__hint">Phiếu đăng ký này đã được xử lý. Chọn phiếu chờ duyệt để tiếp tục.</p>
+                ) : null}
+              </div>
+            </section>
+          ) : (
+            <section className="approval-detail approval-no-results">
+              <span><ScheduleApprovalIcon name="check" /></span>
+              <h2>{queueFilter === 'PENDING' ? 'Không có đăng ký chờ duyệt' : 'Không tìm thấy đăng ký'}</h2>
+              <p>Chọn tuần, chuyên khoa hoặc thay đổi bộ lọc để xem lịch làm việc.</p>
+            </section>
+          )}
+
+          <aside className="approval-side">
+            <section className="approval-queue">
+              <header>
+                <h2>
+                  <ScheduleApprovalIcon name="hospital" />
+                  {queueFilter === 'PENDING' ? 'Danh Sách Chờ Phê Duyệt' : 'Danh Sách Đăng Ký'}
+                </h2>
+                <span>{queue.length} hồ sơ</span>
+              </header>
+              <select
+                aria-label="Lọc trạng thái đăng ký"
+                disabled={busy}
+                value={queueFilter}
+                onChange={(event) => setQueueFilter(event.target.value)}
+              >
+                <option value="PENDING">Chờ phê duyệt</option>
+                <option value="">Tất cả đăng ký</option>
+                <option value="APPROVED">Có ca đã phê duyệt</option>
+                <option value="REJECTED">Có ca bị từ chối</option>
+              </select>
+              <div className="approval-queue__list">
+                {queue.map((group) => (
+                  <button
+                    className={`approval-queue-card ${selectedGroup?.id === group.id ? 'is-active' : ''}`}
+                    key={group.id}
+                    disabled={busy}
+                    type="button"
+                    onClick={() => { setSelectedDoctorId(group.id); setActionError(''); }}
+                  >
+                    <div>
+                      <DoctorAvatar id={group.id} name={group.hoTen} />
+                      <span>
+                        <strong>{group.hoTen}</strong>
+                        <small>
+                          {group.chuyenKhoa || 'Chưa phân chuyên khoa'}{group.maBacSi ? ` (${group.maBacSi})` : ''}
+                        </small>
+                      </span>
+                      <b>{selectedGroup?.id === group.id ? 'Đang xem' : scheduleLabel(group.statusCode || '')}</b>
+                    </div>
+                    <footer>
+                      <span>
+                        {group.schedules.filter((item) => item.statusCode !== 'REJECTED').length} ca
+                        {' '}({Math.round(group.schedules.filter((item) => item.statusCode !== 'REJECTED').reduce((sum, item) => sum + item.hours, 0) * 10) / 10}h)
+                      </span>
+                      <strong>
+                        {selectedGroup?.id === group.id ? (
+                          <><ScheduleApprovalIcon name="dot" /> Đang xem</>
+                        ) : (
+                          <>Xem &amp; Duyệt <ScheduleApprovalIcon name="arrow" /></>
+                        )}
+                      </strong>
+                    </footer>
+                  </button>
+                ))}
+              </div>
+              {!queue.length ? <p className="approval-queue__empty">Không có hồ sơ theo bộ lọc.</p> : null}
+              <div className="approval-queue__bulk">
+                <button
+                  className="approval-button approval-button--soft"
+                  type="button"
+                  disabled={busy || !eligibleGroups.length}
+                  onClick={() => void bulkApprove()}
+                >
+                  <ScheduleApprovalIcon name="bulk" />
+                  Phê duyệt hàng loạt {eligibleGroups.length} hồ sơ hợp lệ
+                </button>
+                <small>Đối chiếu ngày làm việc, trạng thái bác sĩ và trùng giờ.</small>
+              </div>
+            </section>
+
+            <section className="approval-progress">
+              <header>
+                <h3><ScheduleApprovalIcon name="chart" /> Tiến Độ Duyệt Tuần Này</h3>
+                <strong>{percent}%</strong>
+              </header>
+              {progress.map((specialty) => (
+                <div key={specialty.id}>
+                  <p><span>{specialty.ten}</span><b>{specialty.approved}/{specialty.total} ca</b></p>
+                  <progress max={specialty.total} value={specialty.approved} aria-label={`Tiến độ duyệt ${specialty.ten}`} />
+                </div>
+              ))}
+              {!progress.length ? <p>Chưa có lịch làm việc trong tuần này.</p> : null}
+            </section>
+          </aside>
+        </div>
+      )}
+    </main>
   );
 }

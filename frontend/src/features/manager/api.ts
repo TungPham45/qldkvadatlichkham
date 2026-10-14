@@ -36,6 +36,7 @@ export interface ManagerDoctorGroup {
   hoTen: string;
   maBacSi: string | null;
   chuyenKhoa: string | null;
+  chuyenKhoaId?: number | null;
   totalShifts: number;
   totalHours: number;
   statusCode: 'PENDING' | 'APPROVED' | 'REJECTED' | null;
@@ -62,6 +63,8 @@ export const managerApi = {
   deleteSchedule: (id: number) => api.delete(`/manager/doctor-schedules/${id}`),
   approve: (id: number) => api.patch(`/manager/doctor-schedules/${id}/approve`),
   reject: (id: number, lyDo: string) => api.patch(`/manager/doctor-schedules/${id}/reject`, { lyDo }),
+  reviewSchedules: (body: { doctorId: number; week: string; scheduleIds: number[]; decision: 'APPROVED' | 'REJECTED'; note?: string }) =>
+    api.post<{ approved: number; rejected: number; items: ScheduleItem[] }>('/manager/doctor-schedules/review', body).then((response) => response.data),
   bulkApprove: (week: string, chuyenKhoaId?: string, filters?: { q?: string; date?: string; shift?: string; doctorId?: number }) =>
     api.post('/manager/doctor-schedules/bulk-approve', { week, chuyenKhoaId: chuyenKhoaId ? Number(chuyenKhoaId) : undefined, ...filters }),
 };

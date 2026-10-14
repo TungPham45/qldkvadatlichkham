@@ -1,6 +1,8 @@
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
   ArrayMinSize,
+  ArrayUnique,
   IsArray,
   IsDateString,
   IsIn,
@@ -70,6 +72,33 @@ export class RejectScheduleDto {
   @MinLength(3)
   @MaxLength(500)
   lyDo: string;
+}
+
+export class ReviewSchedulesDto {
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  doctorId: number;
+
+  @IsDateString({ strict: true })
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  week: string;
+
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(100)
+  @ArrayUnique()
+  @IsInt({ each: true })
+  @Min(1, { each: true })
+  scheduleIds: number[];
+
+  @IsIn(['APPROVED', 'REJECTED'])
+  decision: 'APPROVED' | 'REJECTED';
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  note?: string;
 }
 
 export class BulkApproveDto {

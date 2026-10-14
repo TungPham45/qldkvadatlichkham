@@ -22,7 +22,7 @@ import {
 } from '@qlpk/common';
 import { DataSource, EntityManager, Repository } from 'typeorm';
 import { BacSi, LichLamViec } from '../../database/entities';
-import { BulkApproveDto, CreateSchedulesDto, ManageScheduleDto, ManagerScheduleQueryDto, RejectScheduleDto, UpdateScheduleDto } from './dto/schedule.dto';
+import { BulkApproveDto, CreateSchedulesDto, ManageScheduleDto, ManagerScheduleQueryDto, RejectScheduleDto, ReviewSchedulesDto, UpdateScheduleDto } from './dto/schedule.dto';
 import { DoctorScheduleRepository, ScheduleRow } from './doctor-schedule.repository';
 import { statusCode, toScheduleView } from './schedule.mapper';
 
@@ -271,6 +271,7 @@ export class DoctorScheduleService {
       if (row.idBacSi !== previous.idBacSi) throw new AppException(409, ErrorCode.SCHEDULE_NOT_EDITABLE, 'Lịch vừa được thay đổi. Vui lòng tải lại.');
       if (isApprovedScheduleStatus(row.trangThai)) return row;
       if (row.trangThai !== ScheduleStatus.PENDING) throw new AppException(409, ErrorCode.SCHEDULE_NOT_EDITABLE, 'Chỉ duyệt được ca đang chờ duyệt.');
+      this.assertNotPast(row);
       await this.assertNoOverlap(manager, row.idBacSi, row.ngayLamViec, row.gioBatDau, row.gioKetThuc, id);
       row.trangThai = ScheduleStatus.APPROVED;
       return manager.getRepository(LichLamViec).save(row);
@@ -326,6 +327,7 @@ export class DoctorScheduleService {
           || Number(before.thoiLuongMoiCa) !== row.thoiLuongMoiCa || before.ghiChu !== row.ghiChu) {
           throw new AppException(409, ErrorCode.SCHEDULE_NOT_EDITABLE, 'Lịch trong bộ lọc vừa được thay đổi. Vui lòng tải lại trước khi duyệt.');
         }
+        this.assertNotPast(row);
         await this.assertNoOverlap(manager, row.idBacSi, row.ngayLamViec, row.gioBatDau, row.gioKetThuc, row.idLichLamViec);
         row.trangThai = ScheduleStatus.APPROVED;
         approved.push(await repository.save(row));
@@ -334,6 +336,48 @@ export class DoctorScheduleService {
     });
     await Promise.all(updated.map((row) => this.invalidateAvailability(row.idBacSi, row.ngayLamViec)));
     return { approved: updated.length, items: updated.map(toScheduleView) };
+  }
+
+  async review(dto: ReviewSchedulesDto) {
+    const range = this.weekRange(dto.week);
+    const note = dto.note?.trim();
+    if (dto.decision === 'REJECTED' && (!note || note.length < 3)) {
+      throw new AppException(400, ErrorCode.VALIDATION_ERROR, 'Vui lòng nhập lý do từ chối ít nhất 3 ký tự.');
+    }
+    const updated = await this.dataSource.transaction(async (manager) => {
+      await this.lockDoctor(manager, dto.doctorId, dto.decision === 'APPROVED');
+      const rows: LichLamViec[] = [];
+      for (const id of [...dto.scheduleIds].sort((a, b) => a - b)) {
+        const row = await this.lockSchedule(manager, id);
+        if (row.idBacSi !== dto.doctorId || row.ngayLamViec < range.weekStart || row.ngayLamViec > range.weekEnd) {
+          throw new AppException(409, ErrorCode.SCHEDULE_NOT_EDITABLE, 'Ca được chọn không thuộc bác sĩ và tuần đang xét duyệt. Vui lòng tải lại.');
+        }
+        if (row.trangThai !== ScheduleStatus.PENDING) {
+          throw new AppException(409, ErrorCode.SCHEDULE_NOT_EDITABLE, 'Chỉ xét duyệt được ca đang chờ duyệt. Vui lòng tải lại danh sách.');
+        }
+        if (dto.decision === 'APPROVED') {
+          this.assertNotPast(row);
+          await this.assertNoOverlap(manager, row.idBacSi, row.ngayLamViec, row.gioBatDau, row.gioKetThuc, id);
+        } else {
+          await this.assertNoAppointments(manager, row);
+        }
+        rows.push(row);
+      }
+      const repository = manager.getRepository(LichLamViec);
+      const saved: LichLamViec[] = [];
+      for (const row of rows) {
+        row.trangThai = dto.decision === 'APPROVED' ? ScheduleStatus.APPROVED : ScheduleStatus.REJECTED;
+        if (dto.note !== undefined) row.ghiChu = note || null;
+        saved.push(await repository.save(row));
+      }
+      return saved;
+    });
+    await Promise.all([...new Set(updated.map((row) => row.ngayLamViec))].map((date) => this.invalidateAvailability(dto.doctorId, date)));
+    return {
+      approved: dto.decision === 'APPROVED' ? updated.length : 0,
+      rejected: dto.decision === 'REJECTED' ? updated.length : 0,
+      items: updated.map(toScheduleView),
+    };
   }
 
   async dashboard(accountId: string) {
@@ -439,6 +483,12 @@ export class DoctorScheduleService {
       .andWhere('l.gioBatDau < :end AND l.gioKetThuc > :start', { start, end });
     if (excludeId) query.andWhere('l.idLichLamViec <> :excludeId', { excludeId });
     if (await query.getOne()) throw new AppException(409, ErrorCode.SCHEDULE_ALREADY_REGISTERED, 'Lịch làm việc trùng với ca đã có của bác sĩ.');
+  }
+
+  private assertNotPast(row: LichLamViec) {
+    if (row.ngayLamViec < todayInVietnam()) {
+      throw new AppException(409, ErrorCode.SCHEDULE_NOT_EDITABLE, 'Không thể duyệt ca làm việc trong quá khứ.');
+    }
   }
 
   private async assertNoAppointments(manager: EntityManager, row: LichLamViec) {

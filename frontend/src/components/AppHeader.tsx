@@ -4,11 +4,13 @@ import { doctorApi } from '../features/doctor/api';
 import { initials, roleLabel } from '../utils/format';
 import { useAuth } from '../stores/auth-store';
 import { NotificationBell } from './NotificationBell';
+import { ScheduleShellIcon } from './ScheduleShellIcon';
 
 export function AppHeader({ onMenu }: { onMenu: () => void }) {
   const { user, logout } = useAuth();
   const [open, setOpen] = useState(false);
   const [doctorName, setDoctorName] = useState('');
+  const [doctorSpecialty, setDoctorSpecialty] = useState('');
   const menuRef = useRef<HTMLDivElement>(null);
   const avatarRef = useRef<HTMLButtonElement>(null);
   const { pathname } = useLocation();
@@ -18,7 +20,12 @@ export function AppHeader({ onMenu }: { onMenu: () => void }) {
     if (user?.role !== 'DOCTOR') return;
     let active = true;
     setDoctorName(user.username);
-    doctorApi.me().then((profile) => { if (active) setDoctorName(profile.hoTen || user.username); })
+    doctorApi.me().then((profile) => {
+      if (active) {
+        setDoctorName(profile.hoTen || user.username);
+        setDoctorSpecialty(profile.chuyenKhoa?.ten || 'Bác sĩ');
+      }
+    })
       .catch(() => { if (active) setDoctorName(user.username); });
     return () => { active = false; };
   }, [user?.id, user?.role, user?.username, pathname]);
@@ -33,7 +40,7 @@ export function AppHeader({ onMenu }: { onMenu: () => void }) {
       if (event.target instanceof Node && !menuRef.current?.contains(event.target)) setOpen(false);
     }
     function closeOnEscape(event: KeyboardEvent) {
-      if (event.key === 'Escape' && user?.role === 'DOCTOR') {
+      if (event.key === 'Escape' && (user?.role === 'DOCTOR' || pathname === '/manager/doctor-schedules')) {
         setOpen(false);
         avatarRef.current?.focus();
       }
@@ -44,7 +51,40 @@ export function AppHeader({ onMenu }: { onMenu: () => void }) {
       document.removeEventListener('pointerdown', close);
       document.removeEventListener('keydown', closeOnEscape);
     };
-  }, [open, user?.role]);
+  }, [open, user?.role, pathname]);
+
+  if (user && ((user.role === 'MANAGER' && pathname === '/manager/doctor-schedules') || (user.role === 'DOCTOR' && pathname === '/doctor/schedule'))) {
+    const isDoctor = user.role === 'DOCTOR';
+    const name = isDoctor ? doctorName || user.username : user.username;
+    return (
+      <header className="schedule-header">
+        <div className="schedule-header__crumbs">
+          <button className="schedule-header__menu" type="button" onClick={() => { setOpen(false); onMenu(); }} aria-label="Mở menu">☰</button>
+          <span>{isDoctor ? 'Bác sĩ' : 'Admin'}</span><b aria-hidden="true">›</b>
+          <strong>{isDoctor ? 'Đăng ký lịch làm việc' : 'Duyệt lịch làm việc bác sĩ'}</strong>
+        </div>
+        <div className="schedule-header__tools">
+          <span className="schedule-header__badge" title={isDoctor ? 'Tuần hiện tại' : 'Thời gian làm việc ban ngày'}>
+            <ScheduleShellIcon name={isDoctor ? 'calendar' : 'clock'} />
+            {isDoctor ? 'Tuần hiện tại' : 'Ca trực ban ngày: 07:30 - 17:30'}
+          </span>
+          <NotificationBell />
+          <div className="schedule-header__account" ref={menuRef}>
+            <button ref={avatarRef} className="schedule-header__account-trigger" type="button" aria-label="Mở menu tài khoản" aria-expanded={open} aria-controls="schedule-account-menu" onClick={() => setOpen((value) => !value)}>
+              <span className="schedule-header__avatar">{initials(name)}</span>
+              <span className="schedule-header__identity"><strong>{name}</strong><small>{isDoctor ? doctorSpecialty || 'Bác sĩ' : 'Quản trị viên'}</small></span>
+              <span className="schedule-header__chevron" aria-hidden="true">⌄</span>
+            </button>
+            {open ? (
+              <div id="schedule-account-menu" className="schedule-header__account-menu">
+                <button type="button" onClick={() => { setOpen(false); void logout().then(() => navigate('/', { replace: true })); }}>Đăng xuất</button>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </header>
+    );
+  }
 
   if (user?.role === 'MANAGER') {
     const title = pathname.includes('diseases') ? 'Danh mục tên bệnh'
@@ -53,7 +93,7 @@ export function AppHeader({ onMenu }: { onMenu: () => void }) {
       : pathname.includes('reception') ? 'Tiếp nhận bệnh nhân'
       : pathname.includes('notifications') ? 'Thông báo'
       : pathname.includes('doctor-schedules')
-      ? 'Quản lý Lịch khám'
+      ? 'Duyệt lịch làm việc'
       : pathname.includes('accounts')
         ? 'Quản lý Tài khoản'
         : pathname.includes('doctors')

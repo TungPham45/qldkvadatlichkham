@@ -21,7 +21,7 @@ export const roleNavigation: Record<AppRole, Array<{ to: string; label: string }
     { to: '/manager/diseases', label: 'Danh mục tên bệnh' },
     { to: '/manager/medicine-suggestions', label: 'Gợi ý thuốc' },
     { to: '/manager/accounts', label: 'Quản lý Tài khoản' },
-    { to: '/manager/doctor-schedules', label: 'Quản lý Lịch khám' },
+    { to: '/manager/doctor-schedules', label: 'Duyệt lịch làm việc' },
     { to: '/reception', label: 'Tiếp nhận bệnh nhân' },
     { to: '/medical-history', label: 'Lịch sử khám' },
   ],

@@ -76,6 +76,8 @@ export interface ScheduleItem {
   statusCode: ScheduleCode;
   note: string | null;
   hours: number;
+  createdAt?: string | null;
+  updatedAt?: string | null;
 }
 
 export interface AppointmentItem {

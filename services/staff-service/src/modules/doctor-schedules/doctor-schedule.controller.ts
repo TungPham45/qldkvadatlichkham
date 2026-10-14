@@ -6,6 +6,7 @@ import {
   ManagerScheduleQueryDto,
   ManageScheduleDto,
   RejectScheduleDto,
+  ReviewSchedulesDto,
   UpdateScheduleDto,
   WeekQueryDto,
 } from './dto/schedule.dto';
@@ -96,6 +97,12 @@ export class DoctorScheduleController {
   @Roles(AppRole.MANAGER)
   bulk(@Body() dto: BulkApproveDto) {
     return this.schedules.bulkApprove(dto);
+  }
+
+  @Post('manager/doctor-schedules/review')
+  @Roles(AppRole.MANAGER)
+  review(@Body() dto: ReviewSchedulesDto) {
+    return this.schedules.review(dto);
   }
 }
 

@@ -1,7 +1,11 @@
-import { NavLink } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../stores/auth-store';
 import { roleNavigation } from '../features/auth/navigation';
-import { hospitalName, hospitalSubtitle } from '../utils/format';
+import { doctorApi } from '../features/doctor/api';
+import type { DoctorProfile } from '../types';
+import { hospitalName, hospitalSubtitle, initials } from '../utils/format';
+import { ScheduleShellIcon, scheduleNavigationIcon } from './ScheduleShellIcon';
 
 const linkClass = 'flex items-center gap-2.5 rounded-[10px] px-3 py-2.5 text-left text-sm font-medium text-[#d5e2f2] hover:bg-white/10 hover:text-white';
 
@@ -20,7 +24,49 @@ function ManagerIcon({ path }: { path: string }) {
 
 export function AppSidebar({ open, onNavigate }: { open: boolean; onNavigate: () => void }) {
   const { user, logout } = useAuth();
+  const { pathname } = useLocation();
+  const [doctorProfile, setDoctorProfile] = useState<DoctorProfile | null>(null);
+  const schedulePage = pathname === '/manager/doctor-schedules' || pathname === '/doctor/schedule';
+
+  useEffect(() => {
+    if (pathname !== '/doctor/schedule' || user?.role !== 'DOCTOR') return;
+    let active = true;
+    doctorApi.me().then((profile) => { if (active) setDoctorProfile(profile); }).catch(() => {});
+    return () => { active = false; };
+  }, [pathname, user?.id, user?.role]);
+
   if (!user) return null;
+  if (schedulePage && (user.role === 'MANAGER' || user.role === 'DOCTOR')) {
+    const isDoctor = user.role === 'DOCTOR';
+    const items = [...roleNavigation[user.role]];
+    if (!isDoctor) {
+      const scheduleIndex = items.findIndex((item) => item.to === '/manager/doctor-schedules');
+      if (scheduleIndex >= 0) items.splice(2, 0, ...items.splice(scheduleIndex, 1));
+    }
+    return (
+      <aside className={`schedule-sidebar ${open ? 'is-open' : ''}`}>
+        <div className="schedule-sidebar__brand">
+          <span className="schedule-sidebar__mark"><ScheduleShellIcon name="hospital" /></span>
+          <span><strong>{hospitalName}</strong><small>{isDoctor ? 'Cổng thông tin bác sĩ' : 'AEGIS CLINICAL HEALTH'}</small></span>
+        </div>
+        {isDoctor ? (
+          <div className="schedule-sidebar__profile">
+            <span className="schedule-sidebar__avatar">{initials(doctorProfile?.hoTen || user.username)}</span>
+            <span><strong>{doctorProfile?.hoTen || user.username}</strong><small>{doctorProfile?.chuyenKhoa?.ten || 'Bác sĩ'}</small></span>
+          </div>
+        ) : null}
+        <nav aria-label={isDoctor ? 'Điều hướng bác sĩ' : 'Điều hướng quản trị'}>
+          {items.map((item) => (
+            <NavLink end key={item.to} to={item.to} onClick={onNavigate} className={({ isActive }) => isActive ? 'is-active' : ''}>
+              <ScheduleShellIcon name={scheduleNavigationIcon(item.to)} />
+              <span>{item.label}</span>
+            </NavLink>
+          ))}
+        </nav>
+        <div className="schedule-sidebar__status"><i />{isDoctor ? 'Cổng thông tin bác sĩ' : 'Hệ thống ổn định (LIVE)'}</div>
+      </aside>
+    );
+  }
   if (user.role === 'MANAGER') {
     return (
       <aside className={`admin-sidebar ${open ? 'is-open' : ''}`}>

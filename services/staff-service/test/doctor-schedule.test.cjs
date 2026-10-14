@@ -10,7 +10,7 @@ const { BacSi, LichLamViec, QuanLy, STAFF_ENTITIES } = require('../dist/database
 const { DoctorScheduleRepository } = require('../dist/modules/doctor-schedules/doctor-schedule.repository');
 const { DoctorScheduleService } = require('../dist/modules/doctor-schedules/doctor-schedule.service');
 const { DoctorScheduleController } = require('../dist/modules/doctor-schedules/doctor-schedule.controller');
-const { ManageScheduleDto, ScheduleItemDto, WeekQueryDto, BulkApproveDto, ManagerScheduleQueryDto } = require('../dist/modules/doctor-schedules/dto/schedule.dto');
+const { ManageScheduleDto, ScheduleItemDto, WeekQueryDto, BulkApproveDto, ManagerScheduleQueryDto, ReviewSchedulesDto } = require('../dist/modules/doctor-schedules/dto/schedule.dto');
 
 const input = (overrides = {}) => ({ doctorId: 1, ngayLamViec: '2027-01-11', gioBatDau: '07:30', gioKetThuc: '11:30', thoiLuongMoiCa: 30, statusCode: 'APPROVED', ghiChu: '  Ca sáng  ', ...overrides });
 const row = (overrides = {}) => ({ idLichLamViec: 1, idBacSi: 1, ngayLamViec: '2027-01-11', gioBatDau: '07:30:00', gioKetThuc: '11:30:00', thoiLuongMoiCa: 30, trangThai: ScheduleStatus.APPROVED, ghiChu: null, ...overrides });
@@ -159,7 +159,7 @@ test('admin can maintain notes and close an inactive doctor schedule but cannot 
 
 test('manager schedule CRUD/list/approval reject doctor and patient roles', () => {
   const guard = new RolesGuard(new Reflector());
-  for (const method of ['list', 'managerCreate', 'managerUpdate', 'managerRemove', 'approve', 'reject', 'bulk']) {
+  for (const method of ['list', 'managerCreate', 'managerUpdate', 'managerRemove', 'approve', 'reject', 'bulk', 'review']) {
     const handler = DoctorScheduleController.prototype[method];
     assert.deepEqual(Reflect.getMetadata(ROLES_KEY, handler), ['MANAGER']);
     for (const role of ['DOCTOR', 'PATIENT']) {
@@ -191,6 +191,84 @@ test('bulk approval fails if a pending schedule changed after searching, and pre
   const result = await f.service.bulkApprove({ week: '2027-01-11' });
   assert.equal(result.approved, 1);
   assert.equal(f.rows()[0].trangThai, ScheduleStatus.APPROVED);
+});
+
+const reviewInput = (overrides = {}) => ({ doctorId: 1, week: '2027-01-11', scheduleIds: [1, 2], decision: 'APPROVED', ...overrides });
+const pendingRows = () => [
+  row({ trangThai: ScheduleStatus.PENDING, ghiChu: 'Ghi chú cũ' }),
+  row({ idLichLamViec: 2, ngayLamViec: '2027-01-12', trangThai: ScheduleStatus.PENDING }),
+  row({ idLichLamViec: 3, ngayLamViec: '2027-01-13', trangThai: ScheduleStatus.PENDING }),
+];
+
+test('selected approval saves only selected shifts and shares the trimmed admin feedback', async () => {
+  const f = fixture(pendingRows());
+  const result = await f.service.review(reviewInput({ scheduleIds: [2, 1], note: '  Đã kiểm tra  ' }));
+  assert.equal(result.approved, 2);
+  assert.equal(result.rejected, 0);
+  assert.deepEqual(result.items.map((item) => item.id), [1, 2]);
+  assert.deepEqual(f.rows().map((item) => item.trangThai), [ScheduleStatus.APPROVED, ScheduleStatus.APPROVED, ScheduleStatus.PENDING]);
+  assert.deepEqual(f.rows().slice(0, 2).map((item) => item.ghiChu), ['Đã kiểm tra', 'Đã kiểm tra']);
+  assert.deepEqual(f.locks, ['doctor:1', 'schedule', 'schedule']);
+  assert.deepEqual(f.invalidations, [{ doctorId: 1, date: '2027-01-11' }, { doctorId: 1, date: '2027-01-12' }]);
+  const untouchedNote = fixture(pendingRows());
+  await untouchedNote.service.review(reviewInput({ scheduleIds: [1] }));
+  assert.equal(untouchedNote.rows()[0].ghiChu, 'Ghi chú cũ');
+});
+
+test('review rejects stale status, different doctor/week and missing IDs without partial updates', async () => {
+  for (const [invalidRow, code] of [
+    [row({ idLichLamViec: 2, ngayLamViec: '2027-01-12', trangThai: ScheduleStatus.APPROVED }), ErrorCode.SCHEDULE_NOT_EDITABLE],
+    [row({ idLichLamViec: 2, idBacSi: 2, trangThai: ScheduleStatus.PENDING }), ErrorCode.SCHEDULE_NOT_EDITABLE],
+    [row({ idLichLamViec: 2, ngayLamViec: '2027-01-18', trangThai: ScheduleStatus.PENDING }), ErrorCode.SCHEDULE_NOT_EDITABLE],
+    [null, ErrorCode.SCHEDULE_NOT_FOUND],
+  ]) {
+    const f = fixture([pendingRows()[0], ...(invalidRow ? [invalidRow] : [])]);
+    await assert.rejects(f.service.review(reviewInput()), hasCode(code));
+    assert.equal(f.rows()[0].trangThai, ScheduleStatus.PENDING);
+    assert.equal(f.rows()[0].ghiChu, 'Ghi chú cũ');
+    assert.deepEqual(f.invalidations, []);
+  }
+});
+
+test('approval blocks past shifts, inactive doctors and conflicting hours atomically', async () => {
+  const past = fixture([row({ trangThai: ScheduleStatus.PENDING, ngayLamViec: '2020-01-06' })]);
+  await assert.rejects(past.service.review(reviewInput({ scheduleIds: [1], week: '2020-01-06' })), hasCode(ErrorCode.SCHEDULE_NOT_EDITABLE));
+  await assert.rejects(past.service.approve(1), hasCode(ErrorCode.SCHEDULE_NOT_EDITABLE));
+  const inactive = fixture(pendingRows());
+  inactive.doctors[0].trangThai = 'Inactive';
+  await assert.rejects(inactive.service.review(reviewInput()), hasCode(ErrorCode.DOCTOR_NOT_FOUND));
+  const conflict = fixture([...pendingRows(), row({ idLichLamViec: 4, ngayLamViec: '2027-01-12', gioBatDau: '08:00:00' })]);
+  await assert.rejects(conflict.service.review(reviewInput()), hasCode(ErrorCode.SCHEDULE_ALREADY_REGISTERED));
+  assert.deepEqual(conflict.rows().slice(0, 3).map((item) => item.trangThai), Array(3).fill(ScheduleStatus.PENDING));
+  assert.deepEqual(conflict.invalidations, []);
+});
+
+test('selected rejection requires feedback and protects booked shifts atomically', async () => {
+  const f = fixture(pendingRows());
+  for (const note of [undefined, '', '  ', 'ab']) {
+    await assert.rejects(f.service.review(reviewInput({ decision: 'REJECTED', note })), hasCode(ErrorCode.VALIDATION_ERROR));
+  }
+  f.doctors[0].trangThai = 'Inactive';
+  const result = await f.service.review(reviewInput({ decision: 'REJECTED', note: '  Vui lòng đăng ký lại ca chiều  ' }));
+  assert.equal(result.rejected, 2);
+  assert.equal(result.approved, 0);
+  assert.equal(f.rows()[0].ghiChu, 'Vui lòng đăng ký lại ca chiều');
+  assert.equal(f.rows()[2].trangThai, ScheduleStatus.PENDING);
+  const booked = fixture(pendingRows(), [{ doctorId: 1, date: '2027-01-12', time: '08:00:00', status: 'Da xac nhan' }]);
+  await assert.rejects(booked.service.review(reviewInput({ decision: 'REJECTED', note: 'Đăng ký lại' })), hasCode(ErrorCode.SCHEDULE_NOT_EDITABLE));
+  assert.deepEqual(booked.rows().map((item) => item.trangThai), Array(3).fill(ScheduleStatus.PENDING));
+  assert.deepEqual(booked.invalidations, []);
+});
+
+test('selected review DTO validates nonempty unique positive schedule IDs and bounded notes', async () => {
+  assert.equal((await validate(plainToInstance(ReviewSchedulesDto, reviewInput()))).length, 0);
+  for (const invalid of [
+    { scheduleIds: [] }, { scheduleIds: [1, 1] }, { scheduleIds: [0] }, { scheduleIds: [1.5] },
+    { scheduleIds: ['1'] }, { scheduleIds: Array.from({ length: 101 }, (_, index) => index + 1) },
+    { week: '2027-02-30' }, { doctorId: 0 }, { decision: 'PENDING' }, { note: 'x'.repeat(501) },
+  ]) {
+    assert.ok((await validate(plainToInstance(ReviewSchedulesDto, reviewInput(invalid)))).length > 0);
+  }
 });
 
 test('manager search and bulk query treat percent, underscore and escape character as literal text', async () => {

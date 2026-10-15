@@ -58,6 +58,7 @@ export function AppRoutes() {
             <Route path="/manager/clinical-services" element={<ManagerClinicalServicesPage />} />
             <Route path="/manager/accounts" element={<ManagerAccountsPage />} />
             <Route path="/manager/doctor-schedules" element={<ManagerSchedulesPage />} />
+            <Route path="/manager/schedules" element={<ManagerSchedulesPage />} />
             <Route path="/manager/diseases" element={<DiseasesPage />} />
             <Route path="/manager/medicine-suggestions" element={<ManagerSuggestionsPage />} />
             <Route path="/reception" element={<ReceptionPage />} />

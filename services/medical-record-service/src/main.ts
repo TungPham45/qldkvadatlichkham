@@ -54,16 +54,16 @@ class RejectAppointmentDto {
 }
 
 class ReceptionDto implements ReceptionPayload {
-  @Type(() => Number) @IsInt() @Min(1) appointmentId!: number;
-  @IsOptional() @Type(() => Number) @IsNumber() @Min(0.01) weight?: number;
-  @IsOptional() @Type(() => Number) @IsNumber() @Min(0.01) height?: number;
-  @IsOptional() @Type(() => Number) @IsNumber() @Min(30) @Max(45) temperature?: number;
-  @IsOptional() @Type(() => Number) @IsInt() @Min(0) systolicBloodPressure?: number;
-  @IsOptional() @Type(() => Number) @IsInt() @Min(0) diastolicBloodPressure?: number;
-  @IsOptional() @Type(() => Number) @IsInt() @Min(0) heartRate?: number;
-  @IsOptional() @Type(() => Number) @IsNumber() @Min(0) @Max(100) spo2?: number;
-  @IsOptional() @IsString() initialSymptoms?: string;
-  @IsOptional() @IsString() notes?: string;
+  @Type(() => Number) @IsInt({ message: 'Mã lịch hẹn phải là số nguyên.' }) @Min(1, { message: 'Mã lịch hẹn không hợp lệ.' }) appointmentId!: number;
+  @IsOptional() @Type(() => Number) @IsNumber({}, { message: 'Cân nặng phải là số dương hợp lệ.' }) @Min(0.5, { message: 'Cân nặng phải là số dương hợp lệ.' }) @Max(500, { message: 'Cân nặng không được vượt quá 500 kg.' }) weight?: number;
+  @IsOptional() @Type(() => Number) @IsNumber({}, { message: 'Chiều cao phải là số dương hợp lệ.' }) @Min(10, { message: 'Chiều cao phải là số dương hợp lệ.' }) @Max(300, { message: 'Chiều cao không được vượt quá 300 cm.' }) height?: number;
+  @IsOptional() @Type(() => Number) @IsNumber({}, { message: 'Nhiệt độ phải là số hợp lệ.' }) @Min(30, { message: 'Nhiệt độ không được nhỏ hơn 30°C.' }) @Max(45, { message: 'Nhiệt độ không được vượt quá 45°C.' }) temperature?: number;
+  @IsOptional() @Type(() => Number) @IsInt({ message: 'Huyết áp tâm thu không hợp lệ. Vui lòng kiểm tra lại.' }) @Min(50, { message: 'Huyết áp tâm thu không hợp lệ. Vui lòng kiểm tra lại.' }) @Max(260, { message: 'Huyết áp tâm thu không hợp lệ. Vui lòng kiểm tra lại.' }) systolicBloodPressure?: number;
+  @IsOptional() @Type(() => Number) @IsInt({ message: 'Huyết áp tâm trương không hợp lệ. Vui lòng kiểm tra lại.' }) @Min(30, { message: 'Huyết áp tâm trương không hợp lệ. Vui lòng kiểm tra lại.' }) @Max(160, { message: 'Huyết áp tâm trương không hợp lệ. Vui lòng kiểm tra lại.' }) diastolicBloodPressure?: number;
+  @IsOptional() @Type(() => Number) @IsInt({ message: 'Nhịp tim không hợp lệ. Vui lòng kiểm tra lại (30 - 250 bpm).' }) @Min(30, { message: 'Nhịp tim không hợp lệ. Vui lòng kiểm tra lại (30 - 250 bpm).' }) @Max(250, { message: 'Nhịp tim không hợp lệ. Vui lòng kiểm tra lại (30 - 250 bpm).' }) heartRate?: number;
+  @IsOptional() @Type(() => Number) @IsNumber({}, { message: 'Chỉ số SpO₂ phải là số hợp lệ.' }) @Min(0, { message: 'Chỉ số SpO₂ không được nhỏ hơn 0%.' }) @Max(100, { message: 'Chỉ số SpO₂ không được vượt quá 100%.' }) spo2?: number;
+  @IsOptional() @IsString({ message: 'Triệu chứng ban đầu phải là chuỗi ký tự.' }) @MaxLength(2000, { message: 'Triệu chứng ban đầu tối đa 2000 ký tự.' }) initialSymptoms?: string;
+  @IsOptional() @IsString({ message: 'Ghi chú tiếp nhận phải là chuỗi ký tự.' }) @MaxLength(2000, { message: 'Ghi chú tiếp nhận tối đa 2000 ký tự.' }) notes?: string;
 }
 
 class PrescriptionItemDto {

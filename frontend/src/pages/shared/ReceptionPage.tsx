@@ -20,6 +20,7 @@ import { medicinesApi, type Medicine } from '../../features/manager/medicines-ap
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { useAuth } from '../../stores/auth-store';
 import { appointmentLabel, formatDate, formatTime } from '../../utils/format';
+import { validateReception } from '../../utils/reception-validation';
 
 const limit = 10;
 const blankReception: ReceptionInput = { appointmentId: 0, initialSymptoms: '', notes: '' };
@@ -126,6 +127,7 @@ export function ReceptionPage() {
   const [invoiceFee, setInvoiceFee] = useState('');
   const [paymentForm, setPaymentForm] = useState({ amount: '', method: 'Tien mat' as 'Tien mat' | 'Chuyen khoan', idempotencyKey: '', note: '' });
   const [error, setError] = useState('');
+  const [receptionErrors, setReceptionErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState('');
   const [notice, setNotice] = useState('');
   const [loading, setLoading] = useState(true);
@@ -213,6 +215,7 @@ export function ReceptionPage() {
     setSelected(item);
     setMode(nextMode);
     fillForms(item);
+    setReceptionErrors({});
     setFormError('');
     setNotice('');
   }
@@ -225,6 +228,7 @@ export function ReceptionPage() {
   }
 
   function setReceptionNumber(key: keyof ReceptionInput, value: string) {
+    setReceptionErrors((prev) => ({ ...prev, [key]: '' }));
     setReceptionForm({ ...receptionForm, [key]: value === '' ? undefined : Number(value) });
   }
 
@@ -248,11 +252,21 @@ export function ReceptionPage() {
   async function submitReception(event: FormEvent) {
     event.preventDefault();
     if (!selected) return;
+    const isNew = !selected.reception;
+    const validation = validateReception(receptionForm, isNew);
+    if (!validation.isValid) {
+      setReceptionErrors(validation.errors);
+      setFormError(validation.summaryError);
+      if (validation.firstErrorField) {
+        document.getElementById(`reception-${validation.firstErrorField}`)?.focus();
+      }
+      return;
+    }
     await perform(
       () => selected.reception
         ? clinicalApi.updateReception(selected.appointmentId, receptionForm)
         : clinicalApi.createReception(receptionForm),
-      'Đã lưu thông tin tiếp nhận.',
+      'Đã lưu thông tin tiếp nhận thành công.',
     );
   }
 
@@ -451,12 +465,61 @@ export function ReceptionPage() {
           ) : null}
 
           {mode === 'reception' ? (
-            <form className="manager-form" onSubmit={submitReception}>
-              {vitalFields.map(([key, label]) => <label key={key}><span>{label}</span><input disabled={!selectedReceptionEditable} type="number" step="0.1" min="0" value={String(receptionForm[key] ?? '')} onChange={(event) => setReceptionNumber(key, event.target.value)} /></label>)}
-              <label className="is-wide"><span>Triệu chứng ban đầu</span><textarea disabled={!selectedReceptionEditable} rows={3} value={receptionForm.initialSymptoms || ''} onChange={(event) => setReceptionForm({ ...receptionForm, initialSymptoms: event.target.value })} /></label>
-              <label className="is-wide"><span>Ghi chú tiếp nhận</span><textarea disabled={!selectedReceptionEditable} rows={3} value={receptionForm.notes || ''} onChange={(event) => setReceptionForm({ ...receptionForm, notes: event.target.value })} /></label>
+            <form className="manager-form" onSubmit={submitReception} noValidate>
+              {!selected?.reception ? <p className="doctor-modal-intro is-wide">Vui lòng nhập đầy đủ các thông tin bắt buộc (*) trước khi xác nhận tiếp nhận.</p> : null}
+              {vitalFields.map(([key, label]) => {
+                const isRequired = !selected?.reception;
+                return (
+                  <label key={key}>
+                    <span>{label} {isRequired ? <span className="required-star">*</span> : null}</span>
+                    <input
+                      id={`reception-${key}`}
+                      className={receptionErrors[key] ? 'input-has-error' : ''}
+                      disabled={!selectedReceptionEditable}
+                      type="number"
+                      step={['heartRate', 'systolicBloodPressure', 'diastolicBloodPressure'].includes(key) ? '1' : '0.1'}
+                      value={String(receptionForm[key] ?? '')}
+                      onChange={(event) => setReceptionNumber(key, event.target.value)}
+                    />
+                    {receptionErrors[key] ? <span className="field-error">{receptionErrors[key]}</span> : null}
+                  </label>
+                );
+              })}
+              <label className="is-wide">
+                <span>Triệu chứng ban đầu {!selected?.reception ? <span className="required-star">*</span> : null}</span>
+                <textarea
+                  id="reception-initialSymptoms"
+                  className={receptionErrors.initialSymptoms ? 'input-has-error' : ''}
+                  disabled={!selectedReceptionEditable}
+                  rows={3}
+                  value={receptionForm.initialSymptoms || ''}
+                  onChange={(event) => {
+                    setReceptionErrors((prev) => ({ ...prev, initialSymptoms: '' }));
+                    setReceptionForm({ ...receptionForm, initialSymptoms: event.target.value });
+                  }}
+                />
+                {receptionErrors.initialSymptoms ? <span className="field-error">{receptionErrors.initialSymptoms}</span> : null}
+              </label>
+              <label className="is-wide">
+                <span>Ghi chú tiếp nhận</span>
+                <textarea
+                  id="reception-notes"
+                  className={receptionErrors.notes ? 'input-has-error' : ''}
+                  disabled={!selectedReceptionEditable}
+                  rows={3}
+                  value={receptionForm.notes || ''}
+                  onChange={(event) => {
+                    setReceptionErrors((prev) => ({ ...prev, notes: '' }));
+                    setReceptionForm({ ...receptionForm, notes: event.target.value });
+                  }}
+                />
+                {receptionErrors.notes ? <span className="field-error">{receptionErrors.notes}</span> : null}
+              </label>
               {formError ? <p className="manager-form__error is-wide">{formError}</p> : null}
-              <div className="manager-form__actions is-wide"><button type="button" onClick={() => setMode('detail')}>Quay lại</button><button className="manager-btn--primary" disabled={busy || !selectedReceptionEditable}>{busy ? 'Đang lưu...' : 'Lưu tiếp nhận'}</button></div>
+              <div className="manager-form__actions is-wide">
+                <button type="button" onClick={() => setMode('detail')}>Quay lại</button>
+                <button className="manager-btn--primary" disabled={busy || !selectedReceptionEditable}>{busy ? 'Đang lưu...' : 'Lưu tiếp nhận'}</button>
+              </div>
             </form>
           ) : null}
 

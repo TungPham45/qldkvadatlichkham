@@ -4,6 +4,7 @@ import {
   AppException,
   AppRole,
   AppointmentStatus,
+  ErrorCode,
   PaymentStatus,
   PaymentTransactionStatus,
   internalRequest,
@@ -328,6 +329,94 @@ export class ReceptionService {
   }
 
   async save(user: AccessTokenPayload, appointmentId: number, dto: ReceptionPayload, update: boolean) {
+    if (!update) {
+      if (dto.temperature === undefined || dto.temperature === null || Number.isNaN(Number(dto.temperature))) {
+        throw new AppException(400, ErrorCode.VALIDATION_ERROR, 'Vui lòng nhập nhiệt độ.');
+      }
+      if (dto.systolicBloodPressure === undefined || dto.systolicBloodPressure === null || Number.isNaN(Number(dto.systolicBloodPressure))) {
+        throw new AppException(400, ErrorCode.VALIDATION_ERROR, 'Vui lòng nhập huyết áp tâm thu.');
+      }
+      if (dto.diastolicBloodPressure === undefined || dto.diastolicBloodPressure === null || Number.isNaN(Number(dto.diastolicBloodPressure))) {
+        throw new AppException(400, ErrorCode.VALIDATION_ERROR, 'Vui lòng nhập huyết áp tâm trương.');
+      }
+      if (dto.heartRate === undefined || dto.heartRate === null || Number.isNaN(Number(dto.heartRate))) {
+        throw new AppException(400, ErrorCode.VALIDATION_ERROR, 'Vui lòng nhập nhịp tim.');
+      }
+      if (dto.spo2 === undefined || dto.spo2 === null || Number.isNaN(Number(dto.spo2))) {
+        throw new AppException(400, ErrorCode.VALIDATION_ERROR, 'Vui lòng nhập chỉ số SpO₂.');
+      }
+      if (dto.weight === undefined || dto.weight === null || Number.isNaN(Number(dto.weight))) {
+        throw new AppException(400, ErrorCode.VALIDATION_ERROR, 'Vui lòng nhập cân nặng.');
+      }
+      if (dto.height === undefined || dto.height === null || Number.isNaN(Number(dto.height))) {
+        throw new AppException(400, ErrorCode.VALIDATION_ERROR, 'Vui lòng nhập chiều cao.');
+      }
+      if (!dto.initialSymptoms || !dto.initialSymptoms.trim()) {
+        throw new AppException(400, ErrorCode.VALIDATION_ERROR, 'Vui lòng nhập triệu chứng ban đầu.');
+      }
+    }
+
+    if (dto.temperature !== undefined && dto.temperature !== null) {
+      const temp = Number(dto.temperature);
+      if (temp < 30 || temp > 45 || Number.isNaN(temp)) {
+        throw new AppException(400, ErrorCode.VALIDATION_ERROR, 'Nhiệt độ phải từ 30°C đến 45°C.');
+      }
+    }
+    if (dto.systolicBloodPressure !== undefined && dto.systolicBloodPressure !== null) {
+      const sys = Number(dto.systolicBloodPressure);
+      if (sys < 50 || sys > 260 || Number.isNaN(sys) || !Number.isInteger(sys)) {
+        throw new AppException(400, ErrorCode.VALIDATION_ERROR, 'Huyết áp tâm thu không hợp lệ. Vui lòng kiểm tra lại.');
+      }
+    }
+    if (dto.diastolicBloodPressure !== undefined && dto.diastolicBloodPressure !== null) {
+      const dia = Number(dto.diastolicBloodPressure);
+      if (dia < 30 || dia > 160 || Number.isNaN(dia) || !Number.isInteger(dia)) {
+        throw new AppException(400, ErrorCode.VALIDATION_ERROR, 'Huyết áp tâm trương không hợp lệ. Vui lòng kiểm tra lại.');
+      }
+    }
+    if (dto.systolicBloodPressure !== undefined && dto.systolicBloodPressure !== null &&
+        dto.diastolicBloodPressure !== undefined && dto.diastolicBloodPressure !== null) {
+      if (Number(dto.systolicBloodPressure) <= Number(dto.diastolicBloodPressure)) {
+        throw new AppException(400, ErrorCode.VALIDATION_ERROR, 'Huyết áp tâm thu phải lớn hơn huyết áp tâm trương.');
+      }
+    }
+    if (dto.heartRate !== undefined && dto.heartRate !== null) {
+      const hr = Number(dto.heartRate);
+      if (hr < 30 || hr > 250 || Number.isNaN(hr) || !Number.isInteger(hr)) {
+        throw new AppException(400, ErrorCode.VALIDATION_ERROR, 'Nhịp tim không hợp lệ. Vui lòng kiểm tra lại (30 - 250 bpm).');
+      }
+    }
+    if (dto.spo2 !== undefined && dto.spo2 !== null) {
+      const spo2Val = Number(dto.spo2);
+      if (Number.isNaN(spo2Val)) {
+        throw new AppException(400, ErrorCode.VALIDATION_ERROR, 'Chỉ số SpO₂ phải là số hợp lệ.');
+      }
+      if (spo2Val > 100) {
+        throw new AppException(400, ErrorCode.VALIDATION_ERROR, 'Chỉ số SpO₂ không được vượt quá 100%.');
+      }
+      if (spo2Val < 0) {
+        throw new AppException(400, ErrorCode.VALIDATION_ERROR, 'Chỉ số SpO₂ không được nhỏ hơn 0%.');
+      }
+    }
+    if (dto.weight !== undefined && dto.weight !== null) {
+      const w = Number(dto.weight);
+      if (w <= 0 || w > 500 || Number.isNaN(w)) {
+        throw new AppException(400, ErrorCode.VALIDATION_ERROR, 'Cân nặng phải là số dương hợp lệ.');
+      }
+    }
+    if (dto.height !== undefined && dto.height !== null) {
+      const h = Number(dto.height);
+      if (h <= 0 || h > 300 || Number.isNaN(h)) {
+        throw new AppException(400, ErrorCode.VALIDATION_ERROR, 'Chiều cao phải là số dương hợp lệ.');
+      }
+    }
+    if (dto.initialSymptoms && dto.initialSymptoms.length > 2000) {
+      throw new AppException(400, ErrorCode.VALIDATION_ERROR, 'Triệu chứng ban đầu tối đa 2000 ký tự.');
+    }
+    if (dto.notes && dto.notes.length > 2000) {
+      throw new AppException(400, ErrorCode.VALIDATION_ERROR, 'Ghi chú tiếp nhận tối đa 2000 ký tự.');
+    }
+
     try {
       return await this.db.transaction(async (manager) => {
         const appointment = await this.lockAppointment(manager, user, appointmentId);
@@ -633,7 +722,7 @@ export class ReceptionService {
       `INSERT INTO thong_bao (
          id_tai_khoan, id_lich_hen, loai, kenh, tieu_de,
          noi_dung, trang_thai, thoi_gian_gui, duong_dan, ma_su_kien
-       ) VALUES ($1, $2, $3, 'Ung dung', $4, $5, 'Chua doc', CURRENT_TIMESTAMP, '/patient/appointments', $6)
+       ) VALUES ($1, $2, $3, 'Ung dung', $4, $5, 'Chua doc', CURRENT_TIMESTAMP, $6, $7)
        ON CONFLICT (ma_su_kien) DO NOTHING`,
       [
         appointment.bookingAccountId,
@@ -641,6 +730,7 @@ export class ReceptionService {
         accepted ? 'Lich hen duoc xac nhan' : 'Lich hen bi tu choi',
         title,
         content,
+        `/patient/appointments?date=${appointment.date}&appointmentId=${appointment.id}`,
         `appointment-decision-patient:${appointment.id}:${accepted ? 'accepted' : 'rejected'}`,
       ],
     );

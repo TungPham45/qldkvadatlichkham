@@ -19,6 +19,7 @@ import {
   type MedicineSuggestion,
 } from '../../features/manager/suggestions-api';
 import { appointmentLabel, genderLabel } from '../../utils/format';
+import { validateReception } from '../../utils/reception-validation';
 
 type RecordField = 'symptoms' | 'examResult' | 'conclusion' | 'treatment' | 'diseaseId';
 
@@ -119,6 +120,7 @@ export function DoctorVisitDetailPage() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<RecordField, string>>>({});
+  const [vitalsErrors, setVitalsErrors] = useState<Record<string, string>>({});
   const [showClinicalPanel, setShowClinicalPanel] = useState(false);
 
   const fill = useCallback((item: ReceptionItem) => {
@@ -365,6 +367,13 @@ export function DoctorVisitDetailPage() {
     event.preventDefault();
     if (!visit?.reception) return;
     clearMessages();
+    const validation = validateReception(vitals, false);
+    if (!validation.isValid) {
+      setVitalsErrors(validation.errors);
+      setError(validation.summaryError);
+      return;
+    }
+    setVitalsErrors({});
     setBusy(true);
     try {
       await clinicalApi.updateReception(id, vitals);
@@ -626,6 +635,13 @@ export function DoctorVisitDetailPage() {
       ...current,
       [key]: value === '' ? undefined : Number(value),
     }));
+    if (vitalsErrors[key]) {
+      setVitalsErrors((current) => {
+        const next = { ...current };
+        delete next[key];
+        return next;
+      });
+    }
   }
 
   function setRecordField<K extends keyof MedicalRecordInput>(key: K, value: MedicalRecordInput[K]) {
@@ -973,11 +989,13 @@ export function DoctorVisitDetailPage() {
                     type="number"
                     min="0"
                     step={step}
+                    className={vitalsErrors[key] ? 'input-has-error' : ''}
                     value={String(vitals[key] ?? '')}
                     placeholder="—"
                     onChange={(event) => setVital(key, event.target.value)}
                   />
                   <small>{unit}</small>
+                  {vitalsErrors[key] ? <span className="field-error">{vitalsErrors[key]}</span> : null}
                 </label>
               ))}
               <div className="visit-bmi">

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { errorMessage } from '../../api/client';
 import { doctorApi } from '../../features/doctor/api';
 import { managerApi, type ManagerDoctorGroup } from '../../features/manager/api';
@@ -51,15 +52,22 @@ function sentAt(items: ScheduleItem[]) {
 
 export function ManagerSchedulesPage() {
   const { user } = useAuth();
-  const [week, setWeek] = useState(startOfWeek(todayIso()));
+  const [searchParams, setSearchParams] = useSearchParams();
+  const paramWeek = searchParams.get('week');
+  const paramDoctorId = searchParams.get('doctorId') ? Number(searchParams.get('doctorId')) : null;
+  const paramScheduleId = searchParams.get('scheduleId') ? Number(searchParams.get('scheduleId')) : null;
+  const paramFilter = searchParams.get('filter');
+
+  const [week, setWeek] = useState(() => (paramWeek ? startOfWeek(paramWeek) : startOfWeek(todayIso())));
   const [groups, setGroups] = useState<ManagerDoctorGroup[]>([]);
   const [directory, setDirectory] = useState<ManagedDoctor[]>([]);
   const [specialties, setSpecialties] = useState<Specialty[]>([]);
   const [specialtyId, setSpecialtyId] = useState('');
   const [q, setQ] = useState('');
   const query = useDebouncedValue(q).trim().toLocaleLowerCase('vi-VN');
-  const [queueFilter, setQueueFilter] = useState('PENDING');
-  const [selectedDoctorId, setSelectedDoctorId] = useState<number | null>(null);
+  const [queueFilter, setQueueFilter] = useState(() => paramFilter || 'PENDING');
+  const [selectedDoctorId, setSelectedDoctorId] = useState<number | null>(() => paramDoctorId);
+  const [targetScheduleId, setTargetScheduleId] = useState<number | null>(() => paramScheduleId);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [note, setNote] = useState('');
   const [loading, setLoading] = useState(true);
@@ -100,6 +108,25 @@ export function ManagerSchedulesPage() {
       setDirectory(doctors);
       setSpecialties(options);
       setError('');
+
+      if (paramScheduleId) {
+        let foundDoctorId: number | null = null;
+        let foundStatus: string | null = null;
+        for (const doc of response.doctors) {
+          const match = doc.schedules.find((s) => s.id === paramScheduleId);
+          if (match) {
+            foundDoctorId = doc.id;
+            foundStatus = match.statusCode;
+            break;
+          }
+        }
+        if (foundDoctorId !== null) {
+          setSelectedDoctorId(foundDoctorId);
+          if (foundStatus && foundStatus !== 'PENDING') {
+            setQueueFilter(foundStatus);
+          }
+        }
+      }
     } catch (err) {
       if (mounted.current && current === requestId.current) setError(errorMessage(err));
     } finally {
@@ -109,6 +136,29 @@ export function ManagerSchedulesPage() {
 
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; requestId.current++; }; }, []);
   useEffect(() => { void load(); return () => { requestId.current++; }; }, [week]);
+
+  useEffect(() => {
+    if (paramDoctorId && paramDoctorId !== selectedDoctorId) {
+      setSelectedDoctorId(paramDoctorId);
+    }
+  }, [paramDoctorId]);
+
+  useEffect(() => {
+    if (paramScheduleId && paramScheduleId !== targetScheduleId) {
+      setTargetScheduleId(paramScheduleId);
+    }
+  }, [paramScheduleId]);
+
+  useEffect(() => {
+    if (!targetScheduleId || loading) return;
+    const el = document.getElementById(`approval-shift-${targetScheduleId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const timer = window.setTimeout(() => setTargetScheduleId(null), 5000);
+      return () => window.clearTimeout(timer);
+    }
+  }, [targetScheduleId, loading, selectedDoctorId]);
+
   useEffect(() => {
     const pending = selectedGroup?.schedules.filter((item) => item.statusCode === 'PENDING') || [];
     if (loadedDraftKey.current === draftKey) {
@@ -143,6 +193,12 @@ export function ManagerSchedulesPage() {
     setActionError('');
     setLoading(true);
     setWeek(next);
+    setSearchParams((prev) => {
+      const nextParams = new URLSearchParams(prev);
+      nextParams.set('week', next);
+      nextParams.delete('scheduleId');
+      return nextParams;
+    }, { replace: true });
   }
 
   function toggle(id: number) {
@@ -401,7 +457,8 @@ export function ManagerSchedulesPage() {
                                   return (
                                     <div
                                       key={item.id}
-                                      className={`approval-shift approval-shift--${item.statusCode.toLowerCase()} ${selectedIds.has(item.id) ? 'is-selected' : ''}`}
+                                      id={`approval-shift-${item.id}`}
+                                      className={`approval-shift approval-shift--${item.statusCode.toLowerCase()} ${selectedIds.has(item.id) ? 'is-selected' : ''} ${targetScheduleId === item.id ? 'is-highlighted' : ''}`}
                                     >
                                       <strong>
                                         {item.statusCode === 'PENDING' ? 'ĐĂNG KÝ CA' : scheduleLabel(item.statusCode).toLocaleUpperCase('vi-VN')}

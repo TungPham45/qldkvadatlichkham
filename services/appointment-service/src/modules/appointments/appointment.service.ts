@@ -251,20 +251,36 @@ export class AppointmentService {
             nguonDatLich: 'Online',
           }),
         );
+        const [yearStr, monthStr, dayStr] = date.split('-');
+        const viDate = `${dayStr}/${monthStr}/${yearStr}`;
+        const apptCode = `LH-${String(saved.idLichHen).padStart(6, '0')}`;
+
         await manager.query(
           `INSERT INTO thong_bao
              (id_tai_khoan, id_lich_hen, loai, kenh, tieu_de, noi_dung, trang_thai, thoi_gian_gui, duong_dan, ma_su_kien)
-           VALUES ($1, $2, 'Dat lich', 'Ung dung', 'Đặt lịch khám thành công', $3, 'Chua doc', CURRENT_TIMESTAMP, '/patient/appointments', $4)
+           VALUES ($1, $2, 'Dat lich', 'Ung dung', 'Đặt lịch khám thành công', $3, 'Chua doc', CURRENT_TIMESTAMP, $4, $5)
            ON CONFLICT (ma_su_kien) DO NOTHING`,
-          [accountId, saved.idLichHen, `Lịch khám cho ${patient.hoTen} ngày ${date} lúc ${start} đã được ghi nhận.`, `appointment-booked-patient:${saved.idLichHen}`],
+          [
+            accountId,
+            saved.idLichHen,
+            `Lịch khám (${apptCode}) cho ${patient.hoTen} ngày ${viDate} lúc ${start} đã được ghi nhận.`,
+            `/patient/appointments?date=${date}&appointmentId=${saved.idLichHen}`,
+            `appointment-booked-patient:${saved.idLichHen}`,
+          ],
         );
         if (doctors[0].id_tai_khoan) {
           await manager.query(
             `INSERT INTO thong_bao
                (id_tai_khoan, id_lich_hen, loai, kenh, tieu_de, noi_dung, trang_thai, thoi_gian_gui, duong_dan, ma_su_kien)
-             VALUES ($1, $2, 'Lich hen moi', 'Ung dung', 'Có lịch hẹn mới chờ xác nhận', $3, 'Chua doc', CURRENT_TIMESTAMP, '/doctor/appointments/confirmation', $4)
+             VALUES ($1, $2, 'Lich hen moi', 'Ung dung', 'Có lịch hẹn mới chờ xác nhận', $3, 'Chua doc', CURRENT_TIMESTAMP, $4, $5)
              ON CONFLICT (ma_su_kien) DO NOTHING`,
-            [doctors[0].id_tai_khoan, saved.idLichHen, `${patient.hoTen} đặt lịch ngày ${date} lúc ${start}.`, `appointment-booked-doctor:${saved.idLichHen}`],
+            [
+              doctors[0].id_tai_khoan,
+              saved.idLichHen,
+              `${patient.hoTen} đặt lịch (${apptCode}) ngày ${viDate} lúc ${start}.`,
+              `/doctor/appointments/confirmation?date=${date}&appointmentId=${saved.idLichHen}&stage=CONFIRMATION_PENDING`,
+              `appointment-booked-doctor:${saved.idLichHen}`,
+            ],
           );
         }
         return { saved, endTime: matched.slot.end };
@@ -333,12 +349,21 @@ export class AppointmentService {
         [appointmentId, appointment.status, AppointmentStatus.CANCELLED, accountId, cancellationReason],
       );
       if (appointment.doctorAccountId) {
+        const [cancelY, cancelM, cancelD] = appointment.date.split('-');
+        const viCancelDate = `${cancelD}/${cancelM}/${cancelY}`;
+        const cancelCode = `LH-${String(appointmentId).padStart(6, '0')}`;
         await manager.query(
           `INSERT INTO thong_bao
              (id_tai_khoan,id_lich_hen,loai,kenh,tieu_de,noi_dung,trang_thai,thoi_gian_gui,duong_dan,ma_su_kien)
-           VALUES($1,$2,'Benh nhan huy lich','Ung dung','Bệnh nhân đã hủy lịch',$3,'Chua doc',CURRENT_TIMESTAMP,'/doctor/appointments/confirmation',$4)
+           VALUES($1,$2,'Benh nhan huy lich','Ung dung','Bệnh nhân đã hủy lịch',$3,'Chua doc',CURRENT_TIMESTAMP,$4,$5)
            ON CONFLICT (ma_su_kien) DO NOTHING`,
-          [appointment.doctorAccountId, appointmentId, `${appointment.patientName} đã hủy lịch ngày ${appointment.date} lúc ${appointment.time.slice(0,5)}. Lý do: ${cancellationReason}.`, `appointment-cancelled-doctor:${appointmentId}`],
+          [
+            appointment.doctorAccountId,
+            appointmentId,
+            `${appointment.patientName} đã hủy lịch (${cancelCode}) ngày ${viCancelDate} lúc ${appointment.time.slice(0, 5)}. Lý do: ${cancellationReason}.`,
+            `/doctor/appointments/confirmation?date=${appointment.date}&appointmentId=${appointmentId}&stage=CONFIRMATION_REJECTED`,
+            `appointment-cancelled-doctor:${appointmentId}`,
+          ],
         );
       }
       return appointment;

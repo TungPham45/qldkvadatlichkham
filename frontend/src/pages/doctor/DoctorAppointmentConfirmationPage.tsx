@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { errorMessage } from '../../api/client';
 import { AdminModal } from '../../components/AdminModal';
 import { EmptyState } from '../../components/EmptyState';
@@ -58,8 +59,20 @@ function statusLabel(item: ReceptionItem) {
 const emptyTabs: ReceptionTabs = { pending: 0, confirmed: 0, cancelled: 0, waiting: 0, inProgress: 0, completed: 0 };
 
 export function DoctorAppointmentConfirmationPage() {
-  const [date, setDate] = useState(vietnamToday);
-  const [stage, setStage] = useState<ConfirmationStage>('CONFIRMATION_PENDING');
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const paramDate = searchParams.get('date');
+  const paramStage = searchParams.get('stage') as ConfirmationStage | null;
+  const paramAppointmentId = searchParams.get('appointmentId') ? Number(searchParams.get('appointmentId')) : null;
+
+  const [date, setDate] = useState(() => (paramDate && /^\d{4}-\d{2}-\d{2}$/.test(paramDate) ? paramDate : vietnamToday()));
+  const [stage, setStage] = useState<ConfirmationStage>(() => {
+    if (paramStage === 'CONFIRMATION_PENDING' || paramStage === 'CONFIRMATION_CONFIRMED' || paramStage === 'CONFIRMATION_REJECTED') {
+      return paramStage;
+    }
+    return 'CONFIRMATION_PENDING';
+  });
+  const [highlightedId, setHighlightedId] = useState<number | null>(() => paramAppointmentId);
   const [query, setQuery] = useState('');
   const search = useDebouncedValue(query);
   const [items, setItems] = useState<ReceptionItem[]>([]);
@@ -73,6 +86,80 @@ export function DoctorAppointmentConfirmationPage() {
   const [rejecting, setRejecting] = useState<ReceptionItem | null>(null);
   const [reason, setReason] = useState('');
   const [formError, setFormError] = useState('');
+
+  const updateUrl = useCallback((newDate: string, newStage: ConfirmationStage, newAppointmentId?: number | null) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('date', newDate);
+      next.set('stage', newStage);
+      if (newAppointmentId) {
+        next.set('appointmentId', String(newAppointmentId));
+      } else {
+        next.delete('appointmentId');
+      }
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
+
+  // Sync state if URL params change externally (e.g. browser back/forward or notification click)
+  useEffect(() => {
+    const urlDate = searchParams.get('date');
+    const urlStage = searchParams.get('stage') as ConfirmationStage | null;
+    const urlAppointmentId = searchParams.get('appointmentId') ? Number(searchParams.get('appointmentId')) : null;
+
+    if (urlDate && /^\d{4}-\d{2}-\d{2}$/.test(urlDate) && urlDate !== date) {
+      setDate(urlDate);
+      setPage(1);
+    }
+    if (urlStage && (urlStage === 'CONFIRMATION_PENDING' || urlStage === 'CONFIRMATION_CONFIRMED' || urlStage === 'CONFIRMATION_REJECTED') && urlStage !== stage) {
+      setStage(urlStage);
+      setPage(1);
+    }
+    if (urlAppointmentId) {
+      setHighlightedId(urlAppointmentId);
+    }
+  }, [searchParams]);
+
+  // Verify target appointment from backend to ensure correct date and stage
+  useEffect(() => {
+    const targetId = searchParams.get('appointmentId') ? Number(searchParams.get('appointmentId')) : null;
+    if (!targetId) return;
+
+    let cancelled = false;
+    clinicalApi.reception(targetId).then((apt) => {
+      if (cancelled) return;
+      const actualDate = apt.date;
+      let actualStage: ConfirmationStage = 'CONFIRMATION_PENDING';
+      if (apt.status === 'Huy') actualStage = 'CONFIRMATION_REJECTED';
+      else if (apt.status !== 'Cho xac nhan') actualStage = 'CONFIRMATION_CONFIRMED';
+
+      if (actualDate !== date || actualStage !== stage) {
+        setDate(actualDate);
+        setStage(actualStage);
+        setPage(1);
+        updateUrl(actualDate, actualStage, targetId);
+      }
+    }).catch(() => {
+      if (!cancelled) {
+        setError('Lịch hẹn không còn tồn tại hoặc bạn không có quyền truy cập.');
+      }
+    });
+
+    return () => { cancelled = true; };
+  }, [searchParams]);
+
+  // Auto scroll and highlight target appointment
+  useEffect(() => {
+    if (!highlightedId || loading) return;
+    const element = document.getElementById(`appointment-card-${highlightedId}`);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const timer = window.setTimeout(() => {
+        setHighlightedId(null);
+      }, 5000);
+      return () => window.clearTimeout(timer);
+    }
+  }, [highlightedId, items, loading]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -94,11 +181,14 @@ export function DoctorAppointmentConfirmationPage() {
   function chooseStage(next: ConfirmationStage) {
     setStage(next);
     setPage(1);
+    updateUrl(date, next, highlightedId);
   }
 
   function moveDate(amount: number) {
-    setDate((current) => addDays(current, amount));
+    const nextDate = addDays(date, amount);
+    setDate(nextDate);
     setPage(1);
+    updateUrl(nextDate, stage, null);
   }
 
   async function confirm(item: ReceptionItem) {
@@ -151,9 +241,23 @@ export function DoctorAppointmentConfirmationPage() {
       <section className="doctor-workflow-panel">
         <div className="doctor-date-bar">
           <button type="button" aria-label="Ngày trước" onClick={() => moveDate(-1)}>‹</button>
-          <button type="button" className="doctor-date-today" onClick={() => { setDate(vietnamToday()); setPage(1); }}>
+          <button type="button" className="doctor-date-today" onClick={() => { const today = vietnamToday(); setDate(today); setPage(1); updateUrl(today, stage, null); }}>
             <span aria-hidden="true">▣</span> {date === vietnamToday() ? 'Hôm nay' : 'Ngày khám'}: {displayDate(date)}
           </button>
+          <input
+            type="date"
+            value={date}
+            onChange={(event) => {
+              if (event.target.value) {
+                setDate(event.target.value);
+                setPage(1);
+                updateUrl(event.target.value, stage, null);
+              }
+            }}
+            className="doctor-date-picker"
+            title="Chọn ngày khám"
+            aria-label="Chọn ngày khám"
+          />
           <button type="button" aria-label="Ngày sau" onClick={() => moveDate(1)}>›</button>
         </div>
         <div className="doctor-workflow-controls">
@@ -176,7 +280,11 @@ export function DoctorAppointmentConfirmationPage() {
           {items.map((item) => {
             const age = ageAt(item.patient.birthDate, item.date);
             return (
-              <article className={`doctor-appointment-card is-${stage.toLowerCase()}`} key={item.appointmentId}>
+              <article
+                id={`appointment-card-${item.appointmentId}`}
+                className={`doctor-appointment-card is-${stage.toLowerCase()} ${highlightedId === item.appointmentId ? 'is-highlighted' : ''}`}
+                key={item.appointmentId}
+              >
                 <div className="doctor-time-block"><strong>{item.time.slice(0, 5)}</strong><span>{shift(item.time)}</span></div>
                 <div className="doctor-appointment-body">
                   <div className="doctor-patient-line">

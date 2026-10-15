@@ -295,6 +295,49 @@
 .doctor-appointment-card { position:relative; display:grid; min-height:126px; padding:17px 17px 17px 14px; grid-template-columns:76px minmax(0,1fr) auto; gap:18px; align-items:center; overflow:hidden; border:1px solid #dfe7ed; border-left:4px solid #ee9a27; border-radius:11px; background:#fff; box-shadow:0 4px 13px rgba(25,55,82,.055); }
 .doctor-appointment-card.is-confirmation_confirmed { border-left-color:#2b8b65; }
 .doctor-appointment-card.is-confirmation_rejected { border-left-color:#bc4a50; }
+.doctor-appointment-card.is-highlighted,
+.approval-shift.is-highlighted,
+.doctor-work-schedule__shift-card.is-highlighted {
+  border-color: #0869bf !important;
+  box-shadow: 0 0 0 3px rgba(8, 105, 191, 0.35), 0 8px 24px rgba(8, 105, 191, 0.2) !important;
+  transition: all 0.3s ease;
+  animation: pulseCardHighlight 2s ease-in-out infinite alternate;
+}
+.doctor-date-picker {
+  padding: 6px 10px;
+  border: 1px solid #c8d5e2;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #1e293b;
+  background: #fff;
+  cursor: pointer;
+}
+.doctor-date-picker:focus {
+  outline: none;
+  border-color: #0869bf;
+  box-shadow: 0 0 0 2px rgba(8, 105, 191, 0.2);
+}
+@keyframes pulseCardHighlight {
+  from { box-shadow: 0 0 0 2px rgba(8, 105, 191, 0.25); }
+  to { box-shadow: 0 0 0 5px rgba(8, 105, 191, 0.5); }
+}
+.field-error {
+  display: block;
+  margin-top: 4px;
+  color: #bd3238;
+  font-size: 12px;
+  line-height: 1.4;
+  font-weight: 500;
+}
+.input-has-error {
+  border-color: #bd3238 !important;
+  box-shadow: 0 0 0 1px #bd3238 !important;
+}
+.required-star {
+  color: #bd3238;
+  margin-left: 2px;
+  font-weight: bold;
+}
 .doctor-time-block { display:grid; min-height:67px; padding:9px 5px; place-items:center; align-content:center; border-radius:9px; background:#edf6ff; color:#145696; }
 .doctor-time-block strong { font-size:20px; line-height:1; }
 .doctor-time-block span { margin-top:7px; font-size:8px; font-weight:800; letter-spacing:.04em; }

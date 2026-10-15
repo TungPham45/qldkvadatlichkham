@@ -84,12 +84,104 @@ test('reception changes a confirmed appointment to checked-in in the same transa
   const db = { async transaction(callback: (manager: typeof transactionManager) => unknown) { return callback(transactionManager); } };
   const service = new ReceptionService(db as never);
 
-  const result = await service.save(doctor as never, 31, { appointmentId: 31, initialSymptoms: 'Sốt' }, false);
+  const fullValidCheckIn = {
+    appointmentId: 31,
+    temperature: 37,
+    systolicBloodPressure: 120,
+    diastolicBloodPressure: 80,
+    heartRate: 75,
+    spo2: 98,
+    weight: 60,
+    height: 165,
+    initialSymptoms: 'Sốt nhẹ và mệt mỏi',
+  };
+
+  const result = await service.save(doctor as never, 31, fullValidCheckIn, false);
 
   assert.equal(result.status, AppointmentStatus.CHECKED_IN);
   const statusUpdate = calls.find((call) => call.sql.includes('UPDATE lich_hen'));
   assert.deepEqual(statusUpdate?.parameters, [31, AppointmentStatus.CHECKED_IN]);
   assert.ok(calls.some((call) => call.sql.includes('INSERT INTO lich_su_lich_hen')));
+});
+
+test('reception rejects any missing required field during check-in', async () => {
+  const service = new ReceptionService({} as never);
+  const base = {
+    appointmentId: 31,
+    temperature: 37,
+    systolicBloodPressure: 120,
+    diastolicBloodPressure: 80,
+    heartRate: 75,
+    spo2: 98,
+    weight: 60,
+    height: 165,
+    initialSymptoms: 'Sốt',
+  };
+
+  await assert.rejects(
+    service.save(doctor as never, 31, { ...base, temperature: undefined }, false),
+    (error: { getResponse?: () => { message?: string } }) => error.getResponse?.().message === 'Vui lòng nhập nhiệt độ.',
+  );
+  await assert.rejects(
+    service.save(doctor as never, 31, { ...base, systolicBloodPressure: undefined }, false),
+    (error: { getResponse?: () => { message?: string } }) => error.getResponse?.().message === 'Vui lòng nhập huyết áp tâm thu.',
+  );
+  await assert.rejects(
+    service.save(doctor as never, 31, { ...base, diastolicBloodPressure: undefined }, false),
+    (error: { getResponse?: () => { message?: string } }) => error.getResponse?.().message === 'Vui lòng nhập huyết áp tâm trương.',
+  );
+  await assert.rejects(
+    service.save(doctor as never, 31, { ...base, heartRate: undefined }, false),
+    (error: { getResponse?: () => { message?: string } }) => error.getResponse?.().message === 'Vui lòng nhập nhịp tim.',
+  );
+  await assert.rejects(
+    service.save(doctor as never, 31, { ...base, spo2: undefined }, false),
+    (error: { getResponse?: () => { message?: string } }) => error.getResponse?.().message === 'Vui lòng nhập chỉ số SpO₂.',
+  );
+  await assert.rejects(
+    service.save(doctor as never, 31, { ...base, weight: undefined }, false),
+    (error: { getResponse?: () => { message?: string } }) => error.getResponse?.().message === 'Vui lòng nhập cân nặng.',
+  );
+  await assert.rejects(
+    service.save(doctor as never, 31, { ...base, height: undefined }, false),
+    (error: { getResponse?: () => { message?: string } }) => error.getResponse?.().message === 'Vui lòng nhập chiều cao.',
+  );
+  await assert.rejects(
+    service.save(doctor as never, 31, { ...base, initialSymptoms: '   ' }, false),
+    (error: { getResponse?: () => { message?: string } }) => error.getResponse?.().message === 'Vui lòng nhập triệu chứng ban đầu.',
+  );
+});
+
+test('reception rejects invalid vital signs ranges and relationships', async () => {
+  const service = new ReceptionService({} as never);
+  const base = {
+    appointmentId: 31,
+    temperature: 37,
+    systolicBloodPressure: 120,
+    diastolicBloodPressure: 80,
+    heartRate: 75,
+    spo2: 98,
+    weight: 60,
+    height: 165,
+    initialSymptoms: 'Sốt',
+  };
+
+  await assert.rejects(
+    service.save(doctor as never, 31, { ...base, systolicBloodPressure: 100, diastolicBloodPressure: 120 }, false),
+    (error: { getResponse?: () => { message?: string } }) => error.getResponse?.().message === 'Huyết áp tâm thu phải lớn hơn huyết áp tâm trương.',
+  );
+  await assert.rejects(
+    service.save(doctor as never, 31, { ...base, spo2: 132 }, false),
+    (error: { getResponse?: () => { message?: string } }) => error.getResponse?.().message === 'Chỉ số SpO₂ không được vượt quá 100%.',
+  );
+  await assert.rejects(
+    service.save(doctor as never, 31, { ...base, heartRate: 280 }, false),
+    (error: { getResponse?: () => { message?: string } }) => error.getResponse?.().message === 'Nhịp tim không hợp lệ. Vui lòng kiểm tra lại (30 - 250 bpm).',
+  );
+  await assert.rejects(
+    service.save(doctor as never, 31, { ...base, temperature: 48 }, false),
+    (error: { getResponse?: () => { message?: string } }) => error.getResponse?.().message === 'Nhiệt độ phải từ 30°C đến 45°C.',
+  );
 });
 
 test('reception rejects an unconfirmed appointment before inserting reception data', async () => {
@@ -103,8 +195,20 @@ test('reception rejects an unconfirmed appointment before inserting reception da
   const db = { async transaction(callback: (manager: typeof transactionManager) => unknown) { return callback(transactionManager); } };
   const service = new ReceptionService(db as never);
 
+  const fullValidCheckIn = {
+    appointmentId: 41,
+    temperature: 37,
+    systolicBloodPressure: 120,
+    diastolicBloodPressure: 80,
+    heartRate: 75,
+    spo2: 98,
+    weight: 60,
+    height: 165,
+    initialSymptoms: 'Sốt',
+  };
+
   await assert.rejects(
-    service.save(doctor as never, 41, { appointmentId: 41 }, false),
+    service.save(doctor as never, 41, fullValidCheckIn, false),
     (error: { getResponse?: () => { code?: string } }) => error.getResponse?.().code === 'APPOINTMENT_STATUS_INVALID',
   );
   assert.equal(calls.some((call) => call.sql.includes('INSERT INTO tiep_nhan_benh_nhan')), false);
@@ -164,8 +268,20 @@ test('check-in is rejected outside the appointment date in Vietnam', async () =>
   const db = { async transaction(callback: (manager: typeof transactionManager) => unknown) { return callback(transactionManager); } };
   const service = new ReceptionService(db as never);
 
+  const fullValidCheckIn = {
+    appointmentId: 61,
+    temperature: 37,
+    systolicBloodPressure: 120,
+    diastolicBloodPressure: 80,
+    heartRate: 75,
+    spo2: 98,
+    weight: 60,
+    height: 165,
+    initialSymptoms: 'Sốt',
+  };
+
   await assert.rejects(
-    service.save(doctor as never, 61, { appointmentId: 61 }, false),
+    service.save(doctor as never, 61, fullValidCheckIn, false),
     (error: { getResponse?: () => { code?: string } }) => error.getResponse?.().code === 'APPOINTMENT_STATUS_INVALID',
   );
 });

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { errorMessage } from '../api/client';
-import { notificationApi, type AppNotification } from '../features/clinical/api';
+import { clinicalApi, notificationApi, type AppNotification } from '../features/clinical/api';
 import { useAuth } from '../stores/auth-store';
 
 function notificationTime(value: string) {
@@ -80,17 +80,56 @@ export function NotificationBell() {
   async function markRead(item: AppNotification, followLink: boolean) {
     try {
       if (!item.readAt) {
-        const readAt = new Date().toISOString();
         await notificationApi.read(item.id);
+        const readAt = new Date().toISOString();
         setCount((value) => Math.max(0, value - 1));
         setItems((current) => current.map((entry) => entry.id === item.id ? { ...entry, readAt } : entry));
       }
-      if (followLink && item.link?.startsWith('/')) {
-        setOpen(false);
-        navigate(item.link);
-      }
     } catch (requestError) {
       setError(errorMessage(requestError));
+      return;
+    }
+
+    if (followLink) {
+      const targetAppointmentId = item.appointmentId ?? (() => {
+        if (!item.link) return null;
+        const match = item.link.match(/[?&]appointmentId=(\d+)/);
+        return match ? Number(match[1]) : null;
+      })();
+
+      if (targetAppointmentId) {
+        try {
+          const detail = await clinicalApi.reception(targetAppointmentId);
+          const aptDate = detail.date;
+          let stage: 'CONFIRMATION_PENDING' | 'CONFIRMATION_CONFIRMED' | 'CONFIRMATION_REJECTED' = 'CONFIRMATION_PENDING';
+          if (detail.status === 'Huy') {
+            stage = 'CONFIRMATION_REJECTED';
+          } else if (detail.status !== 'Cho xac nhan') {
+            stage = 'CONFIRMATION_CONFIRMED';
+          }
+          setOpen(false);
+          if (user?.role === 'DOCTOR' || user?.vaiTro === 'Bac si') {
+            navigate(`/doctor/appointments/confirmation?date=${aptDate}&stage=${stage}&appointmentId=${targetAppointmentId}`);
+            return;
+          }
+          if (user?.role === 'PATIENT' || user?.vaiTro === 'Benh nhan') {
+            navigate(`/patient/appointments?date=${aptDate}&appointmentId=${targetAppointmentId}`);
+            return;
+          }
+        } catch {
+          setError('Lịch hẹn không còn tồn tại hoặc bạn không có quyền truy cập.');
+          return;
+        }
+      }
+
+      if (item.link?.startsWith('/')) {
+        let destination = item.link;
+        if (destination.startsWith('/manager/schedules')) {
+          destination = destination.replace('/manager/schedules', '/manager/doctor-schedules');
+        }
+        setOpen(false);
+        navigate(destination);
+      }
     }
   }
 

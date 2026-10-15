@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { errorMessage, hasApiErrorCode } from '../../api/client';
 import { doctorApi } from '../../features/doctor/api';
 import { scheduleApi } from '../../features/schedule/api';
@@ -49,7 +50,12 @@ function readDraft(key: string, days: string[]): string[] {
 
 export function DoctorSchedulePage() {
   const { user } = useAuth();
-  const [week, setWeek] = useState(startOfWeek(todayIso()));
+  const [searchParams, setSearchParams] = useSearchParams();
+  const paramWeek = searchParams.get('week');
+  const paramScheduleId = searchParams.get('scheduleId') ? Number(searchParams.get('scheduleId')) : null;
+
+  const [week, setWeek] = useState(() => (paramWeek ? startOfWeek(paramWeek) : startOfWeek(todayIso())));
+  const [targetScheduleId, setTargetScheduleId] = useState<number | null>(() => paramScheduleId);
   const [specialty, setSpecialty] = useState('');
   const [items, setItems] = useState<ScheduleItem[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -110,6 +116,29 @@ export function DoctorSchedulePage() {
     return () => { active = false; };
   }, [user?.id]);
 
+  useEffect(() => {
+    if (paramWeek) {
+      const nextWeek = startOfWeek(paramWeek);
+      if (nextWeek !== week) setWeek(nextWeek);
+    }
+  }, [paramWeek]);
+
+  useEffect(() => {
+    if (paramScheduleId && paramScheduleId !== targetScheduleId) {
+      setTargetScheduleId(paramScheduleId);
+    }
+  }, [paramScheduleId]);
+
+  useEffect(() => {
+    if (!targetScheduleId || loading) return;
+    const el = document.getElementById(`doctor-schedule-item-${targetScheduleId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const timer = window.setTimeout(() => setTargetScheduleId(null), 5000);
+      return () => window.clearTimeout(timer);
+    }
+  }, [targetScheduleId, loading, items]);
+
   function changeWeek(value: string) {
     if (submitting.current) return;
     const next = startOfWeek(value);
@@ -121,6 +150,12 @@ export function DoctorSchedulePage() {
     setMessage('');
     setSubmissionError('');
     setWeek(next);
+    setSearchParams((prev) => {
+      const nextParams = new URLSearchParams(prev);
+      nextParams.set('week', next);
+      nextParams.delete('scheduleId');
+      return nextParams;
+    }, { replace: true });
   }
 
   function toggle(date: string, shift: ShiftCode) {
@@ -224,10 +259,12 @@ export function DoctorSchedulePage() {
                   const available = canSelectShift(day, shift.code, items, today);
                   const chosen = available && selected.has(key);
                   const approved = active.length > 0 && active.every(item => item.statusCode === 'APPROVED');
+                  const targetItem = active.find(item => item.id === targetScheduleId) || (rejected?.id === targetScheduleId ? rejected : null);
+                  const isHighlighted = Boolean(targetItem && targetItem.id === targetScheduleId);
                   return <td key={key} className={day === today ? 'is-today' : ''}>
-                    {active.length ? <div className={`doctor-work-schedule__shift-card ${approved ? 'is-approved' : 'is-registered'}`}><span className="doctor-work-schedule__card-status"><ScheduleIcon name="check" />{approved ? 'Đã duyệt' : 'Đã đăng ký'}<i /></span><strong>{specialty || (shift.code === 'SANG' ? 'Lịch khám buổi sáng' : 'Lịch khám buổi chiều')}</strong><span>{active.map(item => `${item.startTime.slice(0, 5)} - ${item.endTime.slice(0, 5)}`).join(', ')}</span><small>{active.map(item => item.note).filter(Boolean).join(' · ') || (approved ? 'Đã mở lịch đặt khám' : 'Chờ Admin xét duyệt')}</small></div>
+                    {active.length ? <div id={targetItem ? `doctor-schedule-item-${targetItem.id}` : undefined} className={`doctor-work-schedule__shift-card ${approved ? 'is-approved' : 'is-registered'} ${isHighlighted ? 'is-highlighted' : ''}`}><span className="doctor-work-schedule__card-status"><ScheduleIcon name="check" />{approved ? 'Đã duyệt' : 'Đã đăng ký'}<i /></span><strong>{specialty || (shift.code === 'SANG' ? 'Lịch khám buổi sáng' : 'Lịch khám buổi chiều')}</strong><span>{active.map(item => `${item.startTime.slice(0, 5)} - ${item.endTime.slice(0, 5)}`).join(', ')}</span><small>{active.map(item => item.note).filter(Boolean).join(' · ') || (approved ? 'Đã mở lịch đặt khám' : 'Chờ Admin xét duyệt')}</small></div>
                       : chosen ? <button type="button" className="doctor-work-schedule__shift-card is-selected" disabled={busy} aria-pressed="true" aria-label={`Bỏ chọn ${shift.label.toLowerCase()} ${formatDate(day)}`} onClick={() => toggle(day, shift.code)}><span className="doctor-work-schedule__card-status"><ScheduleIcon name="check" />Đang chọn<i /></span><strong>{shift.time}</strong><small>Chưa gửi phê duyệt</small><span className="doctor-work-schedule__remove">Bấm để bỏ chọn</span></button>
-                        : <button type="button" className={`doctor-work-schedule__empty ${rejected ? 'is-rejected' : ''}`} disabled={!available || busy} aria-pressed="false" aria-label={`${rejected ? 'Đăng ký lại' : 'Chọn'} ${shift.label.toLowerCase()} ${formatDate(day)}`} onClick={() => toggle(day, shift.code)}><ScheduleIcon name="plus" /><strong>{rejected ? 'Đăng ký lại' : available ? '+ Chọn ca' : 'Ngày đã qua'}</strong>{rejected ? <small>{rejected.note || 'Ca trước đã bị từ chối'}</small> : null}</button>}
+                        : <button type="button" id={rejected?.id === targetScheduleId ? `doctor-schedule-item-${rejected.id}` : undefined} className={`doctor-work-schedule__empty ${rejected ? 'is-rejected' : ''} ${rejected?.id === targetScheduleId ? 'is-highlighted' : ''}`} disabled={!available || busy} aria-pressed="false" aria-label={`${rejected ? 'Đăng ký lại' : 'Chọn'} ${shift.label.toLowerCase()} ${formatDate(day)}`} onClick={() => toggle(day, shift.code)}><ScheduleIcon name="plus" /><strong>{rejected ? 'Đăng ký lại' : available ? '+ Chọn ca' : 'Ngày đã qua'}</strong>{rejected ? <small>{rejected.note || 'Ca trước đã bị từ chối'}</small> : null}</button>}
                   </td>;
                 })}
               </tr>)}</tbody>
@@ -243,7 +280,7 @@ export function DoctorSchedulePage() {
         <section className="doctor-work-schedule__other" aria-labelledby="doctor-other-shifts">
           <h2 id="doctor-other-shifts"><ScheduleIcon name="clock" />Ca làm việc khác</h2>
           <ul>{otherShifts.map(item => (
-            <li key={item.id}>
+            <li key={item.id} id={`doctor-schedule-item-${item.id}`} className={targetScheduleId === item.id ? 'is-highlighted' : ''}>
               <span className="doctor-work-schedule__other-date">{weekdayLabel(item.date.slice(0, 10))}, {formatDate(item.date)}</span>
               <strong>{item.startTime.slice(0, 5)} - {item.endTime.slice(0, 5)}</strong>
               <small>{item.hours} giờ</small>

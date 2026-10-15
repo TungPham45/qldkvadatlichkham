@@ -95,6 +95,31 @@ export class DoctorScheduleService {
           );
           created.push(row);
         }
+
+        const admins = await manager.query(
+          `SELECT id_tai_khoan FROM tai_khoan WHERE vai_tro = 'Admin' AND trang_thai = 'Active'`,
+        ) as Array<{ id_tai_khoan: string }>;
+
+        for (const row of created) {
+          const week = startOfWeek(row.ngayLamViec);
+          const startTime = normalizeTime(row.gioBatDau).slice(0, 5);
+          const endTime = normalizeTime(row.gioKetThuc).slice(0, 5);
+          const [yearStr, monthStr, dayStr] = row.ngayLamViec.split('-');
+          const formattedDate = `${dayStr}/${monthStr}/${yearStr}`;
+          const title = 'Có yêu cầu đăng ký lịch làm việc mới';
+          const content = `Bác sĩ ${doctor.hoTen} vừa gửi yêu cầu đăng ký ca làm việc ngày ${formattedDate} từ ${startTime} đến ${endTime}. Vui lòng xem xét phê duyệt.`;
+          const link = `/manager/doctor-schedules?week=${week}&doctorId=${doctor.idBacSi}&scheduleId=${row.idLichLamViec}&filter=PENDING`;
+
+          for (const admin of admins) {
+            await manager.query(
+              `INSERT INTO thong_bao(id_tai_khoan,loai,kenh,tieu_de,noi_dung,trang_thai,thoi_gian_gui,duong_dan,ma_su_kien)
+               VALUES($1,'Dang ky ca lam viec','Ung dung',$2,$3,'Chua doc',CURRENT_TIMESTAMP,$4,$5)
+               ON CONFLICT(ma_su_kien) DO NOTHING`,
+              [admin.id_tai_khoan, title, content, link, `doctor-schedule-request:${row.idLichLamViec}:${admin.id_tai_khoan}`],
+            );
+          }
+        }
+
         return created;
       });
       return { items: saved.map(toScheduleView) };
@@ -591,16 +616,21 @@ export class DoctorScheduleService {
     const doctors = await manager.query(`SELECT id_tai_khoan FROM bac_si WHERE id_bac_si=$1`, [row.idBacSi]);
     const accountId = doctors[0]?.id_tai_khoan as string | undefined;
     if (!accountId) return;
-    const time = `${normalizeTime(row.gioBatDau).slice(0, 5)}–${normalizeTime(row.gioKetThuc).slice(0, 5)}`;
-    const title = approved ? 'Ca làm việc đã được duyệt' : 'Ca làm việc bị từ chối';
+    const startTime = normalizeTime(row.gioBatDau).slice(0, 5);
+    const endTime = normalizeTime(row.gioKetThuc).slice(0, 5);
+    const [yearStr, monthStr, dayStr] = row.ngayLamViec.split('-');
+    const formattedDate = `${dayStr}/${monthStr}/${yearStr}`;
+    const week = startOfWeek(row.ngayLamViec);
+    const title = approved ? 'Lịch làm việc đã được phê duyệt' : 'Lịch làm việc bị từ chối';
     const content = approved
-      ? `Ca ngày ${row.ngayLamViec}, ${time} đã được duyệt.`
-      : `Ca ngày ${row.ngayLamViec}, ${time} bị từ chối. Lý do: ${reason || 'Không ghi nhận'}.`;
+      ? `Ca làm việc ngày ${formattedDate} từ ${startTime} đến ${endTime} đã được phê duyệt.`
+      : `Yêu cầu đăng ký ca làm việc ngày ${formattedDate} không được phê duyệt.${reason ? ` Lý do: ${reason}.` : ''}`;
+    const link = `/doctor/schedule?week=${week}&scheduleId=${row.idLichLamViec}`;
     await manager.query(
       `INSERT INTO thong_bao(id_tai_khoan,loai,kenh,tieu_de,noi_dung,trang_thai,thoi_gian_gui,duong_dan,ma_su_kien)
-       VALUES($1,'Thay doi lich lam viec','Ung dung',$2,$3,'Chua doc',CURRENT_TIMESTAMP,'/doctor/schedule',$4)
+       VALUES($1,'Thay doi lich lam viec','Ung dung',$2,$3,'Chua doc',CURRENT_TIMESTAMP,$4,$5)
        ON CONFLICT(ma_su_kien) DO NOTHING`,
-      [accountId, title, content, `doctor-schedule:${row.idLichLamViec}:${approved ? 'approved' : 'rejected'}`],
+      [accountId, title, content, link, `doctor-schedule:${row.idLichLamViec}:${approved ? 'approved' : 'rejected'}`],
     );
   }
 

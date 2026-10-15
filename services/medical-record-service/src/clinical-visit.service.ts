@@ -230,17 +230,38 @@ export class ClinicalVisitService {
           throw new AppException(400, 'PRESCRIPTION_DUPLICATE_MEDICINE', 'Đơn thuốc không được chứa thuốc trùng nhau.');
         }
         if (medicineIds.length) {
+          const lockMode = dto.prescriptionLocked ? 'FOR UPDATE' : 'FOR SHARE';
           const medicines = await manager.query(
-            `SELECT id_thuoc::int id, don_gia "unitPrice"
+            `SELECT id_thuoc::int id, don_gia "unitPrice", ten_thuoc name, so_luong_ton::int "stockQuantity"
              FROM thuoc
              WHERE id_thuoc = ANY($1::bigint[]) AND dang_hoat_dong = TRUE
-             FOR SHARE`,
+             ${lockMode}`,
             [medicineIds],
           );
           if (medicines.length !== medicineIds.length) {
             throw new AppException(404, 'MEDICINE_NOT_FOUND', 'Đơn thuốc chứa thuốc không tồn tại hoặc đã ngừng hoạt động.');
           }
-          const priceById = new Map<number, number>(medicines.map((item: { id: number; unitPrice: string }) => [Number(item.id), Number(item.unitPrice)]));
+          const priceById = new Map<number, number>(
+            medicines.map((item: { id: number; unitPrice: string }) => [Number(item.id), Number(item.unitPrice)]),
+          );
+          const stockById = new Map<number, { name: string; stockQuantity: number }>(
+            medicines.map((item: { id: number; name: string; stockQuantity: number }) => [
+              Number(item.id),
+              { name: item.name, stockQuantity: Number(item.stockQuantity) },
+            ]),
+          );
+          if (dto.prescriptionLocked) {
+            for (const item of dto.prescriptionItems) {
+              const stock = stockById.get(item.medicineId);
+              if (!stock || stock.stockQuantity < item.quantity) {
+                throw new AppException(
+                  409,
+                  'MEDICINE_STOCK_INSUFFICIENT',
+                  `Không đủ tồn kho cho thuốc 「${stock?.name || item.medicineId}」 (cần ${item.quantity}, còn ${stock?.stockQuantity ?? 0}).`,
+                );
+              }
+            }
+          }
           const prescriptions = await manager.query(
             `INSERT INTO don_thuoc (
                id_phieu_kham, id_benh_nhan, id_bac_si, ngay_ke_don, ghi_chu, trang_thai
@@ -285,6 +306,9 @@ export class ClinicalVisitService {
              WHERE id_don_thuoc = $1 AND NOT (id_thuoc = ANY($2::bigint[]))`,
             [prescriptionId, medicineIds],
           );
+          if (dto.prescriptionLocked) {
+            await this.dispensePrescriptionStock(manager, prescriptionId);
+          }
         } else {
           const prescriptions = await manager.query(
             `SELECT id_don_thuoc::int id FROM don_thuoc WHERE id_phieu_kham = $1 FOR UPDATE`,
@@ -343,6 +367,21 @@ export class ClinicalVisitService {
           'Cần hoàn tất hồ sơ, chẩn đoán, kết quả cận lâm sàng (hoặc xác nhận không cần) và khóa đơn thuốc (hoặc xác nhận không kê).',
         );
       }
+
+      // Đảm bảo đơn đã khóa được xuất kho (idempotent nếu đã trừ khi khóa đơn).
+      const lockedPrescriptions = await manager.query(
+        `SELECT dt.id_don_thuoc::int id
+         FROM don_thuoc dt
+         JOIN phieu_kham pk ON pk.id_phieu_kham = dt.id_phieu_kham
+         WHERE pk.id_lich_hen = $1
+           AND dt.trang_thai = 'Da khoa'
+           AND pk.khong_ke_don = FALSE`,
+        [appointmentId],
+      );
+      if (lockedPrescriptions.length) {
+        await this.dispensePrescriptionStock(manager, Number(lockedPrescriptions[0].id));
+      }
+
       await manager.query(
         `UPDATE lich_hen
          SET trang_thai = $2,
@@ -409,6 +448,74 @@ export class ClinicalVisitService {
 
       return { appointmentId, status: AppointmentStatus.EXAM_COMPLETED };
     });
+  }
+
+  /**
+   * Xuất kho theo đơn đã khóa: ghi giao_dich_kho_thuoc (XUAT_DON_THUOC)
+   * và trừ so_luong_ton. Idempotent theo (don_thuoc, thuoc).
+   */
+  private async dispensePrescriptionStock(manager: EntityManager, prescriptionId: number) {
+    const items = await manager.query(
+      `SELECT ct.id_thuoc::int "medicineId", ct.so_luong::int quantity, t.ten_thuoc name, t.so_luong_ton::int "stockQuantity"
+       FROM chi_tiet_don_thuoc ct
+       JOIN thuoc t ON t.id_thuoc = ct.id_thuoc
+       WHERE ct.id_don_thuoc = $1
+       FOR UPDATE OF t`,
+      [prescriptionId],
+    ) as Array<{ medicineId: number; quantity: number; name: string; stockQuantity: number }>;
+
+    if (!items.length) {
+      throw new AppException(400, 'PRESCRIPTION_EMPTY', 'Đơn thuốc không có chi tiết để xuất kho.');
+    }
+
+    for (const item of items) {
+      const already = await manager.query(
+        `SELECT 1
+         FROM giao_dich_kho_thuoc
+         WHERE loai_giao_dich = 'XUAT_DON_THUOC'
+           AND tham_chieu_id = $1
+           AND id_thuoc = $2
+         LIMIT 1`,
+        [prescriptionId, item.medicineId],
+      );
+      if (already.length) continue;
+
+      if (Number(item.stockQuantity) < Number(item.quantity)) {
+        throw new AppException(
+          409,
+          'MEDICINE_STOCK_INSUFFICIENT',
+          `Không đủ tồn kho cho thuốc 「${item.name}」 (cần ${item.quantity}, còn ${item.stockQuantity}).`,
+        );
+      }
+
+      const updated = await manager.query(
+        `UPDATE thuoc
+         SET so_luong_ton = so_luong_ton - $2,
+             ngay_cap_nhat = CURRENT_TIMESTAMP
+         WHERE id_thuoc = $1 AND so_luong_ton >= $2
+         RETURNING id_thuoc`,
+        [item.medicineId, item.quantity],
+      );
+      if (!updated.length) {
+        throw new AppException(
+          409,
+          'MEDICINE_STOCK_INSUFFICIENT',
+          `Không đủ tồn kho cho thuốc 「${item.name}」 (cần ${item.quantity}).`,
+        );
+      }
+
+      await manager.query(
+        `INSERT INTO giao_dich_kho_thuoc (
+           id_thuoc, loai_giao_dich, so_luong, tham_chieu_id, ghi_chu
+         ) VALUES ($1, 'XUAT_DON_THUOC', $2, $3, $4)`,
+        [
+          item.medicineId,
+          item.quantity,
+          prescriptionId,
+          `Xuất thuốc theo đơn ${prescriptionId}`,
+        ],
+      );
+    }
   }
 
   private async lockDoctorVisit(

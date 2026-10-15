@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { errorMessage, hasApiErrorCode } from '../../api/client';
 import { AppointmentSlot } from '../../components/patient/AppointmentSlot';
@@ -344,7 +344,7 @@ export function BookAppointmentPage() {
           <Link className="mt-3 inline-block font-bold text-primary-600" to="/patient/profile">Sửa thông tin cá nhân</Link>
         )}
         <Link className="mt-2 inline-block font-bold text-primary-600" to="/patient/appointments">Lịch sử đặt khám</Link>
-        <div className="mt-3.5 rounded-xl bg-[#fff7eb] p-3 text-[13px] leading-snug text-[#8a5a12]">Chỉ đặt giờ trong ca đã duyệt. Ca cả ngày được tách thành ca sáng và ca chiều, nghỉ 11:30–13:30. Có thể chọn người thân trong danh sách để đặt hộ.</div>
+        
       </aside>
 
       <section className="flex flex-col gap-3 rounded-2xl border border-line bg-white p-4 shadow-card">
@@ -393,7 +393,7 @@ export function BookAppointmentPage() {
         {visibleDoctors.map((item) => {
           const open = doctor?.id === item.id;
           return (
-            <article key={item.id} className={`rounded-[14px] border bg-white p-3.5 ${open ? 'border-[#b9d2f5] shadow-[0_0_0_3px_rgba(29,106,223,.08)]' : 'border-line'}`}>
+            <article key={item.id} className={`rounded-[14px] border bg-white p-3.5 transition-[border-color,box-shadow] duration-200 ${open ? 'border-[#b9d2f5] shadow-[0_0_0_3px_rgba(29,106,223,.08)]' : 'border-line'}`}>
               <div className="flex items-start justify-between gap-2.5">
                 <div className="flex min-w-0 items-start gap-2.5">
                   <div className="grid size-12 shrink-0 place-items-center rounded-full bg-primary-50 text-sm font-bold text-primary-700">{initials(item.hoTen)}</div>
@@ -407,21 +407,18 @@ export function BookAppointmentPage() {
                     </div>
                     <div className="mt-0.5 text-[13px] font-semibold text-primary-700">Chuyên khoa: {item.chuyenKhoa?.ten || 'Chưa gán chuyên khoa'}</div>
                     <div className="mt-1 text-xs leading-relaxed text-muted">
-                      {genderLabel(item.gioiTinh)}
-                      {' · '}
-                      {item.maBacSi ? `CCHN ${item.maBacSi}` : 'Chưa có số chứng chỉ'}
+                      {genderLabel(item.gioiTinh)}         
                     </div>
                   </div>
                 </div>
                 {!open ? <Button variant="ghost" onClick={() => setDoctor(item)}>Chọn</Button> : <span className="shrink-0 rounded-full bg-primary-50 px-2.5 py-1 text-xs font-bold text-primary-700">Đang chọn</span>}
               </div>
-              {open ? (
-                <div className="mt-3.5 flex flex-col gap-3">
+              <ExpandPanel open={open}>
+                <div className="book-doctor-panel__content mt-3.5 flex flex-col gap-3">
                   <dl className="grid grid-cols-1 gap-2 rounded-xl bg-[#f7faff] p-3 text-sm sm:grid-cols-2">
                     <Detail label="Bằng cấp" value={item.bangCap || 'Chưa cập nhật'} />
                     <Detail label="Chuyên khoa" value={item.chuyenKhoa?.ten || 'Chưa gán chuyên khoa'} />
                     <Detail label="Giới tính" value={genderLabel(item.gioiTinh)} />
-                    <Detail label="Chứng chỉ hành nghề" value={item.maBacSi || 'Chưa cập nhật'} />
                   </dl>
                   <div>
                     <h3 className="mb-2 text-sm font-semibold">Chọn ngày khám</h3>
@@ -452,7 +449,7 @@ export function BookAppointmentPage() {
                           </div>
                           <span className="text-xs font-semibold text-muted">{shift.available} trống / {shift.total} khung</span>
                         </div>
-                        <p className="mb-2 text-xs text-muted">{shift.slotMinutes ? `Mỗi lượt khám ${shift.slotMinutes} phút.` : 'Thời lượng từng lượt theo lịch đã duyệt.'}{shift.note ? ` ${shift.note}` : ''}</p>
+                        <p className="mb-2 text-xs text-muted">{shift.slotMinutes ? `Mỗi lượt khám ${shift.slotMinutes} phút.` : 'Thời lượng từng lượt theo lịch đã duyệt.'}</p>
                         <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
                           {shift.slots.map((itemSlot) => (
                             <AppointmentSlot key={itemSlot.start} start={itemSlot.start} end={itemSlot.end} available={itemSlot.available} active={slot === itemSlot.start} onClick={() => setSlot(itemSlot.start)} />
@@ -467,7 +464,7 @@ export function BookAppointmentPage() {
                     </p>
                   ) : null}
                 </div>
-              ) : null}
+              </ExpandPanel>
             </article>
           );
         })}
@@ -487,7 +484,7 @@ export function BookAppointmentPage() {
             <span className="text-[13px] text-muted">Bác sĩ</span>
             <strong className="mt-0.5 block">{doctor.hoTen}</strong>
             <span className="mt-1 block text-[13px] text-muted">{doctor.chuyenKhoa?.ten || 'Chưa gán chuyên khoa'}</span>
-            <span className="mt-1 block text-[13px] text-muted">{doctor.bangCap || 'Chưa cập nhật bằng cấp'} · {doctor.maBacSi ? `CCHN ${doctor.maBacSi}` : 'Chưa có số chứng chỉ'}</span>
+            <span className="mt-1 block text-[13px] text-muted">{doctor.bangCap || 'Chưa cập nhật bằng cấp'} · {doctor.maBacSi}</span>
           </div>
         ) : null}
         {doctor && date && chosenSlot ? (
@@ -520,9 +517,7 @@ export function BookAppointmentPage() {
               </Button>
             </div>
           </>
-        ) : (
-          <p className="text-sm leading-relaxed text-muted">Chọn người tới khám, bác sĩ, ngày và một khung giờ còn trống. Ca sáng và ca chiều được tách riêng để dễ đối chiếu giờ nghỉ.</p>
-        )}
+        ) : null}
       </aside>
 
       {otpOpen && doctor && chosenSlot && patient ? (
@@ -551,6 +546,32 @@ export function BookAppointmentPage() {
           onSubmit={saveRelative}
         />
       ) : null}
+    </div>
+  );
+}
+
+function ExpandPanel({ open, children }: { open: boolean; children: ReactNode }) {
+  const [mounted, setMounted] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setMounted(true);
+      const frame = requestAnimationFrame(() => {
+        requestAnimationFrame(() => setExpanded(true));
+      });
+      return () => cancelAnimationFrame(frame);
+    }
+    setExpanded(false);
+    const timer = window.setTimeout(() => setMounted(false), 340);
+    return () => window.clearTimeout(timer);
+  }, [open]);
+
+  if (!mounted) return null;
+
+  return (
+    <div className={`book-doctor-panel ${expanded ? 'is-open' : ''}`}>
+      <div className="book-doctor-panel__inner">{children}</div>
     </div>
   );
 }

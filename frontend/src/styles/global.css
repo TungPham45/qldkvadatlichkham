@@ -74,3 +74,33 @@
   :root { --clinic-text-page-title: 1.375rem; }
   body { font-size: 0.875rem; }
 }
+
+@keyframes book-doctor-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.book-doctor-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 340ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.book-doctor-panel.is-open {
+  grid-template-rows: 1fr;
+}
+
+.book-doctor-panel__inner {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.book-doctor-panel.is-open .book-doctor-panel__content {
+  animation: book-doctor-panel-in 300ms ease-out both;
+}

@@ -254,9 +254,9 @@ export function MyInvoicesPage() {
             setShowPaymentModal(false);
           }}
         >
-          <div className="invoice-detail-card" style={{ padding: '4px' }}>
+          <div className="invoice-detail-card">
             {/* Header info */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid #edf2f7', paddingBottom: '14px', marginBottom: '16px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid #edf2f7', paddingBottom: '18px', marginBottom: '20px' }}>
               <div>
                 <h2 style={{ margin: '0 0 4px', fontSize: '20px', fontWeight: 700, color: '#1a202c' }}>
                   Chi tiết hóa đơn

@@ -78,7 +78,7 @@ export function AppSidebar({ open, onNavigate }: { open: boolean; onNavigate: ()
     );
   }
   return (
-    <aside className={`doctor-sidebar fixed inset-y-0 left-0 z-30 flex h-screen w-[268px] shrink-0 -translate-x-[105%] flex-col bg-gradient-to-b from-navy-900 to-navy-950 text-white transition-transform duration-200 desk:sticky desk:top-0 desk:translate-x-0 ${open ? 'translate-x-0' : ''}`}>
+    <aside className={`doctor-sidebar fixed inset-y-0 left-0 z-30 flex h-screen w-[268px] shrink-0 -translate-x-[105%] flex-col overflow-y-auto bg-gradient-to-b from-navy-900 to-navy-950 text-white transition-transform duration-200 desk:sticky desk:top-0 desk:self-start desk:translate-x-0 ${open ? 'translate-x-0' : ''}`}>
       <div className="flex items-center gap-3 px-[18px] pb-[18px] pt-[22px]">
         <div className="grid size-10 place-items-center rounded-[10px] bg-primary-600 font-bold">+</div>
         <div>

@@ -402,7 +402,12 @@
 }
 
 @media (min-width: 861px) {
-  .admin-sidebar { position: sticky; top: 0; transform: none; }
+  .admin-sidebar {
+    position: sticky;
+    top: 0;
+    align-self: flex-start;
+    transform: none;
+  }
   .admin-header__crumbs > button { display: none; }
 }
 
@@ -421,49 +426,148 @@
   display: grid;
   max-width: 1280px;
   margin: 0 auto;
-  grid-template-columns: minmax(280px, 380px) minmax(0, 1fr);
+  grid-template-columns: minmax(300px, 400px) minmax(0, 1fr);
   gap: 18px;
   align-items: start;
 }
 .suggestion-diseases, .suggestion-editor { max-width: none; margin: 0; }
+.suggestion-diseases__toolbar {
+  display: grid;
+  gap: 12px;
+  padding: 18px 18px 16px;
+  border-bottom: 1px solid #e4e9ee;
+  background: linear-gradient(180deg, #fbfcfe 0%, #fff 100%);
+}
+.suggestion-diseases__toolbar .manager-search {
+  min-width: 0;
+  width: 100%;
+  height: 44px;
+  border-radius: 11px;
+  background: #fff;
+  box-shadow: inset 0 0 0 1px #e2e8ef;
+  border-color: transparent;
+}
+.suggestion-diseases__toolbar .manager-search:focus-within {
+  box-shadow: inset 0 0 0 1px #2464c1, 0 0 0 3px rgba(36, 100, 193, .12);
+}
+.suggestion-diseases__filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  gap: 10px;
+}
+.suggestion-filter-select label {
+  color: #667688;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  text-transform: uppercase;
+}
+.suggestion-filter-select > button {
+  min-height: 42px;
+  border-radius: 11px;
+  border-color: #d9e2ea;
+  padding: 0 12px;
+  font-size: 13px;
+  line-height: 1.35;
+  box-shadow: none;
+}
+.suggestion-filter-select > button:hover {
+  border-color: #b7c8dd;
+  background: #f8fbff;
+}
+.suggestion-filter-select > ul {
+  max-height: 280px;
+  padding: 6px;
+  border-radius: 12px;
+  border-color: #d7e2ee;
+  box-shadow: 0 16px 36px rgba(18, 42, 72, .16);
+}
+.suggestion-filter-select > ul button {
+  min-height: 40px;
+  padding: 9px 11px;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.4;
+  white-space: normal;
+}
+.suggestion-filter-select > ul button:not(.bg-primary-600):hover {
+  background: #eef5ff;
+}
 .suggestion-disease-list {
   display: flex;
   max-height: 620px;
   flex-direction: column;
   gap: 10px;
-  padding: 16px;
+  padding: 14px 16px 16px;
   overflow-y: auto;
+  background: #f7f9fc;
 }
 .suggestion-disease-card {
   display: flex;
   width: 100%;
-  padding: 14px 14px 12px;
+  padding: 14px 15px 13px;
   flex-direction: column;
-  gap: 8px;
+  gap: 7px;
   border: 1px solid #e1e8ef;
   border-radius: 12px;
   background: #fff;
   cursor: pointer;
   text-align: left;
+  transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
 }
-.suggestion-disease-card:hover { border-color: #b7cce8; background: #f8fbff; }
+.suggestion-disease-card:hover {
+  border-color: #b7cce8;
+  background: #f8fbff;
+  box-shadow: 0 4px 12px rgba(28, 58, 96, .06);
+}
 .suggestion-disease-card.is-selected {
   border-color: #2464c1;
   background: #f3f8ff;
-  box-shadow: inset 0 0 0 1px #2464c1;
+  box-shadow: inset 0 0 0 1px #2464c1, 0 6px 16px rgba(36, 100, 193, .1);
 }
 .suggestion-disease-card__top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.suggestion-disease-card strong { color: #20262c; font-size: 13px; line-height: 1.35; }
-.suggestion-disease-card small { color: #6f7b8a; font-size: 11px; }
+.suggestion-disease-card strong {
+  color: #20262c;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+.suggestion-disease-card small {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  color: #6f7b8a;
+  font-size: 11px;
+  line-height: 1.4;
+}
+.suggestion-disease-card small em {
+  font-style: normal;
+  color: #4d6f9a;
+  font-weight: 650;
+}
+.suggestion-disease-card small span {
+  max-width: 100%;
+  overflow: hidden;
+  color: #7a8796;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .suggestion-editor__header {
   display: flex;
-  padding: 22px 24px 12px;
+  padding: 22px 24px 14px;
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
+  border-bottom: 1px solid #edf1f5;
+  background: linear-gradient(180deg, #fbfcfe 0%, #fff 72%);
 }
-.suggestion-editor__header h2 { margin: 8px 0 0; color: #1f2730; font-size: 20px; }
+.suggestion-editor__header h2 { margin: 8px 0 0; color: #1f2730; font-size: 20px; line-height: 1.3; }
 .suggestion-editor__codes { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.suggestion-editor__codes .manager-specialty {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .suggestion-switch {
   display: inline-flex;
   align-items: center;
@@ -571,6 +675,10 @@
 @media (max-width: 1100px) {
   .suggestion-layout { grid-template-columns: 1fr; }
   .suggestion-disease-list { max-height: 360px; }
+}
+
+@media (max-width: 560px) {
+  .suggestion-diseases__filters { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 760px) {
@@ -798,6 +906,93 @@
   resize: vertical;
 }
 .prescription-search { min-height: 40px; margin-bottom: 10px; resize: none; }
+.prescription-suggestions {
+  margin: 0 0 12px;
+  padding: 12px;
+  border: 1px solid #d6e6f4;
+  border-radius: 9px;
+  background: #f3f9ff;
+}
+.prescription-suggestions__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.prescription-suggestions__head strong {
+  display: block;
+  color: #174d79;
+  font-size: 13px;
+}
+.prescription-suggestions__head small {
+  display: block;
+  margin-top: 3px;
+  color: #5f7388;
+  font-size: 11px;
+}
+.prescription-suggestions__head button {
+  flex-shrink: 0;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid #0869bf;
+  border-radius: 7px;
+  background: #0869bf;
+  color: #fff;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+}
+.prescription-suggestions__hint {
+  margin: 0;
+  color: #6a7b8d;
+  font-size: 12px;
+}
+.prescription-suggestions__hint.is-error { color: #b12d35; }
+.prescription-suggestions__list {
+  display: grid;
+  margin: 8px 0 0;
+  padding: 0;
+  gap: 6px;
+  list-style: none;
+}
+.prescription-suggestions__list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid #d7e5f0;
+  border-radius: 8px;
+  background: #fff;
+}
+.prescription-suggestions__list strong {
+  display: block;
+  color: #1f3348;
+  font-size: 13px;
+}
+.prescription-suggestions__list small {
+  display: block;
+  margin-top: 2px;
+  color: #6b7c8e;
+  font-size: 11px;
+}
+.prescription-suggestions__list button {
+  flex-shrink: 0;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid #bbd4ea;
+  border-radius: 7px;
+  background: #eef7ff;
+  color: #125fa8;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+}
+.prescription-suggestions__list button:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
 .service-order-form {
   grid-template-columns: minmax(140px, 1fr) minmax(190px, 1.4fr) minmax(190px, 1.5fr) 105px auto auto;
 }
@@ -824,6 +1019,52 @@
   font-weight: 600;
 }
 .clinical-results article a { display: inline-block; margin-top: 7px; color: #126fc3; font-size: 12px; font-weight: 600; }
+.clinical-results > h3 {
+  margin: 16px 0 10px;
+  color: #315579;
+  font-size: 14px;
+  font-weight: var(--clinic-weight-semibold);
+}
+.visit-skip-banner {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border: 1px solid #c5e3c8;
+  border-radius: 10px;
+  background: #eef8ef;
+}
+.visit-skip-banner strong { display: block; color: #1f6b2e; font-size: 14px; }
+.visit-skip-banner p { margin: 4px 0 0; color: #3d6a46; font-size: 13px; }
+.visit-skip-banner button,
+.visit-skip-actions button {
+  flex-shrink: 0;
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid #d8e1ea;
+  border-radius: 8px;
+  background: #fff;
+  color: #24517d;
+  font-weight: 700;
+  cursor: pointer;
+}
+.visit-skip-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.visit-skip-actions button.is-primary,
+.visit-detail-page .visit-skip-actions button.is-primary {
+  border-color: #0869bf;
+  background: #0869bf;
+  color: #fff;
+}
+@media (max-width: 760px) {
+  .visit-skip-banner { flex-direction: column; align-items: stretch; }
+  .visit-stepper { grid-template-columns: repeat(auto-fit, minmax(85px, 1fr)) !important; }
+}
 .medical-form label > small { display: block; margin-top: 5px; color: #ba3038; font-size: 12px; }
 .medical-form label:has(> small) input,
 .medical-form label:has(> small) select,
@@ -946,5 +1187,19 @@
 .patient-invoice-page {
   max-width: 1140px;
   margin: 0 auto;
+}
+
+.patient-invoice-page .admin-modal {
+  width: min(100%, 720px);
+}
+
+.invoice-detail-card {
+  padding: 24px 28px 28px;
+}
+
+@media (max-width: 600px) {
+  .invoice-detail-card {
+    padding: 18px 16px 22px;
+  }
 }
 

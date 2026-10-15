@@ -14,6 +14,10 @@ import {
   type ReceptionItem,
 } from '../../features/clinical/api';
 import { medicinesApi, type Medicine } from '../../features/manager/medicines-api';
+import {
+  suggestionsApi,
+  type MedicineSuggestion,
+} from '../../features/manager/suggestions-api';
 import { appointmentLabel, genderLabel } from '../../utils/format';
 
 type RecordField = 'symptoms' | 'examResult' | 'conclusion' | 'treatment' | 'diseaseId';
@@ -103,12 +107,19 @@ export function DoctorVisitDetailPage() {
   const [diseaseSearch, setDiseaseSearch] = useState('');
   const [medicineSearch, setMedicineSearch] = useState('');
 
+  // Gợi ý thuốc theo chẩn đoán chính
+  const [suggestions, setSuggestions] = useState<MedicineSuggestion[]>([]);
+  const [suggestionDiseaseName, setSuggestionDiseaseName] = useState('');
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const [suggestionsError, setSuggestionsError] = useState('');
+
   // UI state
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<RecordField, string>>>({});
+  const [showClinicalPanel, setShowClinicalPanel] = useState(false);
 
   const fill = useCallback((item: ReceptionItem) => {
     const medical = item.medicalRecord;
@@ -157,6 +168,8 @@ export function DoctorVisitDetailPage() {
             symptoms: item.reception?.initialSymptoms || item.reason || '',
           },
     );
+    // Panel chỉ định chỉ mở khi đang dùng CLS (chưa skip).
+    setShowClinicalPanel(Boolean(medical && !medical.noClinicalServices));
   }, []);
 
   const load = useCallback(async () => {
@@ -172,7 +185,7 @@ export function DoctorVisitDetailPage() {
         clinicalApi.clinicalOrders(id),
         clinicalApi.clinicalCatalog(),
         clinicalApi.diseases({ page: 1, limit: 100 }),
-        medicinesApi.list({ page: 1, limit: 100, active: 'true' }),
+        medicinesApi.list({ page: 1, limit: 300, active: 'true' }),
       ]);
 
       if (receptionRes.status === 'rejected') {
@@ -198,12 +211,49 @@ export function DoctorVisitDetailPage() {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    const diseaseId = Number(record.diseaseId);
+    if (!Number.isInteger(diseaseId) || diseaseId < 1) {
+      setSuggestions([]);
+      setSuggestionDiseaseName('');
+      setSuggestionsError('');
+      setSuggestionsLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setSuggestionsLoading(true);
+    setSuggestionsError('');
+    void suggestionsApi
+      .byDisease(diseaseId, true)
+      .then((protocol) => {
+        if (cancelled) return;
+        setSuggestionDiseaseName(protocol.disease.name);
+        setSuggestions(protocol.applying ? protocol.items.filter((item) => item.active) : []);
+      })
+      .catch((requestError) => {
+        if (cancelled) return;
+        setSuggestions([]);
+        setSuggestionDiseaseName('');
+        setSuggestionsError(errorMessage(requestError));
+      })
+      .finally(() => {
+        if (!cancelled) setSuggestionsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [record.diseaseId]);
+
   const editable = visit?.status === 'Dang kham';
   const prescriptionLocked = record.prescriptionLocked === true;
   const professionallyFinished = Boolean(visit && ['Da kham xong', 'Hoan thanh'].includes(visit.status));
   const activeOrders = orders.filter((order) => order.status !== 'Huy');
+  const clinicalSkipped = Boolean(record.noClinicalServices) && activeOrders.length === 0;
   const resultReady =
     professionallyFinished ||
+    clinicalSkipped ||
     Boolean(record.noClinicalServices) ||
     (activeOrders.length > 0 &&
       activeOrders.every((order) => ['Da co ket qua', 'Da xem ket qua'].includes(order.status)));
@@ -241,17 +291,38 @@ export function DoctorVisitDetailPage() {
 
   const savedRecord = visit?.medicalRecord;
 
+  // Vẫn hiện bước CLS trên stepper; bấm "Bỏ qua" thì bước đó chuyển sang hoàn thành.
+  const clinicalStepDone =
+    clinicalSkipped ||
+    Boolean(savedRecord?.noClinicalServices) ||
+    (activeOrders.length > 0 && resultReady);
+
   const steps = useMemo(
     () => [
-      { id: 'vitals-section', label: 'Khám', done: Boolean(visit?.examStartedAt || visit?.reception?.temperature || savedRecord?.symptoms) },
-      { id: 'clinical-orders', label: 'Dịch vụ', done: Boolean(savedRecord?.noClinicalServices || activeOrders.length > 0) },
-      { id: 'clinical-results', label: 'Kết quả', done: resultReady },
-      { id: 'diagnosis-section', label: 'Chẩn đoán', done: Boolean(savedRecord?.diseaseId && savedRecord?.conclusion) },
+      {
+        id: 'vitals-section',
+        label: 'Khám',
+        done: Boolean(visit?.examStartedAt || visit?.reception?.temperature || savedRecord?.symptoms),
+      },
+      {
+        id: 'clinical-orders',
+        label: 'Cận LS',
+        done: clinicalStepDone,
+      },
+      {
+        id: 'diagnosis-section',
+        label: 'Kết quả',
+        done: Boolean(savedRecord?.diseaseId && savedRecord?.conclusion && savedRecord?.examResult),
+      },
       { id: 'prescription-section', label: 'Đơn thuốc', done: prescriptionDone },
       { id: 'billing-section', label: 'Thanh toán', done: invoicePaid },
-      { id: 'completion-section', label: 'Hoàn thành', done: professionallyFinished || visit?.status === 'Hoan thanh' },
+      {
+        id: 'completion-section',
+        label: 'Hoàn thành',
+        done: professionallyFinished || visit?.status === 'Hoan thanh',
+      },
     ],
-    [activeOrders.length, invoicePaid, prescriptionDone, professionallyFinished, resultReady, savedRecord, visit],
+    [clinicalStepDone, invoicePaid, prescriptionDone, professionallyFinished, savedRecord, visit],
   );
 
   const firstPendingStep = steps.findIndex((step) => !step.done);
@@ -281,7 +352,8 @@ export function DoctorVisitDetailPage() {
     try {
       await clinicalApi.startVisit(id);
       await refresh();
-      setNotice('Đã bắt đầu lượt khám lâm sàng.');
+      setNotice('Đã bắt đầu khám. Có thể bỏ qua cận lâm sàng hoặc ghi kết quả khám.');
+      scrollToSection('clinical-orders');
     } catch (requestError) {
       setError(errorMessage(requestError));
     } finally {
@@ -497,6 +569,38 @@ export function DoctorVisitDetailPage() {
     }
   }
 
+  /** Ngoại trú: bỏ qua chỉ định + kết quả CLS, chuyển thẳng sang ghi kết quả khám / kê đơn. */
+  async function skipClinicalServices() {
+    if (activeOrders.length > 0) {
+      setError('Đang có chỉ định cận lâm sàng. Hãy hủy các chỉ định trước khi bỏ qua bước này.');
+      return;
+    }
+    clearMessages();
+    setBusy(true);
+    try {
+      const next = { ...record, noClinicalServices: true };
+      setRecord(next);
+      setShowClinicalPanel(false);
+      await clinicalApi.saveMedicalRecord(id, {
+        ...payload(),
+        noClinicalServices: true,
+      });
+      await refresh();
+      setNotice('Đã bỏ qua — bước Cận lâm sàng hoàn thành. Tiếp tục ghi kết quả khám và kê đơn.');
+      scrollToSection('diagnosis-section');
+    } catch (requestError) {
+      setError(errorMessage(requestError));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function enableClinicalServices() {
+    setRecord((current) => ({ ...current, noClinicalServices: false }));
+    setShowClinicalPanel(true);
+    scrollToSection('clinical-orders');
+  }
+
   async function complete() {
     clearMessages();
     if (!validateCompletion()) return;
@@ -531,6 +635,46 @@ export function DoctorVisitDetailPage() {
     }
   }
 
+  function ensureMedicineInCatalog(suggestion: MedicineSuggestion) {
+    setMedicines((current) => {
+      if (current.some((item) => item.id === suggestion.medicineId)) return current;
+      const med = suggestion.medicine;
+      const stub: Medicine = {
+        id: med.id,
+        code: med.code,
+        name: med.name,
+        activeIngredient: med.activeIngredient,
+        strength: med.strength,
+        unit: med.unit,
+        group: med.group,
+        unitPrice: 0,
+        stockQuantity: med.stockQuantity,
+        lowStockThreshold: 0,
+        lowStock: false,
+        stockLabel: '—',
+        expiryDate: null,
+        manufacturer: null,
+        active: med.active,
+        createdAt: '',
+        updatedAt: '',
+      };
+      return [...current, stub];
+    });
+  }
+
+  function suggestionToItem(suggestion: MedicineSuggestion): PrescriptionItemInput {
+    const noteParts = [suggestion.purpose, suggestion.note].filter(Boolean);
+    return {
+      medicineId: suggestion.medicineId,
+      quantity: Math.max(1, Number(suggestion.quantity) || 1),
+      dosage: suggestion.dosage || '',
+      frequency: '',
+      days: 5,
+      route: 'Uống',
+      instructions: noteParts.join(' · '),
+    };
+  }
+
   function addMedicine() {
     setRecord((current) => ({
       ...current,
@@ -548,6 +692,48 @@ export function DoctorVisitDetailPage() {
         },
       ],
     }));
+  }
+
+  function addSuggestedMedicine(suggestion: MedicineSuggestion) {
+    if (!editable || prescriptionLocked) return;
+    const already = (record.prescriptionItems || []).some(
+      (item) => item.medicineId === suggestion.medicineId,
+    );
+    if (already) {
+      setNotice(`「${suggestion.medicine.name}」đã có trong đơn thuốc.`);
+      return;
+    }
+    ensureMedicineInCatalog(suggestion);
+    setRecord((current) => ({
+      ...current,
+      noPrescription: false,
+      prescriptionItems: [...(current.prescriptionItems || []), suggestionToItem(suggestion)],
+    }));
+    setNotice(`Đã thêm 「${suggestion.medicine.name}」từ gợi ý chẩn đoán.`);
+  }
+
+  function addAllSuggestedMedicines() {
+    if (!editable || prescriptionLocked || suggestions.length === 0) return;
+    const existingIds = new Set(
+      (record.prescriptionItems || [])
+        .map((item) => item.medicineId)
+        .filter((medicineId) => medicineId > 0),
+    );
+    const toAdd = suggestions.filter((item) => !existingIds.has(item.medicineId));
+    if (toAdd.length === 0) {
+      setNotice('Tất cả thuốc gợi ý đã có trong đơn.');
+      return;
+    }
+    toAdd.forEach(ensureMedicineInCatalog);
+    setRecord((current) => ({
+      ...current,
+      noPrescription: false,
+      prescriptionItems: [
+        ...(current.prescriptionItems || []),
+        ...toAdd.map(suggestionToItem),
+      ],
+    }));
+    setNotice(`Đã thêm ${toAdd.length} thuốc gợi ý theo chẩn đoán vào đơn.`);
   }
 
   function updateMedicine(index: number, patch: Partial<PrescriptionItemInput>) {
@@ -577,8 +763,12 @@ export function DoctorVisitDetailPage() {
     ['Đã lưu kết quả khám thực thể', Boolean(savedRecord?.examResult?.trim())],
     ['Đã chọn chẩn đoán chính ICD-10', Boolean(savedRecord?.diseaseId)],
     ['Đã có kết luận và hướng điều trị', Boolean(savedRecord?.conclusion?.trim() && savedRecord?.treatment?.trim())],
-    ['Đã xử lý chỉ định cận lâm sàng', Boolean(savedRecord?.noClinicalServices || activeOrders.length > 0)],
-    ['Đã nhận đủ kết quả cận lâm sàng', resultReady],
+    [
+      clinicalSkipped
+        ? 'Đã bỏ qua cận lâm sàng (hoàn thành bước)'
+        : 'Đã xử lý cận lâm sàng',
+      clinicalStepDone,
+    ],
     ['Đã hoàn thiện quyết định kê đơn', prescriptionDone],
     ['Đã lưu hồ sơ bệnh án', Boolean(savedRecord)],
     ['Đã lập hóa đơn viện phí', Boolean(visit.invoice)],
@@ -628,10 +818,14 @@ export function DoctorVisitDetailPage() {
         </div>
       </header>
 
-      <ol className="visit-stepper" aria-label="Tiến trình khám bệnh">
+      <ol
+        className="visit-stepper"
+        aria-label="Tiến trình khám bệnh"
+        style={{ gridTemplateColumns: `repeat(${steps.length}, minmax(0, 1fr))` }}
+      >
         {steps.map((step, index) => (
           <li
-            key={step.label}
+            key={step.id}
             className={`${step.done ? 'is-done' : ''} ${index === currentStep ? 'is-current' : ''}`}
             onClick={() => scrollToSection(step.id)}
             style={{ cursor: 'pointer' }}
@@ -820,210 +1014,237 @@ export function DoctorVisitDetailPage() {
 
         {/* CỘT PHẢI: CHỈ ĐỊNH DỊCH VỤ, KẾT QUẢ CLS, CHẨN ĐOÁN, ĐƠN THUỐC, HÓA ĐƠN & HOÀN TẤT */}
         <div className="visit-main">
-          {/* Card 1: Chỉ định dịch vụ / Cận lâm sàng */}
-          <section className="visit-section" id="clinical-orders">
+          {/* Ngoại trú: CLS tùy chọn — mặc định bỏ qua để ghi kết quả khám + kê đơn */}
+          <section className="visit-section visit-clinical-optional" id="clinical-orders">
             <header>
-              <span>1</span>
+              <span>{clinicalStepDone ? '✓' : '1'}</span>
               <div>
-                <h2>Chỉ định dịch vụ / Cận lâm sàng</h2>
-                <p>Chọn dịch vụ xét nghiệm, CĐHA từ danh mục chuẩn của phòng khám.</p>
+                <h2>Cận lâm sàng</h2>
+                <p>
+                  {clinicalStepDone
+                    ? clinicalSkipped
+                      ? 'Đã bỏ qua — bước này hoàn thành (ngoại trú).'
+                      : 'Đã xử lý chỉ định / kết quả cận lâm sàng.'
+                    : 'Bấm bỏ qua để hoàn thành bước này, hoặc mở chỉ định nếu cần.'}
+                </p>
               </div>
             </header>
 
-            {editable ? (
-              <form className="service-order-form" onSubmit={submitOrder}>
-                <input
-                  value={serviceSearch}
-                  onChange={(event) => setServiceSearch(event.target.value)}
-                  placeholder="Tìm mã hoặc tên dịch vụ..."
-                  aria-label="Tìm dịch vụ"
-                />
-                <select
-                  value={serviceId || ''}
-                  disabled={editingOrderId !== null}
-                  onChange={(event) => setServiceId(Number(event.target.value))}
-                >
-                  <option value="">Chọn dịch vụ từ danh mục</option>
-                  {filteredCatalog.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.code} · {item.name} ({money(item.unitPrice)})
-                    </option>
-                  ))}
-                </select>
-                <input
-                  value={servicePurpose}
-                  onChange={(event) => setServicePurpose(event.target.value)}
-                  placeholder="Mục đích / ghi chú thực hiện *"
-                />
-                <select
-                  value={priority}
-                  onChange={(event) =>
-                    setPriority(event.target.value as 'Thuong' | 'Khan')
-                  }
-                >
-                  <option value="Thuong">Thường</option>
-                  <option value="Khan">Khẩn</option>
-                </select>
-                <button type="submit" disabled={busy}>
-                  {editingOrderId ? 'Lưu thay đổi' : '＋ Thêm & gửi chỉ định'}
-                </button>
-                {editingOrderId ? (
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => {
-                      setEditingOrderId(null);
-                      setServiceId(0);
-                      setServicePurpose('');
-                      setPriority('Thuong');
-                    }}
-                  >
-                    Hủy sửa
+            {clinicalSkipped ? (
+              <div className="visit-skip-banner">
+                <div>
+                  <strong>Đã bỏ qua — trạng thái hoàn thành</strong>
+                  <p>Tiếp tục ghi kết quả khám và kê đơn thuốc.</p>
+                </div>
+                {editable ? (
+                  <button type="button" disabled={busy} onClick={enableClinicalServices}>
+                    Mở lại chỉ định
                   </button>
                 ) : null}
-              </form>
-            ) : null}
-
-            {catalog.length === 0 ? (
-              <p className="visit-empty">
-                Chưa có danh mục dịch vụ cận lâm sàng. Quản lý cần cấu hình dữ liệu trước khi chỉ định.
-              </p>
-            ) : null}
-
-            <label className="visit-check">
-              <input
-                disabled={!editable || activeOrders.length > 0}
-                type="checkbox"
-                checked={Boolean(record.noClinicalServices)}
-                onChange={(event) =>
-                  setRecordField('noClinicalServices', event.target.checked)
-                }
-              />
-              <strong>Lượt khám này không cần cận lâm sàng</strong> (Cho phép chuyển thẳng sang bước chẩn đoán)
-            </label>
-
-            <div className="service-orders">
-              {orders.length === 0 ? (
-                <p className="visit-empty">
-                  Chưa có chỉ định cận lâm sàng nào cho lượt khám này.
-                </p>
-              ) : (
-                orders.map((order) => (
-                  <article
-                    className={order.status === 'Huy' ? 'is-cancelled' : ''}
-                    key={order.id}
-                  >
-                    <div>
-                      <strong>
-                        {order.code} · {order.name}
-                      </strong>
-                      <small>
-                        Đơn vị: {order.performingUnit || 'Phòng xét nghiệm/CĐHA'} · Mức độ:{' '}
-                        {order.priority === 'Khan' ? 'Khẩn' : 'Thường'} · Đơn giá:{' '}
-                        {money(order.unitPrice)}
-                      </small>
-                      <p>{order.purpose || 'Chưa có mục đích chỉ định.'}</p>
-                    </div>
-                    <div className="service-order-status">
-                      <b>{order.status}</b>
-                      {editable && order.status === 'Cho thuc hien' ? (
-                        <span>
-                          <button
-                            type="button"
-                            disabled={busy}
-                            onClick={() => editOrder(order)}
-                          >
-                            Sửa
-                          </button>
-                          <button
-                            type="button"
-                            disabled={busy}
-                            onClick={() => void cancelOrder(order.id)}
-                          >
-                            Hủy
-                          </button>
-                        </span>
-                      ) : null}
-                    </div>
-                  </article>
-                ))
-              )}
-            </div>
-          </section>
-
-          {/* Card 2: Kết quả cận lâm sàng */}
-          <section className="visit-section" id="clinical-results">
-            <header>
-              <span>2</span>
-              <div>
-                <h2>Kết quả cận lâm sàng</h2>
-                <p>Kết quả thực tế do bộ phận xét nghiệm / chẩn đoán hình ảnh thực hiện và trả về.</p>
               </div>
-            </header>
-            <div className="clinical-results">
-              {activeOrders.length === 0 ? (
-                <p className="visit-empty">
-                  {record.noClinicalServices
-                    ? 'Lượt khám này được ghi nhận không cần cận lâm sàng.'
-                    : 'Chưa có chỉ định cận lâm sàng nào.'}
-                </p>
-              ) : activeOrders.filter((order) => order.result).length === 0 ? (
-                <p className="visit-empty">
-                  Đang chờ kết quả từ bộ phận thực hiện cận lâm sàng...
-                </p>
-              ) : (
-                activeOrders
-                  .filter((order) => order.result)
-                  .map((order) => (
-                    <article key={order.id}>
-                      <div>
-                        <strong>{order.name} ({order.code})</strong>
-                        <small>
-                          Thời gian trả KQ: {dateTime(order.result?.reportedAt || null)}
-                          {order.result?.performedBy
-                            ? ` · Người thực hiện: ${order.result.performedBy}`
-                            : ''}
-                        </small>
-                        <p>
-                          <strong>Kết quả:</strong> {order.result?.result}
-                        </p>
-                        {order.result?.conclusion ? (
-                          <em>Kết luận: {order.result.conclusion}</em>
-                        ) : null}
-                        {order.result?.attachment ? (
-                          <a
-                            href={order.result.attachment}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            📎 Mở tệp / hình ảnh kết quả
-                          </a>
-                        ) : null}
-                      </div>
-                      {order.status === 'Da co ket qua' && editable ? (
-                        <button
-                          type="button"
-                          disabled={busy}
-                          onClick={() => void reviewResult(order.id)}
+            ) : (
+              <>
+                {editable && activeOrders.length === 0 ? (
+                  <div className="visit-skip-actions">
+                    <button
+                      type="button"
+                      className="is-primary"
+                      disabled={busy}
+                      onClick={() => void skipClinicalServices()}
+                    >
+                      Bỏ qua bước này (hoàn thành)
+                    </button>
+                    {!showClinicalPanel ? (
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => {
+                          setRecordField('noClinicalServices', false);
+                          setShowClinicalPanel(true);
+                        }}
+                      >
+                        Mở chỉ định CLS
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                {showClinicalPanel || activeOrders.length > 0 ? (
+                  <>
+                    {editable ? (
+                      <form className="service-order-form" onSubmit={submitOrder}>
+                        <input
+                          value={serviceSearch}
+                          onChange={(event) => setServiceSearch(event.target.value)}
+                          placeholder="Tìm mã hoặc tên dịch vụ..."
+                          aria-label="Tìm dịch vụ"
+                        />
+                        <select
+                          value={serviceId || ''}
+                          disabled={editingOrderId !== null}
+                          onChange={(event) => setServiceId(Number(event.target.value))}
                         >
-                          ✓ Xác nhận đã xem
+                          <option value="">Chọn dịch vụ từ danh mục</option>
+                          {filteredCatalog.map((item) => (
+                            <option key={item.id} value={item.id}>
+                              {item.code} · {item.name} ({money(item.unitPrice)})
+                            </option>
+                          ))}
+                        </select>
+                        <input
+                          value={servicePurpose}
+                          onChange={(event) => setServicePurpose(event.target.value)}
+                          placeholder="Mục đích / ghi chú thực hiện *"
+                        />
+                        <select
+                          value={priority}
+                          onChange={(event) =>
+                            setPriority(event.target.value as 'Thuong' | 'Khan')
+                          }
+                        >
+                          <option value="Thuong">Thường</option>
+                          <option value="Khan">Khẩn</option>
+                        </select>
+                        <button type="submit" disabled={busy}>
+                          {editingOrderId ? 'Lưu thay đổi' : '＋ Thêm & gửi chỉ định'}
                         </button>
+                        {editingOrderId ? (
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => {
+                              setEditingOrderId(null);
+                              setServiceId(0);
+                              setServicePurpose('');
+                              setPriority('Thuong');
+                            }}
+                          >
+                            Hủy sửa
+                          </button>
+                        ) : null}
+                      </form>
+                    ) : null}
+
+                    {catalog.length === 0 ? (
+                      <p className="visit-empty">
+                        Chưa có danh mục dịch vụ cận lâm sàng. Quản lý cần cấu hình dữ liệu trước khi
+                        chỉ định.
+                      </p>
+                    ) : null}
+
+                    <div className="service-orders">
+                      {orders.length === 0 ? (
+                        <p className="visit-empty">Chưa có chỉ định cận lâm sàng nào.</p>
                       ) : (
-                        <b>{order.status}</b>
+                        orders.map((order) => (
+                          <article
+                            className={order.status === 'Huy' ? 'is-cancelled' : ''}
+                            key={order.id}
+                          >
+                            <div>
+                              <strong>
+                                {order.code} · {order.name}
+                              </strong>
+                              <small>
+                                Đơn vị: {order.performingUnit || 'Phòng xét nghiệm/CĐHA'} · Mức độ:{' '}
+                                {order.priority === 'Khan' ? 'Khẩn' : 'Thường'} · Đơn giá:{' '}
+                                {money(order.unitPrice)}
+                              </small>
+                              <p>{order.purpose || 'Chưa có mục đích chỉ định.'}</p>
+                            </div>
+                            <div className="service-order-status">
+                              <b>{order.status}</b>
+                              {editable && order.status === 'Cho thuc hien' ? (
+                                <span>
+                                  <button
+                                    type="button"
+                                    disabled={busy}
+                                    onClick={() => editOrder(order)}
+                                  >
+                                    Sửa
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={busy}
+                                    onClick={() => void cancelOrder(order.id)}
+                                  >
+                                    Hủy
+                                  </button>
+                                </span>
+                              ) : null}
+                            </div>
+                          </article>
+                        ))
                       )}
-                    </article>
-                  ))
-              )}
-            </div>
+                    </div>
+
+                    <div className="clinical-results" id="clinical-results">
+                      <h3>Kết quả cận lâm sàng</h3>
+                      {activeOrders.length === 0 ? (
+                        <p className="visit-empty">Chưa có chỉ định để trả kết quả.</p>
+                      ) : activeOrders.filter((order) => order.result).length === 0 ? (
+                        <p className="visit-empty">
+                          Đang chờ kết quả từ bộ phận thực hiện cận lâm sàng...
+                        </p>
+                      ) : (
+                        activeOrders
+                          .filter((order) => order.result)
+                          .map((order) => (
+                            <article key={order.id}>
+                              <div>
+                                <strong>
+                                  {order.name} ({order.code})
+                                </strong>
+                                <small>
+                                  Thời gian trả KQ: {dateTime(order.result?.reportedAt || null)}
+                                  {order.result?.performedBy
+                                    ? ` · Người thực hiện: ${order.result.performedBy}`
+                                    : ''}
+                                </small>
+                                <p>
+                                  <strong>Kết quả:</strong> {order.result?.result}
+                                </p>
+                                {order.result?.conclusion ? (
+                                  <em>Kết luận: {order.result.conclusion}</em>
+                                ) : null}
+                                {order.result?.attachment ? (
+                                  <a
+                                    href={order.result.attachment}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                  >
+                                    📎 Mở tệp / hình ảnh kết quả
+                                  </a>
+                                ) : null}
+                              </div>
+                              {order.status === 'Da co ket qua' && editable ? (
+                                <button
+                                  type="button"
+                                  disabled={busy}
+                                  onClick={() => void reviewResult(order.id)}
+                                >
+                                  ✓ Xác nhận đã xem
+                                </button>
+                              ) : (
+                                <b>{order.status}</b>
+                              )}
+                            </article>
+                          ))
+                      )}
+                    </div>
+                  </>
+                ) : null}
+              </>
+            )}
           </section>
 
-          {/* Card 3: Kết quả khám và chẩn đoán */}
+          {/* Kết quả khám và chẩn đoán */}
           <section className="visit-section" id="diagnosis-section">
             <header>
               <span>3</span>
               <div>
-                <h2>Kết quả khám lâm sàng & Chẩn đoán</h2>
-                <p>Khám các cơ quan, chẩn đoán ICD-10 và hướng điều trị.</p>
+                <h2>Kết quả khám &amp; chẩn đoán</h2>
+                <p>Ghi triệu chứng, kết quả khám, chẩn đoán ICD-10 và hướng điều trị.</p>
               </div>
             </header>
             <div className="medical-form">
@@ -1246,6 +1467,90 @@ export function DoctorVisitDetailPage() {
 
             {!record.noPrescription ? (
               <>
+                {editable && !prescriptionLocked ? (
+                  <div className="prescription-suggestions">
+                    <div className="prescription-suggestions__head">
+                      <div>
+                        <strong>Gợi ý thuốc theo chẩn đoán</strong>
+                        <small>
+                          {Number(record.diseaseId) > 0
+                            ? suggestionDiseaseName
+                              ? `Phác đồ gợi ý cho: ${suggestionDiseaseName}`
+                              : 'Đang tải phác đồ theo chẩn đoán chính...'
+                            : 'Chọn chẩn đoán chính (ICD-10) để xem gợi ý thuốc.'}
+                        </small>
+                      </div>
+                      {suggestions.length > 0 ? (
+                        <button
+                          type="button"
+                          className="is-primary"
+                          disabled={busy || suggestionsLoading}
+                          onClick={addAllSuggestedMedicines}
+                        >
+                          Thêm tất cả vào đơn
+                        </button>
+                      ) : null}
+                    </div>
+
+                    {suggestionsLoading ? (
+                      <p className="prescription-suggestions__hint">Đang tải gợi ý thuốc...</p>
+                    ) : null}
+                    {suggestionsError ? (
+                      <p className="prescription-suggestions__hint is-error">{suggestionsError}</p>
+                    ) : null}
+                    {!suggestionsLoading &&
+                    !suggestionsError &&
+                    Number(record.diseaseId) > 0 &&
+                    suggestions.length === 0 ? (
+                      <p className="prescription-suggestions__hint">
+                        Chưa có phác đồ gợi ý hoạt động cho chẩn đoán này. Quản trị viên có thể cấu hình tại
+                        mục Gợi ý thuốc.
+                      </p>
+                    ) : null}
+
+                    {suggestions.length > 0 ? (
+                      <ul className="prescription-suggestions__list">
+                        {suggestions.map((suggestion) => {
+                          const alreadyAdded = (record.prescriptionItems || []).some(
+                            (item) => item.medicineId === suggestion.medicineId,
+                          );
+                          return (
+                            <li key={suggestion.id}>
+                              <div>
+                                <strong>
+                                  {suggestion.medicine.name}
+                                  {suggestion.medicine.strength
+                                    ? ` · ${suggestion.medicine.strength}`
+                                    : ''}
+                                </strong>
+                                <small>
+                                  {[
+                                    suggestion.dosage,
+                                    suggestion.quantity != null
+                                      ? `SL gợi ý: ${suggestion.quantity}`
+                                      : null,
+                                    suggestion.purpose,
+                                    `Tồn: ${suggestion.medicine.stockQuantity}`,
+                                  ]
+                                    .filter(Boolean)
+                                    .join(' · ')}
+                                </small>
+                              </div>
+                              <button
+                                type="button"
+                                disabled={busy || alreadyAdded}
+                                onClick={() => addSuggestedMedicine(suggestion)}
+                              >
+                                {alreadyAdded ? 'Đã thêm' : '＋ Thêm'}
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    ) : null}
+                  </div>
+                ) : null}
+
                 <input
                   className="prescription-search"
                   disabled={!editable || prescriptionLocked}

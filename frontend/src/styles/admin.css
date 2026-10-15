@@ -906,6 +906,93 @@
   resize: vertical;
 }
 .prescription-search { min-height: 40px; margin-bottom: 10px; resize: none; }
+.prescription-suggestions {
+  margin: 0 0 12px;
+  padding: 12px;
+  border: 1px solid #d6e6f4;
+  border-radius: 9px;
+  background: #f3f9ff;
+}
+.prescription-suggestions__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.prescription-suggestions__head strong {
+  display: block;
+  color: #174d79;
+  font-size: 13px;
+}
+.prescription-suggestions__head small {
+  display: block;
+  margin-top: 3px;
+  color: #5f7388;
+  font-size: 11px;
+}
+.prescription-suggestions__head button {
+  flex-shrink: 0;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid #0869bf;
+  border-radius: 7px;
+  background: #0869bf;
+  color: #fff;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+}
+.prescription-suggestions__hint {
+  margin: 0;
+  color: #6a7b8d;
+  font-size: 12px;
+}
+.prescription-suggestions__hint.is-error { color: #b12d35; }
+.prescription-suggestions__list {
+  display: grid;
+  margin: 8px 0 0;
+  padding: 0;
+  gap: 6px;
+  list-style: none;
+}
+.prescription-suggestions__list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid #d7e5f0;
+  border-radius: 8px;
+  background: #fff;
+}
+.prescription-suggestions__list strong {
+  display: block;
+  color: #1f3348;
+  font-size: 13px;
+}
+.prescription-suggestions__list small {
+  display: block;
+  margin-top: 2px;
+  color: #6b7c8e;
+  font-size: 11px;
+}
+.prescription-suggestions__list button {
+  flex-shrink: 0;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid #bbd4ea;
+  border-radius: 7px;
+  background: #eef7ff;
+  color: #125fa8;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+}
+.prescription-suggestions__list button:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
 .service-order-form {
   grid-template-columns: minmax(140px, 1fr) minmax(190px, 1.4fr) minmax(190px, 1.5fr) 105px auto auto;
 }

@@ -14,6 +14,10 @@ import {
   type ReceptionItem,
 } from '../../features/clinical/api';
 import { medicinesApi, type Medicine } from '../../features/manager/medicines-api';
+import {
+  suggestionsApi,
+  type MedicineSuggestion,
+} from '../../features/manager/suggestions-api';
 import { appointmentLabel, genderLabel } from '../../utils/format';
 
 type RecordField = 'symptoms' | 'examResult' | 'conclusion' | 'treatment' | 'diseaseId';
@@ -103,6 +107,12 @@ export function DoctorVisitDetailPage() {
   const [diseaseSearch, setDiseaseSearch] = useState('');
   const [medicineSearch, setMedicineSearch] = useState('');
 
+  // Gợi ý thuốc theo chẩn đoán chính
+  const [suggestions, setSuggestions] = useState<MedicineSuggestion[]>([]);
+  const [suggestionDiseaseName, setSuggestionDiseaseName] = useState('');
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const [suggestionsError, setSuggestionsError] = useState('');
+
   // UI state
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -175,7 +185,7 @@ export function DoctorVisitDetailPage() {
         clinicalApi.clinicalOrders(id),
         clinicalApi.clinicalCatalog(),
         clinicalApi.diseases({ page: 1, limit: 100 }),
-        medicinesApi.list({ page: 1, limit: 100, active: 'true' }),
+        medicinesApi.list({ page: 1, limit: 300, active: 'true' }),
       ]);
 
       if (receptionRes.status === 'rejected') {
@@ -200,6 +210,41 @@ export function DoctorVisitDetailPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    const diseaseId = Number(record.diseaseId);
+    if (!Number.isInteger(diseaseId) || diseaseId < 1) {
+      setSuggestions([]);
+      setSuggestionDiseaseName('');
+      setSuggestionsError('');
+      setSuggestionsLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setSuggestionsLoading(true);
+    setSuggestionsError('');
+    void suggestionsApi
+      .byDisease(diseaseId, true)
+      .then((protocol) => {
+        if (cancelled) return;
+        setSuggestionDiseaseName(protocol.disease.name);
+        setSuggestions(protocol.applying ? protocol.items.filter((item) => item.active) : []);
+      })
+      .catch((requestError) => {
+        if (cancelled) return;
+        setSuggestions([]);
+        setSuggestionDiseaseName('');
+        setSuggestionsError(errorMessage(requestError));
+      })
+      .finally(() => {
+        if (!cancelled) setSuggestionsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [record.diseaseId]);
 
   const editable = visit?.status === 'Dang kham';
   const prescriptionLocked = record.prescriptionLocked === true;
@@ -590,6 +635,46 @@ export function DoctorVisitDetailPage() {
     }
   }
 
+  function ensureMedicineInCatalog(suggestion: MedicineSuggestion) {
+    setMedicines((current) => {
+      if (current.some((item) => item.id === suggestion.medicineId)) return current;
+      const med = suggestion.medicine;
+      const stub: Medicine = {
+        id: med.id,
+        code: med.code,
+        name: med.name,
+        activeIngredient: med.activeIngredient,
+        strength: med.strength,
+        unit: med.unit,
+        group: med.group,
+        unitPrice: 0,
+        stockQuantity: med.stockQuantity,
+        lowStockThreshold: 0,
+        lowStock: false,
+        stockLabel: '—',
+        expiryDate: null,
+        manufacturer: null,
+        active: med.active,
+        createdAt: '',
+        updatedAt: '',
+      };
+      return [...current, stub];
+    });
+  }
+
+  function suggestionToItem(suggestion: MedicineSuggestion): PrescriptionItemInput {
+    const noteParts = [suggestion.purpose, suggestion.note].filter(Boolean);
+    return {
+      medicineId: suggestion.medicineId,
+      quantity: Math.max(1, Number(suggestion.quantity) || 1),
+      dosage: suggestion.dosage || '',
+      frequency: '',
+      days: 5,
+      route: 'Uống',
+      instructions: noteParts.join(' · '),
+    };
+  }
+
   function addMedicine() {
     setRecord((current) => ({
       ...current,
@@ -607,6 +692,48 @@ export function DoctorVisitDetailPage() {
         },
       ],
     }));
+  }
+
+  function addSuggestedMedicine(suggestion: MedicineSuggestion) {
+    if (!editable || prescriptionLocked) return;
+    const already = (record.prescriptionItems || []).some(
+      (item) => item.medicineId === suggestion.medicineId,
+    );
+    if (already) {
+      setNotice(`「${suggestion.medicine.name}」đã có trong đơn thuốc.`);
+      return;
+    }
+    ensureMedicineInCatalog(suggestion);
+    setRecord((current) => ({
+      ...current,
+      noPrescription: false,
+      prescriptionItems: [...(current.prescriptionItems || []), suggestionToItem(suggestion)],
+    }));
+    setNotice(`Đã thêm 「${suggestion.medicine.name}」từ gợi ý chẩn đoán.`);
+  }
+
+  function addAllSuggestedMedicines() {
+    if (!editable || prescriptionLocked || suggestions.length === 0) return;
+    const existingIds = new Set(
+      (record.prescriptionItems || [])
+        .map((item) => item.medicineId)
+        .filter((medicineId) => medicineId > 0),
+    );
+    const toAdd = suggestions.filter((item) => !existingIds.has(item.medicineId));
+    if (toAdd.length === 0) {
+      setNotice('Tất cả thuốc gợi ý đã có trong đơn.');
+      return;
+    }
+    toAdd.forEach(ensureMedicineInCatalog);
+    setRecord((current) => ({
+      ...current,
+      noPrescription: false,
+      prescriptionItems: [
+        ...(current.prescriptionItems || []),
+        ...toAdd.map(suggestionToItem),
+      ],
+    }));
+    setNotice(`Đã thêm ${toAdd.length} thuốc gợi ý theo chẩn đoán vào đơn.`);
   }
 
   function updateMedicine(index: number, patch: Partial<PrescriptionItemInput>) {
@@ -1340,6 +1467,90 @@ export function DoctorVisitDetailPage() {
 
             {!record.noPrescription ? (
               <>
+                {editable && !prescriptionLocked ? (
+                  <div className="prescription-suggestions">
+                    <div className="prescription-suggestions__head">
+                      <div>
+                        <strong>Gợi ý thuốc theo chẩn đoán</strong>
+                        <small>
+                          {Number(record.diseaseId) > 0
+                            ? suggestionDiseaseName
+                              ? `Phác đồ gợi ý cho: ${suggestionDiseaseName}`
+                              : 'Đang tải phác đồ theo chẩn đoán chính...'
+                            : 'Chọn chẩn đoán chính (ICD-10) để xem gợi ý thuốc.'}
+                        </small>
+                      </div>
+                      {suggestions.length > 0 ? (
+                        <button
+                          type="button"
+                          className="is-primary"
+                          disabled={busy || suggestionsLoading}
+                          onClick={addAllSuggestedMedicines}
+                        >
+                          Thêm tất cả vào đơn
+                        </button>
+                      ) : null}
+                    </div>
+
+                    {suggestionsLoading ? (
+                      <p className="prescription-suggestions__hint">Đang tải gợi ý thuốc...</p>
+                    ) : null}
+                    {suggestionsError ? (
+                      <p className="prescription-suggestions__hint is-error">{suggestionsError}</p>
+                    ) : null}
+                    {!suggestionsLoading &&
+                    !suggestionsError &&
+                    Number(record.diseaseId) > 0 &&
+                    suggestions.length === 0 ? (
+                      <p className="prescription-suggestions__hint">
+                        Chưa có phác đồ gợi ý hoạt động cho chẩn đoán này. Quản trị viên có thể cấu hình tại
+                        mục Gợi ý thuốc.
+                      </p>
+                    ) : null}
+
+                    {suggestions.length > 0 ? (
+                      <ul className="prescription-suggestions__list">
+                        {suggestions.map((suggestion) => {
+                          const alreadyAdded = (record.prescriptionItems || []).some(
+                            (item) => item.medicineId === suggestion.medicineId,
+                          );
+                          return (
+                            <li key={suggestion.id}>
+                              <div>
+                                <strong>
+                                  {suggestion.medicine.name}
+                                  {suggestion.medicine.strength
+                                    ? ` · ${suggestion.medicine.strength}`
+                                    : ''}
+                                </strong>
+                                <small>
+                                  {[
+                                    suggestion.dosage,
+                                    suggestion.quantity != null
+                                      ? `SL gợi ý: ${suggestion.quantity}`
+                                      : null,
+                                    suggestion.purpose,
+                                    `Tồn: ${suggestion.medicine.stockQuantity}`,
+                                  ]
+                                    .filter(Boolean)
+                                    .join(' · ')}
+                                </small>
+                              </div>
+                              <button
+                                type="button"
+                                disabled={busy || alreadyAdded}
+                                onClick={() => addSuggestedMedicine(suggestion)}
+                              >
+                                {alreadyAdded ? 'Đã thêm' : '＋ Thêm'}
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    ) : null}
+                  </div>
+                ) : null}
+
                 <input
                   className="prescription-search"
                   disabled={!editable || prescriptionLocked}

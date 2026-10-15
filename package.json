@@ -17,6 +17,7 @@
     "db:migrate": "docker compose --profile migration run --rm db-migrate",
     "db:migrate:status": "docker compose --profile migration run --rm -e MIGRATION_DRY_RUN=1 db-migrate",
     "db:check": "node scripts/db-check.mjs",
+    "db:seed:reception-exam": "node scripts/seed-reception-exam.mjs",
     "test": "npm run build:common && node --import tsx --test packages/common/test/*.test.ts services/appointment-service/test/*.test.ts services/appointment-service/test/*.test.mjs services/medical-record-service/test/*.test.ts services/billing-service/test/*.test.ts",
     "smoke": "node scripts/smoke.mjs"
   },

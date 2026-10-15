@@ -97,12 +97,12 @@ export function SelectField({
                 <button
                   type="button"
                   disabled={item.disabled}
-                  className={`flex w-full cursor-pointer px-3 py-2.5 text-left text-sm font-normal transition disabled:cursor-not-allowed disabled:opacity-45 ${
+                  className={`flex w-full cursor-pointer px-3 py-2.5 text-left text-sm font-normal leading-snug transition disabled:cursor-not-allowed disabled:opacity-45 ${
                     active ? 'bg-primary-600 text-white' : 'text-ink hover:bg-primary-50'
                   }`}
                   onClick={() => { if (!item.disabled) pick(item.value); }}
                 >
-                  {item.label}
+                  <span className="whitespace-normal">{item.label}</span>
                 </button>
               </li>
             );

@@ -5,6 +5,7 @@ import { EmptyState } from '../../components/EmptyState';
 import { ErrorState } from '../../components/ErrorState';
 import { LoadingState } from '../../components/LoadingState';
 import { ManagerPager } from '../../components/ManagerPager';
+import { SelectField } from '../../components/SelectField';
 import { medicinesApi, type Medicine } from '../../features/manager/medicines-api';
 import {
   suggestionsApi,
@@ -15,6 +16,32 @@ import {
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 
 const diseasePageSize = 12;
+
+const ROMAN_ORDER: Record<string, number> = {
+  I: 1, II: 2, III: 3, IV: 4, V: 5, VI: 6, VII: 7, VIII: 8, IX: 9, X: 10,
+  XI: 11, XII: 12, XIII: 13, XIV: 14, XV: 15, XVI: 16, XVII: 17, XVIII: 18,
+  XIX: 19, XX: 20, XXI: 21, XXII: 22,
+};
+
+function groupSortKey(label: string) {
+  const match = label.trim().match(/^([IVXLC]+)\./i);
+  if (!match) return Number.MAX_SAFE_INTEGER;
+  return ROMAN_ORDER[match[1].toUpperCase()] ?? Number.MAX_SAFE_INTEGER;
+}
+
+function sortDiseaseGroups(items: string[]) {
+  return [...items].sort((a, b) => {
+    const byRoman = groupSortKey(a) - groupSortKey(b);
+    return byRoman !== 0 ? byRoman : a.localeCompare(b, 'vi');
+  });
+}
+
+function shortGroupLabel(label: string) {
+  const match = label.match(/^([IVXLC]+)\.\s*(.+?)(?:\s*\(|$)/i);
+  if (!match) return label;
+  const name = match[2].trim();
+  return name.length > 42 ? `${match[1]}. ${name.slice(0, 40)}…` : `${match[1]}. ${name}`;
+}
 
 type DraftItem = {
   key: string;
@@ -80,6 +107,7 @@ export function ManagerSuggestionsPage() {
   }, [applying, baseline, draft]);
 
   const selectedDisease = diseases.find((item) => item.id === selectedId) || null;
+  const sortedGroups = useMemo(() => sortDiseaseGroups(groups), [groups]);
 
   const loadStats = useCallback(async () => {
     try {
@@ -316,7 +344,7 @@ export function ManagerSuggestionsPage() {
 
       <div className="suggestion-layout">
         <section className="manager-card suggestion-diseases">
-          <div className="manager-toolbar">
+          <div className="suggestion-diseases__toolbar">
             <div className="manager-search">
               <span>⌕</span>
               <input
@@ -325,15 +353,29 @@ export function ManagerSuggestionsPage() {
                 placeholder="Tìm theo mã ICD hoặc tên bệnh"
               />
             </div>
-            <select value={group} onChange={(event) => { setGroup(event.target.value); setPage(1); }}>
-              <option value="">Tất cả nhóm</option>
-              {groups.map((value) => <option key={value} value={value}>{value}</option>)}
-            </select>
-            <select value={configured} onChange={(event) => { setConfigured(event.target.value); setPage(1); }}>
-              <option value="">Tất cả</option>
-              <option value="yes">Đã cấu hình</option>
-              <option value="no">Chưa cấu hình</option>
-            </select>
+            <div className="suggestion-diseases__filters">
+              <SelectField
+                className="suggestion-filter-select"
+                label="Nhóm bệnh"
+                value={group}
+                onChange={(event) => { setGroup(event.target.value); setPage(1); }}
+              >
+                <option value="">Tất cả nhóm</option>
+                {sortedGroups.map((value) => (
+                  <option key={value} value={value}>{value}</option>
+                ))}
+              </SelectField>
+              <SelectField
+                className="suggestion-filter-select"
+                label="Trạng thái"
+                value={configured}
+                onChange={(event) => { setConfigured(event.target.value); setPage(1); }}
+              >
+                <option value="">Tất cả</option>
+                <option value="yes">Đã cấu hình</option>
+                <option value="no">Chưa cấu hình</option>
+              </SelectField>
+            </div>
           </div>
 
           {listLoading ? <LoadingState label="Đang tải danh mục bệnh..." /> : listError ? (
@@ -360,7 +402,10 @@ export function ManagerSuggestionsPage() {
                         : <span className="manager-status is-inactive">Chưa cấu hình</span>}
                     </div>
                     <strong>{item.name}</strong>
-                    <small>{item.suggestionCount} thuốc gợi ý{item.group ? ` · ${item.group}` : ''}</small>
+                    <small>
+                      <em>{item.suggestionCount} thuốc gợi ý</em>
+                      {item.group ? <span title={item.group}>{shortGroupLabel(item.group)}</span> : null}
+                    </small>
                   </button>
                 ))}
               </div>

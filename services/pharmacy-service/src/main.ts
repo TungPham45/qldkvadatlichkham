@@ -75,7 +75,7 @@ class UpdateSuggestionDto {
   @IsOptional() @Type(() => Boolean) @IsBoolean() active?: boolean;
 }
 
-class AddSuggestionDto extends SuggestionItemDto {}
+class AddSuggestionDto extends SuggestionItemDto { }
 
 class ApplyingDto {
   @Type(() => Boolean) @IsBoolean() applying!: boolean;
@@ -124,7 +124,7 @@ const SELECT_FIELDS = `
 
 @Injectable()
 class PharmacyService {
-  constructor(@Inject(DataSource) private readonly db: DataSource) {}
+  constructor(@Inject(DataSource) private readonly db: DataSource) { }
 
   private buildWhere(q: PageQuery) {
     const where: string[] = [];
@@ -565,14 +565,17 @@ class PharmacyService {
 }
 
 @Controller()
-@UseGuards(JwtAuthGuard, RolesGuard)
-class PharmacyController {
-  constructor(@Inject(PharmacyService) private readonly service: PharmacyService) {}
-
+class HealthController {
   @Get('health')
   health() {
     return { status: 'ok', service: 'pharmacy-service' };
   }
+}
+
+@Controller()
+@UseGuards(JwtAuthGuard, RolesGuard)
+class PharmacyController {
+  constructor(@Inject(PharmacyService) private readonly service: PharmacyService) { }
 
   @Get('medicines')
   @Roles(AppRole.DOCTOR, AppRole.MANAGER)
@@ -675,10 +678,10 @@ class PharmacyController {
     }),
     JwtModule.register({ secret: process.env.JWT_ACCESS_SECRET }),
   ],
-  controllers: [PharmacyController],
+  controllers: [HealthController, PharmacyController],
   providers: [PharmacyService],
 })
-class AppModule {}
+class AppModule { }
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);

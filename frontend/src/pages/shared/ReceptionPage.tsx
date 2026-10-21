@@ -163,7 +163,7 @@ export function ReceptionPage() {
     if (isManager) directoryApi.allDoctors({}).then(setDoctors).catch(() => setDoctors([]));
     if (isDoctor) {
       clinicalApi.diseases({ page: 1, limit: 100 }).then((result) => setDiseases(result.items)).catch(() => setDiseases([]));
-      medicinesApi.list({ page: 1, limit: 100, active: 'true' }).then((result) => setMedicines(result.items)).catch(() => setMedicines([]));
+      medicinesApi.listAll({ active: 'true' }).then(setMedicines).catch(() => setMedicines([]));
     }
   }, [isDoctor, isManager]);
 

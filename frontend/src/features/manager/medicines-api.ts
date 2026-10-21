@@ -44,9 +44,24 @@ export interface MedicineListResult {
   stats: { total: number; safe: number; low: number };
 }
 
+const listMedicines = (params: Record<string, unknown>) =>
+  api.get<MedicineListResult>('/medicines', { params }).then((r) => r.data);
+
 export const medicinesApi = {
-  list: (params: Record<string, unknown>) =>
-    api.get<MedicineListResult>('/medicines', { params }).then((r) => r.data),
+  list: listMedicines,
+  listAll: async (params: Record<string, unknown> = {}) => {
+    const limit = 100;
+    const firstPage = await listMedicines({ ...params, page: 1, limit });
+    const items = [...firstPage.items];
+    const totalPages = Math.ceil(firstPage.total / limit);
+
+    for (let page = 2; page <= totalPages; page += 1) {
+      const result = await listMedicines({ ...params, page, limit });
+      items.push(...result.items);
+    }
+
+    return items;
+  },
   create: (body: MedicineInput) => api.post<Medicine>('/medicines', body).then((r) => r.data),
   update: (id: number, body: MedicineInput) => api.put<Medicine>(`/medicines/${id}`, body).then((r) => r.data),
   remove: (id: number) => api.delete<{ id: number; deleted: boolean; deactivated?: boolean }>(`/medicines/${id}`).then((r) => r.data),

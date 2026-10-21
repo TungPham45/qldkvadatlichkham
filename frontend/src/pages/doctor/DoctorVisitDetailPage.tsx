@@ -187,7 +187,7 @@ export function DoctorVisitDetailPage() {
         clinicalApi.clinicalOrders(id),
         clinicalApi.clinicalCatalog(),
         clinicalApi.diseases({ page: 1, limit: 100 }),
-        medicinesApi.list({ page: 1, limit: 300, active: 'true' }),
+        medicinesApi.listAll({ active: 'true' }),
       ]);
 
       if (receptionRes.status === 'rejected') {
@@ -199,7 +199,7 @@ export function DoctorVisitDetailPage() {
       if (ordersRes.status === 'fulfilled') setOrders(ordersRes.value);
       if (catalogRes.status === 'fulfilled') setCatalog(catalogRes.value);
       if (diseaseRes.status === 'fulfilled') setDiseases(diseaseRes.value.items);
-      if (medicineRes.status === 'fulfilled') setMedicines(medicineRes.value.items);
+      if (medicineRes.status === 'fulfilled') setMedicines(medicineRes.value);
 
       setError('');
     } catch (requestError) {

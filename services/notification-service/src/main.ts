@@ -63,7 +63,7 @@ class AppModule {}
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.useGlobalPipes(new ValidationPipe({whitelist:true,transform:true,forbidNonWhitelisted:true}));app.useGlobalFilters(new AllExceptionsFilter());
-  await app.listen(Number(process.env.NOTIFICATION_PORT || 3013));
+  await app.listen(Number(process.env.NOTIFICATION_PORT || 3013), '0.0.0.0');
 }
 
 bootstrap();

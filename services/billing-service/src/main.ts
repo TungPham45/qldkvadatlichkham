@@ -138,7 +138,7 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: true }));
   app.useGlobalFilters(new AllExceptionsFilter());
-  await app.listen(Number(process.env.BILLING_PORT || 3012));
+  await app.listen(Number(process.env.BILLING_PORT || 3012), '0.0.0.0');
 }
 
 if (require.main === module) void bootstrap();

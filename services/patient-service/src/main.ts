@@ -10,7 +10,7 @@ async function bootstrap() {
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: true }));
   app.useGlobalFilters(new AllExceptionsFilter());
   const port = Number(process.env.PATIENT_PORT || 3002);
-  await app.listen(port);
+  await app.listen(port, '0.0.0.0');
   console.log(`patient-service listening on ${port}`);
 }
 

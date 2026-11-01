@@ -61,7 +61,7 @@ async function bootstrap() {
   app.use(authGuard);
   app.use('/api', proxy());
   const port = Number(process.env.GATEWAY_PORT || 3000);
-  await app.listen(port);
+  await app.listen(port, '0.0.0.0');
   console.log(`api-gateway listening on ${port}`);
 }
 

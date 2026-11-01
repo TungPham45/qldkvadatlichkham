@@ -15,43 +15,24 @@ COPY services/notification-service/package.json services/notification-service/pa
 COPY services/pharmacy-service/package.json services/pharmacy-service/package.json
 RUN npm ci
 
-FROM deps AS services
+# One image per service. SERVICE_PKG / SERVICE_DIR are set by docker compose.
+FROM deps AS service-build
+ARG SERVICE_PKG
+ARG SERVICE_DIR
 COPY packages/common packages/common
-COPY services/api-gateway services/api-gateway
-COPY services/auth-service services/auth-service
-COPY services/patient-service services/patient-service
-COPY services/staff-service services/staff-service
-COPY services/appointment-service services/appointment-service
-COPY services/medical-record-service services/medical-record-service
-COPY services/billing-service services/billing-service
-COPY services/pharmacy-service services/pharmacy-service
-COPY services/notification-service services/notification-service
-RUN npm run build -w @qlpk/common \
- && npm run build -w @qlpk/auth-service \
- && npm run build -w @qlpk/patient-service \
- && npm run build -w @qlpk/staff-service \
- && npm run build -w @qlpk/appointment-service \
- && npm run build -w @qlpk/medical-record-service \
- && npm run build -w @qlpk/billing-service \
- && npm run build -w @qlpk/pharmacy-service \
- && npm run build -w @qlpk/notification-service \
- && npm run build -w @qlpk/api-gateway
+COPY ${SERVICE_DIR} ${SERVICE_DIR}
+RUN npm run build -w @qlpk/common && npm run build -w "${SERVICE_PKG}"
 
-FROM node:20-bookworm-slim AS runtime
+FROM node:20-bookworm-slim AS service
 WORKDIR /app
 ENV NODE_ENV=production
-COPY --from=services /app/package.json /app/package-lock.json ./
-COPY --from=services /app/node_modules ./node_modules
-COPY --from=services /app/packages/common ./packages/common
-COPY --from=services /app/services/auth-service/dist ./services/auth-service/dist
-COPY --from=services /app/services/patient-service/dist ./services/patient-service/dist
-COPY --from=services /app/services/staff-service/dist ./services/staff-service/dist
-COPY --from=services /app/services/appointment-service/dist ./services/appointment-service/dist
-COPY --from=services /app/services/medical-record-service/dist ./services/medical-record-service/dist
-COPY --from=services /app/services/billing-service/dist ./services/billing-service/dist
-COPY --from=services /app/services/pharmacy-service/dist ./services/pharmacy-service/dist
-COPY --from=services /app/services/notification-service/dist ./services/notification-service/dist
-COPY --from=services /app/services/api-gateway/dist ./services/api-gateway/dist
+ARG SERVICE_DIR
+ENV SERVICE_DIR=${SERVICE_DIR}
+COPY --from=service-build /app/package.json /app/package-lock.json ./
+COPY --from=service-build /app/node_modules ./node_modules
+COPY --from=service-build /app/packages/common ./packages/common
+COPY --from=service-build /app/${SERVICE_DIR}/dist ./${SERVICE_DIR}/dist
+CMD ["sh", "-c", "node \"$SERVICE_DIR/dist/main.js\""]
 
 FROM deps AS frontend-build
 COPY frontend frontend

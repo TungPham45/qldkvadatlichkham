@@ -1,10 +1,9 @@
-x-node-build: &node-build
+x-service-build: &service-build
   context: .
   dockerfile: Dockerfile
-  target: runtime
+  target: service
 
 x-node: &node
-  image: qlpk-services:local
   env_file: .env
   restart: unless-stopped
   environment: &service-env
@@ -65,7 +64,6 @@ services:
 
   db-migrate:
     image: postgres:15
-    profiles: ["app", "migration"]
     environment:
       PGHOST: postgres
       PGPORT: "5432"
@@ -84,10 +82,13 @@ services:
 
   auth-service:
     <<: *node
-    build: *node-build
-    profiles: ["app"]
+    image: qlpk-auth:local
+    build:
+      <<: *service-build
+      args:
+        SERVICE_PKG: "@qlpk/auth-service"
+        SERVICE_DIR: services/auth-service
     container_name: qlpk-auth
-    command: ["node", "services/auth-service/dist/main.js"]
     ports:
       - "3001:3001"
     depends_on:
@@ -104,9 +105,13 @@ services:
 
   patient-service:
     <<: *node
-    profiles: ["app"]
+    image: qlpk-patient:local
+    build:
+      <<: *service-build
+      args:
+        SERVICE_PKG: "@qlpk/patient-service"
+        SERVICE_DIR: services/patient-service
     container_name: qlpk-patient
-    command: ["node", "services/patient-service/dist/main.js"]
     ports:
       - "3002:3002"
     depends_on:
@@ -120,9 +125,13 @@ services:
 
   staff-service:
     <<: *node
-    profiles: ["app"]
+    image: qlpk-staff:local
+    build:
+      <<: *service-build
+      args:
+        SERVICE_PKG: "@qlpk/staff-service"
+        SERVICE_DIR: services/staff-service
     container_name: qlpk-staff
-    command: ["node", "services/staff-service/dist/main.js"]
     ports:
       - "3003:3003"
     depends_on:
@@ -136,9 +145,13 @@ services:
 
   appointment-service:
     <<: *node
-    profiles: ["app"]
+    image: qlpk-appointment:local
+    build:
+      <<: *service-build
+      args:
+        SERVICE_PKG: "@qlpk/appointment-service"
+        SERVICE_DIR: services/appointment-service
     container_name: qlpk-appointment
-    command: ["node", "services/appointment-service/dist/main.js"]
     ports:
       - "3004:3004"
     depends_on:
@@ -154,9 +167,13 @@ services:
 
   medical-record-service:
     <<: *node
-    profiles: ["app"]
+    image: qlpk-medical-record:local
+    build:
+      <<: *service-build
+      args:
+        SERVICE_PKG: "@qlpk/medical-record-service"
+        SERVICE_DIR: services/medical-record-service
     container_name: qlpk-medical-record
-    command: ["node", "services/medical-record-service/dist/main.js"]
     ports:
       - "3010:3010"
     depends_on:
@@ -170,9 +187,13 @@ services:
 
   billing-service:
     <<: *node
-    profiles: ["app"]
+    image: qlpk-billing:local
+    build:
+      <<: *service-build
+      args:
+        SERVICE_PKG: "@qlpk/billing-service"
+        SERVICE_DIR: services/billing-service
     container_name: qlpk-billing
-    command: ["node", "services/billing-service/dist/main.js"]
     ports:
       - "3012:3012"
     depends_on:
@@ -186,9 +207,13 @@ services:
 
   pharmacy-service:
     <<: *node
-    profiles: ["app"]
+    image: qlpk-pharmacy:local
+    build:
+      <<: *service-build
+      args:
+        SERVICE_PKG: "@qlpk/pharmacy-service"
+        SERVICE_DIR: services/pharmacy-service
     container_name: qlpk-pharmacy
-    command: ["node", "services/pharmacy-service/dist/main.js"]
     ports:
       - "3011:3011"
     depends_on:
@@ -202,9 +227,13 @@ services:
 
   notification-service:
     <<: *node
-    profiles: ["app"]
+    image: qlpk-notification:local
+    build:
+      <<: *service-build
+      args:
+        SERVICE_PKG: "@qlpk/notification-service"
+        SERVICE_DIR: services/notification-service
     container_name: qlpk-notification
-    command: ["node", "services/notification-service/dist/main.js"]
     ports:
       - "3013:3013"
     depends_on:
@@ -218,9 +247,13 @@ services:
 
   api-gateway:
     <<: *node
-    profiles: ["app"]
+    image: qlpk-gateway:local
+    build:
+      <<: *service-build
+      args:
+        SERVICE_PKG: "@qlpk/api-gateway"
+        SERVICE_DIR: services/api-gateway
     container_name: qlpk-gateway
-    command: ["node", "services/api-gateway/dist/main.js"]
     ports:
       - "3000:3000"
     depends_on:
@@ -245,7 +278,6 @@ services:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:'+process.env.GATEWAY_PORT+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
 
   frontend:
-    profiles: ["app"]
     image: qlpk-frontend:local
     build:
       context: .

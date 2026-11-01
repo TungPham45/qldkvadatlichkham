@@ -10,7 +10,7 @@ Hệ thống gồm cổng bệnh nhân, lịch hẹn, tiếp nhận, hồ sơ kh
 
 Copy cả thư mục project sang máy mới. Không cần tạo database bằng tay. Máy mới thiếu `.env` thì copy `.env.example` thành `.env`.
 
-## Sửa code
+## Khởi động
 
 Mở terminal tại thư mục gốc của project, không phải thư mục `frontend`.
 
@@ -18,9 +18,9 @@ Mở terminal tại thư mục gốc của project, không phải thư mục `fr
 npm run dev
 ```
 
-Lệnh này tắt các container app nếu chúng đang chiếm cổng, bật PostgreSQL và Redis, chạy migration có kiểm tra, rồi chạy app trên máy host với watch:
+Mỗi service chạy trong một container riêng. Lệnh này nhả cổng, bật PostgreSQL và Redis, chạy migration, rồi build và đợi từng container khỏe:
 
-| Process | Cổng |
+| Container | Cổng trên máy |
 | --- | --- |
 | auth-service | 3001 |
 | patient-service | 3002 |
@@ -31,56 +31,60 @@ Lệnh này tắt các container app nếu chúng đang chiếm cổng, bật Po
 | billing-service | 3012 |
 | notification-service | 3013 |
 | API Gateway | 3000 |
-| frontend (Vite) | 5173 |
+| frontend (nginx) | 5173 |
 
-Sửa TypeScript hoặc giao diện thì process tương ứng tự tải lại. Postgres trên máy host là `localhost:5433`, Redis là `localhost:6379`, đúng với `.env`.
+Trong mạng Docker, các service nối Postgres qua host `postgres` cổng `5432` và Redis qua host `redis`. File `.env` vẫn cấp JWT và token nội bộ. Compose ghi đè host database, Redis và URL gọi chéo giữa các service.
 
-Database `qlphongkham` được tạo từ `qlphongkham.sql` khi volume Postgres còn trống. Sau đó `npm run db:migrate` áp dụng tuần tự các file trong `database/migrations/` cho cả database mới và volume đã tồn tại. Runner kiểm tra checksum, tạo bản sao lưu `.dump` trong `database/backups/`, rồi chạy từng migration trong transaction. Nếu không sao lưu được hoặc dữ liệu hiện tại vi phạm constraint mới, migration dừng và rollback.
+Database `qlphongkham` được tạo từ `qlphongkham.sql` khi volume Postgres còn trống. Sau đó migration áp dụng tuần tự các file trong `database/migrations/`. Runner kiểm tra checksum, tạo bản sao lưu `.dump` trong `database/backups/`, rồi chạy từng migration trong transaction. Nếu không sao lưu được hoặc dữ liệu hiện tại vi phạm constraint mới, migration dừng và rollback.
 
-Mở http://localhost:5173. Vite chuyển `/api` sang gateway ở cổng 3000.
+Mở http://localhost:5173 khi lệnh kết thúc. Nginx chuyển `/api` sang API Gateway.
 
-Dừng app bằng Ctrl+C. Postgres và Redis vẫn chạy. Tắt hai container đó:
+`npm run stack` là cùng lệnh với `npm run dev`.
+
+Chạy hoặc build lại đúng một service:
+
+```bash
+docker compose up -d --build auth-service
+```
+
+Service phụ thuộc (Postgres, Redis, migration, và với gateway là các service phía sau) được bật theo `depends_on`. Xem trạng thái:
+
+```bash
+docker compose ps
+```
+
+Tắt cả cụm, giữ dữ liệu Postgres:
 
 ```bash
 docker compose stop
 ```
 
-## Chạy bản đã build
+## Sửa code với watch trên máy host
 
-Dùng khi không sửa code. Dừng `npm run dev` trước, vì hai cách cùng chiếm cổng 3000–3004 và 5173.
+Khi cần Nest và Vite tự tải lại, không build image:
 
 ```bash
-npm run stack
+npm run dev:host
 ```
 
-Lệnh này là `docker compose --profile app up -d --build`. Profile `app` bật auth-service, patient-service, staff-service, appointment-service, medical-record-service, pharmacy-service, billing-service, notification-service, API Gateway và giao diện nginx, cùng Postgres và Redis. Migration có backup chạy xong trước khi các service kết nối database. Các service trong container nối Postgres qua host `postgres` cổng `5432` và Redis qua host `redis`.
-
-Đợi container khỏe:
+Lệnh này dừng container app để nhả cổng, giữ Postgres và Redis, rồi chạy service bằng Node trên máy. Postgres trên máy host là `localhost:5433`, Redis là `localhost:6379`. Dừng app bằng Ctrl+C. Tắt Postgres và Redis:
 
 ```bash
-docker compose --profile app ps
-```
-
-Mở http://localhost:5173 khi `qlpk-frontend` đã healthy. Sửa code xong muốn thấy trên bản Docker thì chạy lại `npm run stack`.
-
-Tắt cả cụm:
-
-```bash
-docker compose --profile app stop
+docker compose stop
 ```
 
 ## File cấu hình
 
 | File | Việc của file |
 | --- | --- |
-| `.env` | Cổng, bí mật JWT, token nội bộ. `npm run dev` đọc file này. Profile `app` ghi đè host Postgres và Redis bằng tên container. |
+| `.env` | Cổng, bí mật JWT, token nội bộ. Container đọc file này, rồi Compose ghi đè host Postgres, Redis và URL giữa các service. `npm run dev:host` dùng nguyên file. |
 | `.env.example` | Bản mẫu của `.env`. Máy mới thiếu `.env` thì copy file này thành `.env`. |
 | `frontend/.env` | Tên phòng khám trên giao diện: `VITE_HOSPITAL_NAME`, `VITE_HOSPITAL_SUBTITLE`. `VITE_HOSPITAL_HOTLINE` chỉ hiện khi có giá trị. |
 
 Đổi tên phòng khám xong thì build lại giao diện, vì Vite đọc `frontend/.env` lúc tạo bản tĩnh:
 
 ```bash
-docker compose --profile app up -d --build frontend
+docker compose up -d --build frontend
 ```
 
 ## Địa chỉ khi đang chạy
@@ -178,4 +182,4 @@ npm run build
 
 ## Xóa dữ liệu
 
-`docker compose --profile app down -v` xóa dữ liệu Postgres, kể cả tài khoản và lịch đã tạo. Lần bật Postgres tiếp theo sẽ nạp lại SQL gốc.
+`docker compose down -v` xóa dữ liệu Postgres, kể cả tài khoản và lịch đã tạo. Lần bật Postgres tiếp theo sẽ nạp lại SQL gốc.

@@ -311,7 +311,7 @@ export function MyInvoicesPage() {
               <div style={{ display: 'grid', gap: '11px', fontSize: '14px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ color: '#4a5568' }}>Khám chuyên khoa</span>
-                  <strong style={{ color: '#1a202c' }}>{money(selectedInvoice.examFee)}</strong>
+                  <strong style={{ color: '#1a202c' }}>{Number(selectedInvoice.examFee) > 0 ? money(selectedInvoice.examFee) : 'Miễn phí · 0 ₫'}</strong>
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

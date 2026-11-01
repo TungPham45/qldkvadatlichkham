@@ -1815,7 +1815,7 @@ export function DoctorVisitDetailPage() {
               <div className="invoice-summary">
                 <div>
                   <span>Tiền khám</span>
-                  <b>{money(visit.invoice.examFee)}</b>
+                  <b>{Number(visit.invoice.examFee) > 0 ? money(visit.invoice.examFee) : 'Miễn phí · 0 ₫'}</b>
                 </div>
                 <div>
                   <span>Tiền dịch vụ cận lâm sàng</span>

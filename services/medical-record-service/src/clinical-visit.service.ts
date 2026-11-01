@@ -3,9 +3,14 @@ import {
   AccessTokenPayload,
   AppException,
   AppointmentStatus,
+  PaymentStatus,
   todayInVietnam,
 } from '@qlpk/common';
 import { DataSource, EntityManager } from 'typeorm';
+
+function isHealthInsured(value: unknown) {
+  return value === true || value === 't' || value === 'true';
+}
 
 export interface MedicalRecordPayload {
   symptoms?: string;
@@ -399,15 +404,30 @@ export class ClinicalVisitService {
         user.sub,
       );
 
-      // Auto-generate or update invoice upon examination completion
+      // Auto-generate or update invoice upon examination completion.
+      // Bệnh nhân có BHYT được miễn tiền khám (0đ). Thuốc và cận lâm sàng vẫn tính phí.
+      let finishedStatus: string = AppointmentStatus.EXAM_COMPLETED;
       const recordRows = await manager.query(
-        `SELECT id_phieu_kham::int "recordId", id_benh_nhan::int "patientId", phi_kham "examFee"
-         FROM phieu_kham WHERE id_lich_hen = $1`,
+        `SELECT pk.id_phieu_kham::int "recordId", pk.id_benh_nhan::int "patientId",
+                pk.phi_kham "examFee", bn.co_bhyt "hasInsurance"
+         FROM phieu_kham pk
+         JOIN benh_nhan bn ON bn.id_benh_nhan = pk.id_benh_nhan
+         WHERE pk.id_lich_hen = $1`,
         [appointmentId],
       );
       if (recordRows.length) {
-        const { recordId, patientId, examFee: rawExamFee } = recordRows[0];
-        const examFee = Number(rawExamFee) || 150000;
+        const { recordId, patientId, examFee: rawExamFee, hasInsurance } = recordRows[0];
+        const insured = isHealthInsured(hasInsurance);
+        const storedExamFee = Number(rawExamFee);
+        const examFee = insured ? 0 : (storedExamFee > 0 ? storedExamFee : 150000);
+        if (insured && storedExamFee !== 0) {
+          await manager.query(
+            `UPDATE phieu_kham
+             SET phi_kham = 0, ngay_cap_nhat = CURRENT_TIMESTAMP
+             WHERE id_phieu_kham = $1`,
+            [recordId],
+          );
+        }
 
         const serviceRows = await manager.query(
           `SELECT COALESCE(SUM(dv.don_gia), 0) amount
@@ -428,25 +448,46 @@ export class ClinicalVisitService {
         const medicineAmount = Number(medicineRows[0]?.amount || 0);
         const total = examFee + serviceAmount + medicineAmount;
         const invoiceId = `HD-LH-${String(appointmentId).padStart(8, '0')}`;
+        const paymentStatus = insured && total === 0 ? PaymentStatus.PAID : PaymentStatus.UNPAID;
 
         await manager.query(
           `INSERT INTO hoa_don (
              id_hoa_don, id_phieu_kham, id_benh_nhan, ngay_lap,
              phi_kham, tien_dich_vu, tien_thuoc, giam_tru,
              tong_tien, trang_thai_thanh_toan
-           ) VALUES ($1, $2, $3, CURRENT_DATE, $4, $5, $6, 0, $7, 'Chua thanh toan')
+           ) VALUES ($1, $2, $3, CURRENT_DATE, $4, $5, $6, 0, $7, $8)
            ON CONFLICT (id_hoa_don) DO UPDATE SET
              phi_kham = EXCLUDED.phi_kham,
              tien_dich_vu = EXCLUDED.tien_dich_vu,
              tien_thuoc = EXCLUDED.tien_thuoc,
              tong_tien = EXCLUDED.tong_tien,
+             trang_thai_thanh_toan = EXCLUDED.trang_thai_thanh_toan,
              ngay_cap_nhat = CURRENT_TIMESTAMP
            WHERE hoa_don.trang_thai_thanh_toan <> 'Da thanh toan'`,
-          [invoiceId, recordId, patientId, examFee, serviceAmount, medicineAmount, total],
+          [invoiceId, recordId, patientId, examFee, serviceAmount, medicineAmount, total, paymentStatus],
         );
+        if (paymentStatus === PaymentStatus.PAID) {
+          finishedStatus = AppointmentStatus.COMPLETED;
+          await manager.query(
+            `UPDATE lich_hen
+             SET trang_thai = $2,
+                 thoi_gian_hoan_tat_luot_kham = COALESCE(thoi_gian_hoan_tat_luot_kham, CURRENT_TIMESTAMP),
+                 ngay_cap_nhat = CURRENT_TIMESTAMP
+             WHERE id_lich_hen = $1`,
+            [appointmentId, AppointmentStatus.COMPLETED],
+          );
+          await this.recordStatusChange(
+            manager,
+            appointmentId,
+            AppointmentStatus.EXAM_COMPLETED,
+            AppointmentStatus.COMPLETED,
+            'Mien phi kham BHYT',
+            user.sub,
+          );
+        }
       }
 
-      return { appointmentId, status: AppointmentStatus.EXAM_COMPLETED };
+      return { appointmentId, status: finishedStatus };
     });
   }
 

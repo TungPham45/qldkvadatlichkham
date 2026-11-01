@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { AppRole, AppointmentStatus, todayInVietnam } from '@qlpk/common';
+import { AppRole, AppointmentStatus, PaymentStatus, todayInVietnam } from '@qlpk/common';
 import { ClinicalVisitService } from '../src/clinical-visit.service';
 
 const doctor = {
@@ -221,4 +221,60 @@ test('locking a prescription refuses when stock is insufficient', async () => {
     }),
     (error: { getResponse?: () => { code?: string } }) => error.getResponse?.().code === 'MEDICINE_STOCK_INSUFFICIENT',
   );
+});
+
+test('a BHYT visit waives the exam fee and still bills medicine', async () => {
+  const calls: Array<{ sql: string; parameters?: unknown[] }> = [];
+  const manager = {
+    async query(sql: string, parameters: unknown[] = []) {
+      calls.push({ sql, parameters });
+      if (sql.includes('FOR UPDATE OF lh')) {
+        return [{ appointmentId: 70, patientId: 3, doctorId: 7, status: AppointmentStatus.IN_PROGRESS }];
+      }
+      if (sql.includes('la_chan_doan_chinh')) return [{ id_phieu_kham: 8 }];
+      if (sql.includes('co_bhyt')) {
+        return [{ recordId: 8, patientId: 3, examFee: '150000', hasInsurance: true }];
+      }
+      if (sql.includes('chi_dinh_dich_vu_lam_sang')) return [{ amount: '0' }];
+      if (sql.includes('don_gia_tai_thoi_diem_ke')) return [{ amount: '40000' }];
+      return [];
+    },
+  };
+  const db = { transaction: (callback: (value: typeof manager) => unknown) => callback(manager) };
+  const service = new ClinicalVisitService(db as never);
+
+  const result = await service.complete(doctor as never, 70);
+
+  assert.equal(result.status, AppointmentStatus.EXAM_COMPLETED);
+  const insert = calls.find((call) => call.sql.includes('INSERT INTO hoa_don'));
+  assert.deepEqual(insert?.parameters?.slice(3), [0, 0, 40000, 40000, PaymentStatus.UNPAID]);
+  assert.ok(calls.some((call) => call.sql.includes('SET phi_kham = 0') && call.parameters?.[0] === 8));
+});
+
+test('a BHYT visit with no other charges is marked paid at 0đ', async () => {
+  const calls: Array<{ sql: string; parameters?: unknown[] }> = [];
+  const manager = {
+    async query(sql: string, parameters: unknown[] = []) {
+      calls.push({ sql, parameters });
+      if (sql.includes('FOR UPDATE OF lh')) {
+        return [{ appointmentId: 71, patientId: 3, doctorId: 7, status: AppointmentStatus.IN_PROGRESS }];
+      }
+      if (sql.includes('la_chan_doan_chinh')) return [{ id_phieu_kham: 9 }];
+      if (sql.includes('co_bhyt')) {
+        return [{ recordId: 9, patientId: 3, examFee: '0', hasInsurance: true }];
+      }
+      if (sql.includes('chi_dinh_dich_vu_lam_sang')) return [{ amount: '0' }];
+      if (sql.includes('don_gia_tai_thoi_diem_ke')) return [{ amount: '0' }];
+      return [];
+    },
+  };
+  const db = { transaction: (callback: (value: typeof manager) => unknown) => callback(manager) };
+  const service = new ClinicalVisitService(db as never);
+
+  const result = await service.complete(doctor as never, 71);
+
+  assert.equal(result.status, AppointmentStatus.COMPLETED);
+  const insert = calls.find((call) => call.sql.includes('INSERT INTO hoa_don'));
+  assert.deepEqual(insert?.parameters?.slice(3), [0, 0, 0, 0, PaymentStatus.PAID]);
+  assert.ok(calls.some((call) => call.parameters?.includes('Mien phi kham BHYT')));
 });

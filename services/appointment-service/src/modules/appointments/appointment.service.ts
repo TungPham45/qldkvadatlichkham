@@ -116,9 +116,14 @@ export class AppointmentService {
       );
     }
     const cooldownKey = this.otpCooldownKey(accountId, benhNhanId);
-    const cooling = await this.redis.client.get(cooldownKey);
-    if (cooling) {
-      throw new AppException(429, ErrorCode.VALIDATION_ERROR, 'Vui lòng đợi khoảng 60 giây trước khi gửi lại mã OTP.');
+    const retryAfterSeconds = await this.redis.client.ttl(cooldownKey);
+    if (retryAfterSeconds > 0) {
+      throw new AppException(
+        429,
+        ErrorCode.OTP_RATE_LIMITED,
+        `Vui lòng đợi ${retryAfterSeconds} giây trước khi gửi lại mã OTP.`,
+        retryAfterSeconds,
+      );
     }
     const maOtp = String(Math.floor(100000 + Math.random() * 900000));
     await this.redis.client.set(

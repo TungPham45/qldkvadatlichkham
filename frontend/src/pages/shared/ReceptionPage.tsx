@@ -208,7 +208,7 @@ export function ReceptionPage() {
       idempotencyKey: '',
       note: '',
     });
-    setInvoiceFee('');
+    setInvoiceFee(item.patient.hasInsurance ? '0' : '');
   }
 
   function open(item: ReceptionItem, nextMode: ModalMode = 'detail') {
@@ -321,7 +321,7 @@ export function ReceptionPage() {
     event.preventDefault();
     if (!selected) return;
     await perform(() => billingApi.createInvoice(selected.appointmentId, {
-      examFee: invoiceFee === '' ? undefined : Number(invoiceFee),
+      examFee: selected.patient.hasInsurance ? 0 : (invoiceFee === '' ? undefined : Number(invoiceFee)),
     }), 'Đã lập hóa đơn từ các khoản phí thực tế.', true);
     setMode('detail');
   }
@@ -446,7 +446,7 @@ export function ReceptionPage() {
                 <section className="reception-summary invoice-summary">
                   <h3>Hóa đơn {selected.invoice.id}</h3>
                   <dl>
-                    <div><dt>Phí khám</dt><dd>{formatMoney(selected.invoice.examFee)}</dd></div>
+                    <div><dt>Phí khám</dt><dd>{Number(selected.invoice.examFee) > 0 ? formatMoney(selected.invoice.examFee) : 'Miễn phí · 0 ₫'}</dd></div>
                     <div><dt>Thuốc đã cấp</dt><dd>{formatMoney(selected.invoice.medicineAmount)}</dd></div>
                     <div><dt>Tổng tiền</dt><dd>{formatMoney(selected.invoice.total)}</dd></div>
                     <div><dt>Đã thanh toán</dt><dd>{formatMoney(selected.invoice.paidAmount)}</dd></div>
@@ -561,8 +561,8 @@ export function ReceptionPage() {
                 <div><dt>Thuốc tính tiền</dt><dd>Chỉ thuốc đã có giao dịch xuất kho</dd></div>
                 <div><dt>Dịch vụ phát sinh</dt><dd>Chưa có module dịch vụ trong hệ thống</dd></div>
               </dl>
-              <label className="is-wide"><span>Phí khám thực tế *</span><input required type="number" min="0" step="0.01" value={invoiceFee} onChange={(event) => setInvoiceFee(event.target.value)} placeholder="Nhập mức phí đã được cơ sở y tế xác nhận" /></label>
-              <p className="manager-form__hint is-wide">Mức phí này được lưu vào hồ sơ khám. Hệ thống không tự đặt giá; tiền thuốc được tính riêng từ số lượng đã xuất kho thực tế.</p>
+              <label className="is-wide"><span>Phí khám thực tế *</span><input required type="number" min="0" step="0.01" value={selected.patient.hasInsurance ? '0' : invoiceFee} disabled={selected.patient.hasInsurance} onChange={(event) => setInvoiceFee(event.target.value)} placeholder="Nhập mức phí đã được cơ sở y tế xác nhận" /></label>
+              <p className="manager-form__hint is-wide">{selected.patient.hasInsurance ? 'Bệnh nhân có BHYT: tiền khám được miễn phí (0đ). Thuốc và cận lâm sàng vẫn tính phí.' : 'Mức phí này được lưu vào hồ sơ khám. Hệ thống không tự đặt giá; tiền thuốc được tính riêng từ số lượng đã xuất kho thực tế.'}</p>
               {formError ? <p className="manager-form__error is-wide">{formError}</p> : null}
               <div className="manager-form__actions is-wide"><button type="button" onClick={() => setMode('detail')}>Quay lại</button><button className="manager-btn--primary" disabled={busy}>{busy ? 'Đang lập...' : 'Xác nhận lập hóa đơn'}</button></div>
             </form>

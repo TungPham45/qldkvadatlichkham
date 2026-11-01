@@ -33,10 +33,16 @@ export interface ApiErrorBody {
   statusCode: number;
   code: string;
   message: string;
+  retryAfterSeconds?: number;
 }
 
 export class AppException extends HttpException {
-  constructor(statusCode: number, code: string, message: string) {
-    super({ statusCode, code, message } satisfies ApiErrorBody, statusCode);
+  constructor(statusCode: number, code: string, message: string, retryAfterSeconds?: number) {
+    super({
+      statusCode,
+      code,
+      message,
+      ...(retryAfterSeconds && retryAfterSeconds > 0 ? { retryAfterSeconds } : {}),
+    } satisfies ApiErrorBody, statusCode);
   }
 }

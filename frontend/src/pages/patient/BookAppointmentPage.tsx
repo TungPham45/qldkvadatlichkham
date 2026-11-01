@@ -1,6 +1,6 @@
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { errorMessage, hasApiErrorCode } from '../../api/client';
+import { errorMessage, errorRetryAfterSeconds, hasApiErrorCode } from '../../api/client';
 import { AppointmentSlot } from '../../components/patient/AppointmentSlot';
 import { BookingOtpModal } from '../../components/patient/BookingOtpModal';
 import { Button } from '../../components/Button';
@@ -219,8 +219,13 @@ export function BookAppointmentPage() {
       setOtpCooldown(60);
       setOtpOpen(true);
     } catch (err) {
-      setFormError(errorMessage(err));
-      setOtpError(errorMessage(err));
+      const wait = errorRetryAfterSeconds(err, 60);
+      if (wait > 0) setOtpCooldown(wait);
+      const message = wait > 0
+        ? `Vui lòng đợi ${wait} giây trước khi gửi lại mã OTP.`
+        : errorMessage(err);
+      setFormError(message);
+      setOtpError(message);
     } finally {
       setOtpBusy(false);
     }
@@ -232,7 +237,7 @@ export function BookAppointmentPage() {
       setFormError('Người tới khám chưa có SĐT hợp lệ. Hãy cập nhật số điện thoại để nhận OTP.');
       return;
     }
-    if (reason.trim().length < 3) return;
+    if (reason.trim().length < 3 || otpCooldown > 0) return;
     await requestOtp();
   }
 
@@ -504,16 +509,20 @@ export function BookAppointmentPage() {
               <p className="mt-2 rounded-xl bg-red-50 px-3 py-2 text-[13px] text-danger">
                 Người tới khám chưa có SĐT hợp lệ. Cập nhật số điện thoại để nhận OTP xác minh.
               </p>
+            ) : otpCooldown > 0 ? (
+              <p className="mt-2 rounded-xl bg-[#fff7e8] px-3 py-2 text-[13px] text-[#8a5a00]">
+                Mỗi lần gửi OTP cần đợi <strong>{otpCooldown} giây</strong> trước khi gửi lại.
+              </p>
             ) : (
               <p className="mt-2 text-xs text-muted">Bước tiếp theo sẽ gửi OTP giả lập tới SĐT người tới khám để xác minh.</p>
             )}
             <div className="mt-3">
               <Button
                 className="w-full"
-                disabled={!patient || !patientHasPhone || reason.trim().length < 3 || busy || otpBusy}
+                disabled={!patient || !patientHasPhone || reason.trim().length < 3 || busy || otpBusy || otpCooldown > 0}
                 onClick={() => { void beginBooking(); }}
               >
-                {otpBusy ? 'Đang gửi OTP...' : 'Xác nhận đặt lịch'}
+                {otpBusy ? 'Đang gửi OTP...' : otpCooldown > 0 ? `Gửi lại OTP sau ${otpCooldown}s` : 'Xác nhận đặt lịch'}
               </Button>
             </div>
           </>

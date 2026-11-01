@@ -101,6 +101,36 @@ test('partial payment keeps the visit exam-completed and does not mark the workf
   assert.deepEqual(invoiceUpdate?.parameters, ['HD-LH-00000015', PaymentStatus.PARTIALLY_PAID]);
 });
 
+test('a BHYT invoice waives the exam fee even when a fee was stored', async () => {
+  const calls: Array<{ sql: string; parameters: unknown[] }> = [];
+  const manager = {
+    async query(sql: string, parameters: unknown[]) {
+      calls.push({ sql, parameters });
+      if (sql.includes('FOR UPDATE OF lh, pk')) {
+        return [{ appointmentId: 12, recordId: 6, patientId: 4, status: AppointmentStatus.EXAM_COMPLETED, examFee: '150000', invoiceId: null }];
+      }
+      if (sql.includes('co_bhyt')) return [{ hasInsurance: true }];
+      if (sql.includes('ct.so_luong * ct.don_gia_tai_thoi_diem_ke')) return [{ amount: '20000' }];
+      if (sql.includes('FROM chi_dinh_dich_vu_lam_sang')) return [{ amount: '0' }];
+      if (sql.includes('RETURNING id_lich_hen')) return [];
+      return [];
+    },
+  };
+  const db = {
+    transaction: (callback: (value: typeof manager) => unknown) => callback(manager),
+    async query() { return [{ id: 'HD-LH-00000012', total: '20000', status: PaymentStatus.UNPAID }]; },
+  };
+  const service = new BillingService(db as never);
+
+  const result = await service.createInvoice(managerUser as never, 12, { examFee: 150000 });
+
+  assert.equal(result.total, '20000');
+  const insert = calls.find((call) => call.sql.includes('INSERT INTO hoa_don'));
+  assert.deepEqual(insert?.parameters?.slice(3), [0, 0, 20000, 20000, PaymentStatus.UNPAID]);
+  const recordUpdate = calls.find((call) => call.sql.includes('UPDATE phieu_kham'));
+  assert.deepEqual(recordUpdate?.parameters, [6, 0]);
+});
+
 test('manager without explicit payment permission cannot create an invoice', async () => {
   const db = {
     async query() { return []; },

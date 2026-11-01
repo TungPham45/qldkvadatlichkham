@@ -11,6 +11,10 @@ import {
 } from '@qlpk/common';
 import { DataSource, EntityManager } from 'typeorm';
 
+function isHealthInsured(value: unknown) {
+  return value === true || value === 't' || value === 'true';
+}
+
 export interface PaymentPayload {
   amount: number;
   method: (typeof PaymentMethod)[keyof typeof PaymentMethod];
@@ -49,9 +53,11 @@ export class BillingService {
       const visits = await mgr.query(
       `SELECT lh.id_lich_hen::int "appointmentId", lh.id_benh_nhan::int "patientId",
               lh.trang_thai status, pk.id_phieu_kham::int "recordId", pk.phi_kham "rawExamFee",
+              bn.co_bhyt "hasInsurance",
               hd.id_hoa_don "invoiceId", hd.trang_thai_thanh_toan "invoiceStatus"
        FROM lich_hen lh
        JOIN phieu_kham pk ON pk.id_lich_hen = lh.id_lich_hen
+       JOIN benh_nhan bn ON bn.id_benh_nhan = lh.id_benh_nhan
        LEFT JOIN hoa_don hd ON hd.id_phieu_kham = pk.id_phieu_kham
        WHERE lh.id_lich_hen = $1
          AND lh.trang_thai IN ('${AppointmentStatus.EXAM_COMPLETED}', '${AppointmentStatus.COMPLETED}')`,
@@ -61,7 +67,15 @@ export class BillingService {
     const visit = visits[0];
     if (visit.invoiceId) return visit.invoiceId;
 
-    const examFee = Number(visit.rawExamFee) > 0 ? Number(visit.rawExamFee) : 100000;
+    const insured = isHealthInsured(visit.hasInsurance);
+    const storedExamFee = Number(visit.rawExamFee);
+    const examFee = insured ? 0 : (storedExamFee > 0 ? storedExamFee : 100000);
+    if (insured && storedExamFee !== 0) {
+      await mgr.query(
+        `UPDATE phieu_kham SET phi_kham = 0, ngay_cap_nhat = CURRENT_TIMESTAMP WHERE id_phieu_kham = $1`,
+        [visit.recordId],
+      );
+    }
 
     const serviceRows = await mgr.query(
       `SELECT COALESCE(SUM(dv.don_gia), 0) amount
@@ -82,7 +96,9 @@ export class BillingService {
     const medicineAmount = Number(medicineRows[0]?.amount || 0);
     const total = examFee + serviceAmount + medicineAmount;
     const invoiceId = `HD-LH-${String(appointmentId).padStart(8, '0')}`;
-    const initialStatus = visit.status === AppointmentStatus.COMPLETED ? PaymentStatus.PAID : PaymentStatus.UNPAID;
+    const initialStatus = visit.status === AppointmentStatus.COMPLETED || (insured && total === 0)
+      ? PaymentStatus.PAID
+      : PaymentStatus.UNPAID;
 
     await mgr.query(
       `INSERT INTO hoa_don (
@@ -99,6 +115,9 @@ export class BillingService {
        WHERE hoa_don.trang_thai_thanh_toan <> 'Da thanh toan'`,
       [invoiceId, visit.recordId, visit.patientId, examFee, serviceAmount, medicineAmount, total, initialStatus],
     );
+    if (insured && total === 0 && visit.status === AppointmentStatus.EXAM_COMPLETED) {
+      await this.completeFreeVisit(mgr, appointmentId, null);
+    }
 
     return invoiceId;
     } catch {
@@ -487,19 +506,24 @@ export class BillingService {
            WHERE pk.id_phieu_kham=$1 AND cd.trang_thai<>'Huy'`,
           [visit.recordId],
         );
+        const insuranceRows = await manager.query(
+          `SELECT co_bhyt AS "hasInsurance" FROM benh_nhan WHERE id_benh_nhan = $1`,
+          [visit.patientId],
+        );
+        const insured = isHealthInsured(insuranceRows[0]?.hasInsurance);
         const storedExamFee = Number(visit.examFee);
-        const examFee = dto.examFee ?? storedExamFee;
+        const examFee = insured ? 0 : (dto.examFee ?? storedExamFee);
         const medicineAmount = Number(medicineRows[0]?.amount ?? 0);
         const serviceAmount = Number(serviceRows[0]?.amount ?? 0);
         const total = examFee + serviceAmount + medicineAmount;
-        if (!Number.isFinite(total) || total <= 0) {
+        if (!Number.isFinite(total) || total < 0 || (!insured && total <= 0)) {
           throw new AppException(
             409,
             'INVOICE_ZERO_TOTAL',
             'Chưa có mức phí thực tế hợp lệ để lập hóa đơn; hệ thống không tự đặt mức giá giả.',
           );
         }
-        if (dto.examFee !== undefined && dto.examFee !== storedExamFee) {
+        if (examFee !== storedExamFee) {
           await manager.query(
             `UPDATE phieu_kham
              SET phi_kham = $2, ngay_cap_nhat = CURRENT_TIMESTAMP
@@ -522,9 +546,12 @@ export class BillingService {
             serviceAmount,
             medicineAmount,
             total,
-            PaymentStatus.UNPAID,
+            insured && total === 0 ? PaymentStatus.PAID : PaymentStatus.UNPAID,
           ],
         );
+        if (insured && total === 0) {
+          await this.completeFreeVisit(manager, appointmentId, user.sub);
+        }
       });
     } catch (error) {
       if (isDbConflict(error)) {
@@ -625,6 +652,25 @@ export class BillingService {
       throw error;
     }
     return this.invoice(user, appointmentId);
+  }
+
+  private async completeFreeVisit(manager: EntityManager, appointmentId: number, actorId: string | null) {
+    const updated = await manager.query(
+      `UPDATE lich_hen
+       SET trang_thai = $2,
+           thoi_gian_hoan_tat_luot_kham = COALESCE(thoi_gian_hoan_tat_luot_kham, CURRENT_TIMESTAMP),
+           ngay_cap_nhat = CURRENT_TIMESTAMP
+       WHERE id_lich_hen = $1 AND trang_thai = $3
+       RETURNING id_lich_hen`,
+      [appointmentId, AppointmentStatus.COMPLETED, AppointmentStatus.EXAM_COMPLETED],
+    );
+    if (!updated.length) return;
+    await manager.query(
+      `INSERT INTO lich_su_lich_hen (
+         id_lich_hen, trang_thai_cu, trang_thai_moi, loai_thay_doi, nguoi_thay_doi
+       ) VALUES ($1, $2, $3, $4, $5::uuid)`,
+      [appointmentId, AppointmentStatus.EXAM_COMPLETED, AppointmentStatus.COMPLETED, 'Mien phi kham BHYT', actorId],
+    );
   }
 
   private async lockInvoiceableVisit(manager: EntityManager, appointmentId: number): Promise<InvoiceableVisit> {

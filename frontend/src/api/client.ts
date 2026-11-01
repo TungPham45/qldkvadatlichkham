@@ -133,3 +133,10 @@ export function errorMessage(error: unknown, fallback = 'Không thực hiện đ
 export function hasApiErrorCode(error: unknown, code: string) {
   return axios.isAxiosError(error) && error.response?.data?.code === code;
 }
+
+export function errorRetryAfterSeconds(error: unknown, fallback = 0) {
+  if (!axios.isAxiosError(error)) return 0;
+  const value = Number(error.response?.data?.retryAfterSeconds);
+  if (Number.isFinite(value) && value > 0) return Math.ceil(value);
+  return error.response?.status === 429 && fallback > 0 ? fallback : 0;
+}

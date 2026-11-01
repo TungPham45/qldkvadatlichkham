@@ -56,6 +56,11 @@ export function BookingOtpModal({
           required
         />
         {error ? <p className="text-[13px] text-danger">{error}</p> : null}
+        {cooldownLeft > 0 ? (
+          <p className="rounded-xl bg-[#fff7e8] px-3 py-2 text-[13px] text-[#8a5a00]">
+            Có thể gửi lại mã sau <strong>{cooldownLeft} giây</strong>.
+          </p>
+        ) : null}
         <div className="flex flex-wrap items-center justify-between gap-2">
           <button
             type="button"

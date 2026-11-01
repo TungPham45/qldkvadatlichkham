@@ -7,9 +7,9 @@ export interface Disease { id:number; code:string; name:string; description:stri
 export interface DiseaseInput { code:string; name:string; description:string; group:string }
 export interface MedicalRecord {
   id:number; appointmentId:number; examDate:string; symptoms:string|null; examResult:string|null; conclusion:string|null; treatment:string|null; doctorNotes:string|null; followUpDate:string|null;
-  patient:{id:number;code:string;name:string;phone:string|null;birthDate:string|null}; doctor:{id:number;code:string;name:string};
+  patient:{id:number;code:string;name:string;phone:string|null;birthDate:string|null;gender?:string|null;address?:string|null}; doctor:{id:number;code:string;name:string;license?:string|null;specialty?:string|null};
   diagnoses:Array<{id:number;code:string;name:string;primary:boolean;note:string|null}>;
-  prescription:null|{id:number;date:string;status:string;note:string|null;items:Array<{drug:string;strength:string|null;quantity:number;dosage:string|null;frequency:string|null;days:number|null;route:string|null;instructions:string|null}>};
+  prescription:null|{id:number;date:string;status:string;note:string|null;items:Array<{drug:string;activeIngredient:string|null;strength:string|null;unit:string|null;quantity:number;dosage:string|null;frequency:string|null;days:number|null;route:string|null;instructions:string|null;unitPrice:number|string|null}>};
   invoice:null|{id:string;date:string;examFee:string;medicineAmount:string;total:string;status:string;payments:Array<{amount:string;method:string;status:string;paidAt:string}>};
 }
 export interface ReceptionItem {

@@ -142,11 +142,19 @@ export class MedicalService {
   async history(user: AccessTokenPayload, q: PageQuery) {
     const where: string[] = []; const values: unknown[] = [];
     const add = (sql: string, value: unknown) => { values.push(value); where.push(sql.replace('?', `$${values.length}`)); };
-    if (user.role === AppRole.PATIENT) add(`EXISTS (
-      SELECT 1 FROM tai_khoan_benh_nhan owner
-      WHERE owner.id_benh_nhan = bn.id_benh_nhan AND owner.id_tai_khoan = ?
-        AND owner.la_chu_ho_so = TRUE AND owner.trang_thai = 'Active'
-    )`, user.sub);
+    if (user.role === AppRole.PATIENT) {
+      values.push(user.sub);
+      const account = `$${values.length}`;
+      where.push(`(
+        lh.id_tai_khoan_dat = ${account}::uuid
+        OR EXISTS (
+          SELECT 1 FROM tai_khoan_benh_nhan owner
+          WHERE owner.id_benh_nhan = bn.id_benh_nhan
+            AND owner.id_tai_khoan = ${account}::uuid
+            AND owner.trang_thai = 'Active'
+        )
+      )`);
+    }
     else if (user.role === AppRole.DOCTOR) {
       add('bs.id_tai_khoan = ?', user.sub);
       if (q.patientId) add('pk.id_benh_nhan = ?', q.patientId);
@@ -162,10 +170,10 @@ export class MedicalService {
       SELECT pk.id_phieu_kham id, pk.id_lich_hen "appointmentId", pk.ngay_kham::text "examDate", pk.trieu_chung symptoms,
         pk.ket_qua_kham "examResult", pk.ket_luan conclusion, pk.huong_dieu_tri treatment,
         pk.ghi_chu_bac_si "doctorNotes", pk.ngay_tai_kham::text "followUpDate", pk.phi_kham "examFee",
-        jsonb_build_object('id',bn.id_benh_nhan,'code','BN-'||LPAD(bn.id_benh_nhan::text,5,'0'),'name',bn.ho_ten,'phone',bn.so_dien_thoai,'birthDate',bn.ngay_sinh::text) patient,
-        jsonb_build_object('id',bs.id_bac_si,'code','BS-'||LPAD(bs.id_bac_si::text,4,'0'),'name',bs.ho_ten) doctor,
+        jsonb_build_object('id',bn.id_benh_nhan,'code','BN-'||LPAD(bn.id_benh_nhan::text,5,'0'),'name',bn.ho_ten,'phone',bn.so_dien_thoai,'birthDate',bn.ngay_sinh::text,'gender',bn.gioi_tinh,'address',bn.dia_chi) patient,
+        jsonb_build_object('id',bs.id_bac_si,'code','BS-'||LPAD(bs.id_bac_si::text,4,'0'),'name',bs.ho_ten,'license',bs.so_chung_chi_hanh_nghe,'specialty',(SELECT ck.ten_chuyen_khoa FROM bac_si_chuyen_khoa link JOIN chuyen_khoa ck ON ck.id_chuyen_khoa=link.id_chuyen_khoa WHERE link.id_bac_si=bs.id_bac_si ORDER BY link.la_chuyen_khoa_chinh DESC NULLS LAST LIMIT 1)) doctor,
         COALESCE((SELECT jsonb_agg(jsonb_build_object('id',cd.id_chan_doan,'code',dm.ma_benh,'name',dm.ten_benh,'primary',cd.la_chan_doan_chinh,'note',cd.ghi_chu) ORDER BY cd.la_chan_doan_chinh DESC) FROM chan_doan cd JOIN danh_muc_ten_benh dm ON dm.id_danh_muc_ten_benh=cd.id_danh_muc_ten_benh WHERE cd.id_phieu_kham=pk.id_phieu_kham),'[]') diagnoses,
-        (SELECT jsonb_build_object('id',dt.id_don_thuoc,'date',dt.ngay_ke_don::text,'status',dt.trang_thai,'note',dt.ghi_chu,'items',COALESCE((SELECT jsonb_agg(jsonb_build_object('drug',t.ten_thuoc,'strength',t.ham_luong,'quantity',ct.so_luong,'dosage',ct.lieu_dung,'frequency',ct.tan_suat,'days',ct.so_ngay_dung,'route',ct.duong_dung,'instructions',ct.huong_dan)) FROM chi_tiet_don_thuoc ct JOIN thuoc t ON t.id_thuoc=ct.id_thuoc WHERE ct.id_don_thuoc=dt.id_don_thuoc),'[]')) FROM don_thuoc dt WHERE dt.id_phieu_kham=pk.id_phieu_kham) prescription,
+        (SELECT jsonb_build_object('id',dt.id_don_thuoc,'date',dt.ngay_ke_don::text,'status',dt.trang_thai,'note',dt.ghi_chu,'items',COALESCE((SELECT jsonb_agg(jsonb_build_object('drug',t.ten_thuoc,'activeIngredient',t.hoat_chat,'strength',t.ham_luong,'unit',t.don_vi,'quantity',ct.so_luong,'dosage',ct.lieu_dung,'frequency',ct.tan_suat,'days',ct.so_ngay_dung,'route',ct.duong_dung,'instructions',ct.huong_dan,'unitPrice',ct.don_gia_tai_thoi_diem_ke) ORDER BY ct.id_chi_tiet_don_thuoc) FROM chi_tiet_don_thuoc ct JOIN thuoc t ON t.id_thuoc=ct.id_thuoc WHERE ct.id_don_thuoc=dt.id_don_thuoc),'[]')) FROM don_thuoc dt WHERE dt.id_phieu_kham=pk.id_phieu_kham) prescription,
         (SELECT jsonb_build_object('id',hd.id_hoa_don,'date',hd.ngay_lap::text,'examFee',hd.phi_kham,'medicineAmount',hd.tien_thuoc,'total',hd.tong_tien,'status',hd.trang_thai_thanh_toan,'payments',COALESCE((SELECT jsonb_agg(jsonb_build_object('amount',tt.so_tien,'method',tt.phuong_thuc_thanh_toan,'status',tt.trang_thai,'paidAt',tt.thoi_gian_thanh_toan)) FROM thanh_toan tt WHERE tt.id_hoa_don=hd.id_hoa_don),'[]')) FROM hoa_don hd WHERE hd.id_phieu_kham=pk.id_phieu_kham) invoice
       FROM phieu_kham pk JOIN lich_hen lh ON lh.id_lich_hen=pk.id_lich_hen JOIN benh_nhan bn ON bn.id_benh_nhan=pk.id_benh_nhan JOIN bac_si bs ON bs.id_bac_si=pk.id_bac_si
       ${clause} ORDER BY pk.ngay_kham DESC, pk.id_phieu_kham DESC LIMIT $${values.length - 1} OFFSET $${values.length}`, values);

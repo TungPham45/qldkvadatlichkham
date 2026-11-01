@@ -29,6 +29,31 @@
 .disease-table th:nth-child(5) { width:17%; }
 .clinical-drugs { display:grid; gap:7px; }
 .clinical-drugs div { display:flex; justify-content:space-between; gap:15px; padding:9px; border:1px solid #e2e9f0; border-radius:8px; }
+.clinical-page .admin-modal { width: min(100%, 1080px); }
+.clinical-prescription { border: 1px solid #e2e9f0; border-radius: 10px; background: #fff; }
+.clinical-prescription__toggle { display: flex; width: 100%; align-items: center; gap: 8px; padding: 11px 14px; border: 0; background: transparent; color: #17385e; font-weight: 700; text-align: left; cursor: pointer; }
+.clinical-prescription__toggle::before { content: "▸"; color: #2464c1; transition: transform 280ms ease; }
+.clinical-prescription__toggle[aria-expanded="true"]::before { transform: rotate(90deg); }
+.clinical-prescription__toggle span { flex: 1; }
+.clinical-prescription__toggle small { color: #708096; font-weight: 600; }
+.clinical-prescription__panel { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 320ms ease; }
+.clinical-prescription__panel.is-open { grid-template-rows: 1fr; }
+.clinical-prescription__panel-inner { overflow: hidden; }
+.clinical-prescription__actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; padding: 0 12px 12px; }
+.clinical-prescription__actions > button { min-height: 36px; padding: 0 14px; border: 1px solid #c5d4e4; border-radius: 8px; background: #fff; color: #17385e; font-weight: 700; cursor: pointer; }
+.clinical-prescription__actions > button:disabled { cursor: not-allowed; opacity: .55; }
+.clinical-prescription__error { margin: 0; color: #b83238; font-size: 12px; }
+.clinical-prescription__note, .clinical-prescription__empty { margin: 0 14px 10px; color: #526174; font-size: 12px; }
+@media (prefers-reduced-motion: reduce) {
+  .clinical-prescription__panel, .clinical-prescription__toggle::before { transition: none; }
+}
+.clinical-prescription__table { overflow-x: auto; padding: 0 10px 12px; }
+.clinical-prescription table { width: 100%; min-width: 980px; border-collapse: collapse; font-size: 12px; }
+.clinical-prescription th, .clinical-prescription td { padding: 8px; border-bottom: 1px solid #e8eef4; text-align: left; vertical-align: top; }
+.clinical-prescription th { color: #708096; font-size: 11px; font-weight: 700; background: #f6f9fc; white-space: nowrap; }
+.clinical-prescription td:nth-child(10) { min-width: 140px; }
+.clinical-prescription td:nth-child(n+11), .clinical-prescription th:nth-child(n+11), .clinical-prescription tfoot td { text-align: right; white-space: nowrap; }
+.clinical-prescription tfoot td { font-weight: 700; color: #17385e; background: #f8fbff; }
 .clinical-checkbox { display:flex; align-items:center; gap:8px; font-size:13px; }
 .notification-bell { position:relative; }
 .notification-bell__button { position:relative; display:grid; width:40px; height:40px; place-items:center; border:1px solid #e1e8ef; border-radius:10px; background:#fff; cursor:pointer; font-size:18px; }

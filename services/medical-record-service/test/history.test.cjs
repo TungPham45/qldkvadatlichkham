@@ -13,13 +13,16 @@ function fixture() {
   return { service, calls };
 }
 
-test('patient history uses an active owner link and ignores a requested unrelated patient ID', async () => {
+test('patient history includes booked visits and linked profiles, and ignores an unrelated patient ID', async () => {
   const { service, calls } = fixture();
   const result = await service.history({ role: 'PATIENT', sub: 'patient-account' }, { page: 1, limit: 10, patientId: 999 });
   for (const { sql } of calls) {
+    assert.match(sql, /lh\.id_tai_khoan_dat = \$1::uuid/);
     assert.match(sql, /EXISTS \([\s\S]*FROM tai_khoan_benh_nhan owner/);
-    assert.match(sql, /owner\.id_benh_nhan = bn\.id_benh_nhan AND owner\.id_tai_khoan = \$1/);
-    assert.match(sql, /owner\.la_chu_ho_so = TRUE AND owner\.trang_thai = 'Active'/);
+    assert.match(sql, /owner\.id_benh_nhan = bn\.id_benh_nhan/);
+    assert.match(sql, /owner\.id_tai_khoan = \$1::uuid/);
+    assert.match(sql, /owner\.trang_thai = 'Active'/);
+    assert.doesNotMatch(sql, /la_chu_ho_so/);
     assert.doesNotMatch(sql, /bn\.id_tai_khoan/);
   }
   assert.deepEqual(calls[0].values, ['patient-account']);

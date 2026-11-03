@@ -38,7 +38,9 @@ export class DoctorPhotoService {
 
   async open(doctorId: number) {
     const filename = await this.find(doctorId);
-    if (!filename) throw new AppException(404, ErrorCode.DOCTOR_NOT_FOUND, 'Bác sĩ chưa có ảnh đại diện.');
+    // A doctor may legitimately not have uploaded a photo yet. This is not an
+    // error for directory views that render a fallback avatar.
+    if (!filename) return undefined;
     const extension = extname(filename).slice(1);
     const contentType = extension === 'jpg' ? 'image/jpeg' : `image/${extension}`;
     return new StreamableFile(createReadStream(join(this.directory, filename)), { type: contentType, disposition: 'inline' });

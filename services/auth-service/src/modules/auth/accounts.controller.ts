@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, ParseIntPipe, ParseUUIDPipe, Patch, Post, Query, StreamableFile, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, ParseUUIDPipe, Patch, Post, Query, Res, StreamableFile, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { AccessTokenPayload, AppRole, CurrentUser, JwtAuthGuard, Roles, RolesGuard } from '@qlpk/common';
 import { AccountsService } from './accounts.service';
@@ -59,9 +59,18 @@ export class AccountsController {
   }
 
   @Get('doctors/:id/photo')
-  async doctorPhoto(@CurrentUser() user: AccessTokenPayload, @Param('id', ParseIntPipe) id: number): Promise<StreamableFile> {
+  async doctorPhoto(
+    @CurrentUser() user: AccessTokenPayload,
+    @Param('id', ParseIntPipe) id: number,
+    @Res({ passthrough: true }) response: { status(code: number): void },
+  ): Promise<StreamableFile | undefined> {
     await this.accounts.requireDoctor(user.sub, id);
-    return this.doctorPhotos.open(id);
+    const photo = await this.doctorPhotos.open(id);
+    if (!photo) {
+      response.status(204);
+      return undefined;
+    }
+    return photo;
   }
 
   @Patch('doctors/:id')

@@ -28,7 +28,7 @@ function DoctorAvatar({ id, name, version = 0 }: { id: number; name: string; ver
     let objectUrl = '';
     setSource(fallback);
     directoryApi.doctorPhoto(id).then((blob) => {
-      if (!active) return;
+      if (!active || !blob.size || !blob.type.startsWith('image/')) return;
       objectUrl = URL.createObjectURL(blob);
       setSource(objectUrl);
     }).catch(() => undefined);

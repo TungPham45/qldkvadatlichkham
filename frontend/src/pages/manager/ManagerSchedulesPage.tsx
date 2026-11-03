@@ -32,7 +32,7 @@ function DoctorAvatar({ id, name }: { id: number; name: string }) {
     let active = true;
     let objectUrl = '';
     directoryApi.doctorPhoto(id).then((blob) => {
-      if (!active || !blob.type.startsWith('image/')) return;
+      if (!active || !blob.size || !blob.type.startsWith('image/')) return;
       objectUrl = URL.createObjectURL(blob);
       setUrl(objectUrl);
     }).catch(() => {});
